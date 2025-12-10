@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: granite_erp
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - granite-network
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgres://postgres:password@postgres:5432/granite_erp
+      PORT: 3000
+    depends_on:
+      - postgres
+    networks:
+      - granite-network
+    volumes:
+       - ./backend/uploads:/app/uploads
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - granite-network
+
+networks:
+  granite-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

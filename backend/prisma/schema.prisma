@@ -1,0 +1,307 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- CATALOGUE ---
+
+model Material {
+  id            String   @id @default(uuid())
+  name          String
+  category      String   @default("Stone") // Stone, Standard
+  type          String   // Granite, Quartz, etc. for Stone; Category for Standard
+  purchasePrice Float    @default(0) // PRIX D'ACHAT (Intrant)
+  sellingPrice  Float?   // Optionnel, si on veut définir un prix de vente standard
+  unit          String   @default("sqft") // Unité d'achat (sqft, slab, block)
+  
+  density       Float?   // Pour calcul de poids. Only for Stone.
+  wasteFactor   Float    @default(4) // Coefficient de perte (pour XML)
+  densityUnit   String   @default("lb/ft3") // lb/ft3, kg/m3
+  quality       String   @default("S") // S, A, B, C (Qualité de la pierre)
+  sellingUnit   String   @default("sqft") // sqft, m2 (pi3, m3)
+  imageUrl      String?
+  
+  supplierId    String?
+  supplier      ThirdParty? @relation(fields: [supplierId], references: [id])
+
+  quotes        Quote[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// --- TIERS (Clients / Fournisseurs) ---
+
+model ThirdParty {
+  id          String    @id @default(uuid())
+  name        String
+  type        String    // Client, Supplier, etc.
+  code        String?   @unique
+  email       String?
+  phone       String?
+  fax         String?
+  website     String?
+  
+  // Financial
+  defaultCurrency String  @default("CAD")
+  paymentTerms    String? // Net 30, COD, etc. (Legacy string field, keeping for safety)
+  paymentTermId   String?
+  paymentTerm     PaymentTerm? @relation(fields: [paymentTermId], references: [id])
+  paymentDays     Int     @default(0)   // Custom override for days
+  depositPercentage Float @default(0)   // Custom override for deposit %
+  supplierType    String? // Stone, Parts, Carrier, Broker, Other
+  taxScheme       String? // TPS/TVQ, Exempt
+  creditLimit     Float?
+
+  // Commercial
+  repName         String? // Representative Name
+  language        String  @default("fr") // fr/en
+  unitSystem      String  @default("Imperial") // Imperial, Metric
+  incoterm        String? // EXW, FOB jobsite, To Determine
+  priceListUrl    String? // URL PDF liste de prix (Only for Stone Suppliers)
+  priceListDate   String? // "Prix 2023", "Prix 2024", etc.
+  internalNotes   String?
+
+  contacts    Contact[]
+  addresses   Address[]
+
+  projects    Project[] // Projets dont ce tiers est le client principal (généralement architecte/proprio)
+  quotes      Quote[]   // Devis spécifiques envoyés à ce tiers (ex: installateurs)
+  materials   Material[] // Matériaux fournis par ce tiers
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model PaymentTerm {
+  id                String      @id @default(uuid())
+  code              Int         @unique // 1 to 6
+  label_en          String
+  label_fr          String
+  days              Int         @default(0)
+  depositPercentage Float       @default(0)
+  
+  clients           ThirdParty[]
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+}
+
+model Contact {
+  id           String     @id @default(uuid())
+  firstName    String
+  lastName     String
+  email        String?
+  phone        String?
+  mobile       String?
+  fax          String?
+  role         String?
+  thirdPartyId String
+  thirdParty   ThirdParty @relation(fields: [thirdPartyId], references: [id])
+  quotes       Quote[]    // Contact destinataire du devis
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Address {
+  id           String     @id @default(uuid())
+  type         String     // Billing, Delivery, etc.
+  line1        String
+  line2        String?
+  city         String
+  state        String?
+  zipCode      String?
+  country      String
+  thirdPartyId String
+  thirdParty   ThirdParty @relation(fields: [thirdPartyId], references: [id])
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// --- SOUMISSIONS (Quotes/Commercial) ---
+
+// --- PROJECTS ---
+
+model ProjectLocation {
+  id        String   @id @default(uuid())
+  name      String   @unique // e.g., Montreal, Quebec, Toronto...
+  projects  Project[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Project {
+  id              String           @id @default(uuid())
+  name            String
+  reference       String           @unique // P-XXXX
+  status          String           // Prospect, Active, Completed, Archived
+  thirdPartyId    String?
+  client          ThirdParty?      @relation(fields: [thirdPartyId], references: [id])
+  
+  locationId      String?
+  location        ProjectLocation? @relation(fields: [locationId], references: [id])
+  
+  measureSystem   String           @default("Imperial") // Imperial, Metric
+  
+  estimatedWeeks  Int?             // 3 to 12 weeks
+  numberOfLines   Int?             // Number of lines to enter
+  
+  quotes          Quote[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model Quote {
+  id              String      @id @default(uuid())
+  reference       String      @unique // FAA-XXXX ou CYRZ logic
+  version         Int         @default(1)
+  currency        String      @default("CAD")
+  exchangeRate    Float?      @default(1.0) // Taux de change (pour conversion si nécessaire)
+  incoterm        String?     @default("Ex Works") // Default to Ex Works if not set
+  status          String      @default("Draft") // Draft, Sent, Accepted, Rejected
+  projectId       String
+  project         Project     @relation(fields: [projectId], references: [id])
+  thirdPartyId    String
+  client          ThirdParty  @relation(fields: [thirdPartyId], references: [id])
+  contactId       String?
+  contact         Contact?    @relation(fields: [contactId], references: [id])
+  materialId      String?     // Matériau principal pour la soumission
+  material        Material?   @relation(fields: [materialId], references: [id])
+  dateIssued      DateTime    @default(now())
+  validUntil      DateTime?
+  totalAmount     Float       @default(0)
+  estimatedWeeks  Int?        // Nombre de semaines estimé pour la production
+  items           QuoteItem[]
+  
+  // Excel Sync Data
+  excelFilePath   String?     // Chemin du fichier généré
+  syncStatus      String?     // Synced, Pending, Error
+  
+  odooId          String?     // Pour l'intégration Odoo
+  odooStatus      String?     // Synced, Error, Pending
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model QuoteItem {
+  id           String     @id @default(uuid())
+  quoteId      String
+  quote        Quote      @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  
+  // Custom Product Definition (No Catalogue Link)
+  tag          String?    // e.g. "ilot"
+  description  String     // e.g. "Ilot Cuisine"
+  material     String     // e.g. "Granite Noir St-Henry"
+  finish       String?    // e.g. "Poli"
+  unit         String?    // e.g. "sqft", "pcs"
+  
+  // Dimensions
+  length       Float?     // Lo (in)
+  width        Float?     // La (in)
+  thickness    Float?     // Ep (in)
+  
+  quantity     Float      @default(1)
+  
+  // Fabrication / Usining Specs (from Excel columns)
+  numHoles     Int        @default(0)
+  numSlots     Int        @default(0)
+  
+  // Net Totals (from Submission/Excel)
+  netLength    Float      @default(0)
+  netArea      Float      @default(0)
+  netVolume    Float      @default(0)
+  totalWeight  Float      @default(0)
+
+  // Pricing (Synced from Excel)
+  unitPrice    Float      @default(0) // As per Quote Currency
+  totalPrice   Float      @default(0) 
+  
+  // Dual Currency explicit storage (if provided by source)
+  unitPriceCad Float      @default(0)
+  unitPriceUsd Float      @default(0)
+  totalPriceCad Float     @default(0)
+  totalPriceUsd Float     @default(0)
+
+  stoneValue   Float      @default(0) // valeurPierre from XML
+  
+  // Manufacturing Costs (from XML)
+  primarySawingCost   Float @default(0) // scPrimaire
+  secondarySawingCost Float @default(0) // scSecondaire
+  profilingCost       Float @default(0) // profilage
+  finishingCost       Float @default(0) // Finition (cost/value, separate from finish description)
+  anchoringCost       Float @default(0) // Ancrage
+  
+  // Production Time
+  unitTime            Float @default(0) // tempsUnitaire
+  totalTime           Float @default(0) // tempsTotal
+  productionStatus String   @default("Pending") // Pending, In Progress, Done, Shipped
+  productionSiteId String?
+  productionSite   ProductionSite? @relation(fields: [productionSiteId], references: [id])
+  productionNotes  String?
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// --- SETTINGS ---
+
+model Setting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Representative {
+  id        String   @id @default(uuid())
+  firstName String
+  lastName  String
+  email     String?
+  phone     String?
+  mobile    String?
+  fax       String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ContactType {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Language {
+  id        String   @id @default(uuid())
+  code      String   @unique // fr, en
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// --- PRODUCTION ---
+
+model ProductionSite {
+  id        String   @id @default(uuid())
+  name      String   @unique // e.g., Factory A, Factory B
+  
+  items     QuoteItem[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Currency {
+  id        String   @id @default(uuid())
+  code      String   @unique // CAD, USD
+  name      String
+  symbol    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
