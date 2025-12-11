@@ -1,0 +1,284 @@
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { getThirdPartyById, addContact, updateContact, getContactTypes } from '../../services/thirdPartyService';
+import { formatPhoneNumber } from '../../utils/formatters';
+
+const ClientDetail: React.FC = () => {
+    const { id } = useParams<{ id: string }>();
+    const navigate = useNavigate();
+    const [client, setClient] = useState<any>(null);
+    const [contactTypes, setContactTypes] = useState<any[]>([]);
+    const [showContactForm, setShowContactForm] = useState(false);
+    const [editingContactId, setEditingContactId] = useState<string | null>(null);
+    const [contactForm, setContactForm] = useState({
+        firstName: '', lastName: '', email: '', phone: '', mobile: '', fax: '', role: ''
+    });
+
+    useEffect(() => {
+        if (id) loadClient();
+        loadContactTypes();
+    }, [id]);
+
+    const loadClient = async () => {
+        try {
+            const data = await getThirdPartyById(id!);
+            setClient(data);
+        } catch (error) {
+            console.error('Error loading client', error);
+        }
+    };
+
+    const loadContactTypes = async () => {
+        try {
+            const types = await getContactTypes();
+            setContactTypes(types);
+        } catch (error) {
+            console.error('Error loading contact types', error);
+        }
+    };
+
+    const handleSaveContact = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            if (editingContactId) {
+                await updateContact(editingContactId, contactForm);
+            } else {
+                await addContact(id!, contactForm);
+            }
+
+            setContactForm({ firstName: '', lastName: '', email: '', phone: '', mobile: '', fax: '', role: '' });
+            setShowContactForm(false);
+            setEditingContactId(null);
+            loadClient(); // Reload to show updated contact
+        } catch (error) {
+            console.error('Error saving contact', error);
+            alert('Erreur lors de la sauvegarde du contact');
+        }
+    };
+
+    const startEditContact = (contact: any) => {
+        setContactForm({
+            firstName: contact.firstName,
+            lastName: contact.lastName,
+            email: contact.email || '',
+            phone: contact.phone || '',
+            mobile: contact.mobile || '',
+            fax: contact.fax || '',
+            role: contact.role || ''
+        });
+        setEditingContactId(contact.id);
+        setShowContactForm(true);
+    };
+
+    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        const formatted = formatPhoneNumber(value);
+        setContactForm({ ...contactForm, [name]: formatted });
+    };
+
+    if (!client) return <div>Chargement...</div>;
+
+    const mainAddress = client.addresses?.find((a: any) => a.type === 'Main') || {};
+    const isClient = client.type === 'Client';
+    const singular = isClient ? 'Client' : 'Fournisseur';
+    const basePath = isClient ? '/clients' : '/suppliers';
+
+    return (
+        <div className="p-8">
+            <div className="flex justify-between items-center mb-4">
+                <button onClick={() => navigate(basePath)} className="text-gray-500 hover:text-gray-700">
+                    &larr; Retour à la liste
+                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={async () => {
+                            const code = window.prompt("Pour confirmer la suppression, entrez le code de suppression :");
+                            if (code === "1234") {
+                                try {
+                                    const { deleteThirdParty } = await import('../../services/thirdPartyService');
+                                    await deleteThirdParty(id!);
+                                    navigate(basePath);
+                                } catch (error) {
+                                    console.error('Failed to delete', error);
+                                    alert('Erreur lors de la suppression');
+                                }
+                            } else if (code !== null) {
+                                alert("Code incorrect. Suppression annulée.");
+                            }
+                        }}
+                        className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow transition duration-200"
+                    >
+                        Supprimer
+                    </button>
+                    <button
+                        onClick={() => navigate(`${basePath}/${id}/edit`)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow transition duration-200"
+                    >
+                        Modifier le {singular}
+                    </button>
+                </div>
+            </div>
+
+            <div className="bg-white shadow rounded-lg p-6 mb-8 border-l-4 border-primary">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-900">{client.name}</h1>
+                        <p className="text-gray-500">{client.type} - {client.code}</p>
+                    </div>
+                    {client.paymentTerms && (
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${client.limitReached ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                            {client.paymentTerms}
+                        </span>
+                    )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-8 mt-6">
+                    <div>
+                        <h3 className="font-semibold text-gray-700 border-b pb-2 mb-2">Coordonnées</h3>
+                        <p><strong>Email:</strong> {client.email || '-'}</p>
+                        <p><strong>Tel:</strong> {client.phone || '-'}</p>
+                        <p><strong>Fax:</strong> {client.fax || '-'}</p>
+                        <p><strong>Site:</strong> {client.website || '-'}</p>
+                    </div>
+                    <div>
+                        <h3 className="font-semibold text-gray-700 border-b pb-2 mb-2">Adresse Principale</h3>
+                        <p>{mainAddress.line1}</p>
+                        <p>{mainAddress.city} {mainAddress.state} {mainAddress.zipCode}</p>
+                        <p>{mainAddress.country}</p>
+                    </div>
+                    <div>
+                        <h3 className="font-semibold text-gray-700 border-b pb-2 mb-2">Infos Financières</h3>
+                        <p><strong>Devise:</strong> {client.defaultCurrency}</p>
+                        <p><strong>Crédit:</strong> {client.creditLimit ? `$${client.creditLimit}` : 'Non défini'}</p>
+                        <p><strong>Taxes:</strong> {client.taxScheme}</p>
+                    </div>
+                    <div>
+                        <h3 className="font-semibold text-gray-700 border-b pb-2 mb-2">Commercial</h3>
+                        {/* Show Rep for Clients */}
+                        {isClient && (
+                            <p><strong>Représentant:</strong> {client.repName || 'Aucun'}</p>
+                        )}
+                        {/* Show Supplier Type for Suppliers */}
+                        {!isClient && client.supplierType && (
+                            <>
+                                <p><strong>Type:</strong> {client.supplierType}</p>
+                                {client.supplierType === 'Fournisseur de pierre' && client.priceListUrl && (
+                                    <p className="mt-2 text-green-700">
+                                        <a href={`http://localhost:5001${client.priceListUrl}`} target="_blank" rel="noopener noreferrer" className="underline font-bold flex items-center gap-2">
+                                            <span>📄 Liste de prix ({client.priceListDate || 'Année non spécifiée'})</span>
+                                        </a>
+                                    </p>
+                                )}
+                            </>
+                        )}
+                        <p><strong>Langue:</strong> {client.language === 'fr' ? 'Français' : 'Anglais'}</p>
+                        <p><strong>Unité:</strong> {client.unitSystem === 'Metric' ? 'Métrique' : 'Impérial'}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="mb-6 flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-gray-900">Contacts</h2>
+                <button
+                    onClick={() => {
+                        setShowContactForm(!showContactForm);
+                        if (showContactForm) setEditingContactId(null);
+                        if (!showContactForm) setContactForm({ firstName: '', lastName: '', email: '', phone: '', mobile: '', fax: '', role: '' });
+                    }}
+                    className="bg-secondary hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition duration-200"
+                >
+                    {showContactForm ? 'Annuler' : '+ Ajouter un Contact'}
+                </button>
+            </div>
+
+            {showContactForm && (
+                <form onSubmit={handleSaveContact} className="bg-gray-50 p-6 rounded shadow mb-6 border border-gray-200">
+                    <h3 className="text-lg font-bold mb-4">{editingContactId ? 'Modifier Contact' : 'Nouveau Contact'}</h3>
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                        <input
+                            placeholder="Prénom"
+                            className="border p-2 rounded w-full"
+                            value={contactForm.firstName}
+                            onChange={(e) => setContactForm({ ...contactForm, firstName: e.target.value })}
+                            required
+                        />
+                        <input
+                            placeholder="Nom"
+                            className="border p-2 rounded w-full"
+                            value={contactForm.lastName}
+                            onChange={(e) => setContactForm({ ...contactForm, lastName: e.target.value })}
+                            required
+                        />
+                        <select
+                            className="border p-2 rounded w-full bg-white"
+                            value={contactForm.role}
+                            onChange={(e) => setContactForm({ ...contactForm, role: e.target.value })}
+                        >
+                            <option value="">-- Rôle --</option>
+                            {contactTypes.map(type => (
+                                <option key={type.id} value={type.name}>{type.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                        <input
+                            placeholder="Email"
+                            type="email"
+                            className="border p-2 rounded w-full"
+                            value={contactForm.email}
+                            onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                        />
+                        <input
+                            name="phone"
+                            placeholder="Téléphone"
+                            className="border p-2 rounded w-full"
+                            value={contactForm.phone}
+                            onChange={handlePhoneChange}
+                        />
+                        <input
+                            name="mobile"
+                            placeholder="Cellulaire"
+                            className="border p-2 rounded w-full"
+                            value={contactForm.mobile}
+                            onChange={handlePhoneChange}
+                        />
+                        <input
+                            name="fax"
+                            placeholder="Fax"
+                            className="border p-2 rounded w-full"
+                            value={contactForm.fax}
+                            onChange={handlePhoneChange}
+                        />
+                    </div>
+                    <button type="submit" className="bg-primary text-white font-bold py-2 px-4 rounded w-full hover:bg-blue-700">
+                        {editingContactId ? 'Mettre à jour Contact' : 'Sauvegarder Contact'}
+                    </button>
+                </form>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {client.contacts && client.contacts.length > 0 ? (
+                    client.contacts.map((contact: any) => (
+                        <div key={contact.id} className="bg-white border text-sm rounded-lg p-4 shadow-sm hover:shadow-md transition relative group">
+                            <button
+                                onClick={() => startEditContact(contact)}
+                                className="absolute top-2 right-2 text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition"
+                            >
+                                ✏️ Modifier
+                            </button>
+                            <h4 className="font-bold text-lg text-gray-800">{contact.firstName} {contact.lastName}</h4>
+                            <p className="text-blue-600 font-medium mb-2">{contact.role}</p>
+                            <p className="text-gray-600">{contact.email}</p>
+                            <p className="text-gray-600">Tel: {contact.phone}</p>
+                            {contact.fax && <p className="text-gray-600">Fax: {contact.fax}</p>}
+                        </div>
+                    ))
+                ) : (
+                    <p className="text-gray-500 italic col-span-3">Aucun contact enregistré pour ce {singular.toLowerCase()}.</p>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default ClientDetail;
