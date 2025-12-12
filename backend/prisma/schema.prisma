@@ -316,7 +316,10 @@ model Equipment {
   number         String         @unique // Numéro d'équipement
   name           String         
   serialNumber   String?        // Numéro de série
-  category       String         // Catégorie
+  category       String?        // Deprecated: use equipmentCategory
+  
+  categoryId     String?
+  equipmentCategory EquipmentCategory? @relation(fields: [categoryId], references: [id])
   
   productionSiteId String?
   productionSite ProductionSite? @relation(fields: [productionSiteId], references: [id])
@@ -329,6 +332,15 @@ model Equipment {
   
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+}
+
+model EquipmentCategory {
+  id             String      @id @default(uuid())
+  name           String      @unique
+  equipments     Equipment[]
+  
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 }
 
 model Part {

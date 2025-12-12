@@ -12,6 +12,11 @@ interface Supplier {
     name: string;
 }
 
+interface EquipmentCategory {
+    id: string;
+    name: string;
+}
+
 const EquipmentForm: React.FC = () => {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
@@ -21,13 +26,14 @@ const EquipmentForm: React.FC = () => {
         number: '',
         name: '',
         serialNumber: '',
-        category: '',
+        categoryId: '',
         productionSiteId: '',
         supplierId: ''
     });
 
     const [sites, setSites] = useState<ProductionSite[]>([]);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [categories, setCategories] = useState<EquipmentCategory[]>([]);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -39,12 +45,14 @@ const EquipmentForm: React.FC = () => {
 
     const fetchOptions = async () => {
         try {
-            const [sitesRes, suppliersRes] = await Promise.all([
+            const [sitesRes, suppliersRes, categoriesRes] = await Promise.all([
                 api.get('/production-sites'),
-                api.get('/third-parties?type=Supplier')
+                api.get('/third-parties?type=Supplier'),
+                api.get('/maintenance/categories')
             ]);
             setSites(sitesRes.data);
             setSuppliers(suppliersRes.data);
+            setCategories(categoriesRes.data);
         } catch (error) {
             console.error('Error fetching options:', error);
         }
@@ -58,7 +66,7 @@ const EquipmentForm: React.FC = () => {
                 number: data.number,
                 name: data.name,
                 serialNumber: data.serialNumber || '',
-                category: data.category,
+                categoryId: data.categoryId || '',
                 productionSiteId: data.productionSiteId || '',
                 supplierId: data.supplierId || ''
             });
@@ -132,15 +140,18 @@ const EquipmentForm: React.FC = () => {
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700">Catégorie</label>
-                    <input
-                        type="text"
-                        name="category"
-                        value={formData.category}
+                    <select
+                        name="categoryId"
+                        value={formData.categoryId}
                         onChange={handleChange}
                         required
-                        placeholder="Ex: Machine, Outil, Véhicule"
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm border p-2"
-                    />
+                    >
+                        <option value="">Sélectionner une catégorie</option>
+                        {categories.map(cat => (
+                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                    </select>
                 </div>
 
                 <div>

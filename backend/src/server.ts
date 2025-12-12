@@ -24,6 +24,7 @@ import uploadRoutes from './routes/uploadRoutes'; // Added
 import productionRoutes from './routes/productionRoutes'; // Added
 import productionSiteRoutes from './routes/productionSiteRoutes'; // Added
 import equipmentRoutes from './routes/equipmentRoutes'; // Added for Maintenance
+import equipmentCategoryRoutes from './routes/equipmentCategoryRoutes'; // Added for Maintenance Categories
 import path from 'path'; // Added for static serving
 
 app.use('/uploads', express.static(path.join(__dirname, '../uploads'))); // Serve uploads statically
@@ -41,6 +42,7 @@ app.use('/api/upload', uploadRoutes); // Added upload route
 app.use('/api/production', productionRoutes); // Added production route
 app.use('/api/production-sites', productionSiteRoutes); // Added production sites route
 app.use('/api/maintenance/equipment', equipmentRoutes); // Added for Maintenance module
+app.use('/api/maintenance/categories', equipmentCategoryRoutes); // Added for Maintenance Categories
 
 // Removed: app.use('/api/quotes', soumissionRoutes); // Using 'soumission' routes for quotes logic (based on Code Edit snippet)
 

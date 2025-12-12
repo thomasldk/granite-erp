@@ -24,6 +24,8 @@ import ProductionDashboard from './pages/production/ProductionDashboard';
 import MaintenanceDashboard from './pages/maintenance/MaintenanceDashboard';
 import EquipmentList from './pages/maintenance/EquipmentList';
 import EquipmentForm from './pages/maintenance/EquipmentForm';
+import EquipmentCategoryList from './pages/maintenance/EquipmentCategoryList';
+import EquipmentCategoryForm from './pages/maintenance/EquipmentCategoryForm';
 import RHDashboard from './pages/rh/RHDashboard';
 
 // Layout Component (unchanged)
@@ -135,7 +137,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             {isMaintenanceOpen && (
                                 <div className="ml-8 mt-2 space-y-1 text-sm border-l-2 border-gray-700 pl-4">
                                     <Link to="/maintenance/equipment" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Équipements</Link>
-                                    <Link to="/maintenance" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Tableau de Bord</Link>
+                                    <Link to="/maintenance/categories" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Catégories</Link>
                                 </div>
                             )}
                         </li>
@@ -216,6 +218,11 @@ function App() {
                     <Route path="/maintenance/equipment" element={<EquipmentList />} />
                     <Route path="/maintenance/equipment/new" element={<EquipmentForm />} />
                     <Route path="/maintenance/equipment/:id/edit" element={<EquipmentForm />} />
+
+                    <Route path="/maintenance/categories" element={<EquipmentCategoryList />} />
+                    <Route path="/maintenance/categories/new" element={<EquipmentCategoryForm />} />
+                    <Route path="/maintenance/categories/:id/edit" element={<EquipmentCategoryForm />} />
+
 
                     <Route path="/rh" element={<RHDashboard />} />
 

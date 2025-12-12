@@ -8,7 +8,8 @@ export const getAllEquipment = async (req: Request, res: Response) => {
         const equipment = await prisma.equipment.findMany({
             include: {
                 productionSite: true,
-                supplier: true
+                supplier: true,
+                equipmentCategory: true // Include category details
             },
             orderBy: { number: 'asc' }
         });
@@ -27,7 +28,8 @@ export const getEquipmentById = async (req: Request, res: Response) => {
                 productionSite: true,
                 supplier: true,
                 parts: true,
-                requests: true
+                requests: true,
+                equipmentCategory: true // Include category details
             }
         });
         if (!equipment) {
@@ -40,14 +42,15 @@ export const getEquipmentById = async (req: Request, res: Response) => {
 };
 
 export const createEquipment = async (req: Request, res: Response) => {
-    const { number, name, serialNumber, category, productionSiteId, supplierId } = req.body;
+    const { number, name, serialNumber, categoryId, productionSiteId, supplierId } = req.body;
     try {
         const content = await prisma.equipment.create({
             data: {
                 number,
                 name,
                 serialNumber,
-                category,
+                // category is deprecated, we use categoryId
+                categoryId: categoryId || null,
                 productionSiteId: productionSiteId || null,
                 supplierId: supplierId || null
             }
@@ -61,7 +64,7 @@ export const createEquipment = async (req: Request, res: Response) => {
 
 export const updateEquipment = async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { number, name, serialNumber, category, productionSiteId, supplierId } = req.body;
+    const { number, name, serialNumber, categoryId, productionSiteId, supplierId } = req.body;
     try {
         const updated = await prisma.equipment.update({
             where: { id },
@@ -69,7 +72,7 @@ export const updateEquipment = async (req: Request, res: Response) => {
                 number,
                 name,
                 serialNumber,
-                category,
+                categoryId: categoryId || null,
                 productionSiteId: productionSiteId || null,
                 supplierId: supplierId || null
             }
