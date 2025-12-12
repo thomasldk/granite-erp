@@ -313,8 +313,10 @@ model Currency {
 
 model Equipment {
   id             String         @id @default(uuid())
-  number         String         @unique // Numéro d'équipement
+  number         String         @unique // Numéro d'équipement (e.g. EQ-0042)
   name           String         
+  internalId     String?        // No. d'équipement (e.g. 602)
+  accountingCode String?        // No. Comptable
   serialNumber   String?        // Numéro de série
   category       String?        // Deprecated: use equipmentCategory
   
@@ -352,6 +354,23 @@ model Part {
   
   equipmentId    String?
   equipment      Equipment?  @relation(fields: [equipmentId], references: [id])
+  
+  description    String?
+  location       String?
+  supplier       String?
+  note           String?
+  
+  categoryId     String?
+  category       PartCategory? @relation(fields: [categoryId], references: [id])
+  
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+model PartCategory {
+  id             String      @id @default(uuid())
+  name           String      @unique
+  parts          Part[]
   
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt

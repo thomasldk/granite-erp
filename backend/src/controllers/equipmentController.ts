@@ -42,13 +42,15 @@ export const getEquipmentById = async (req: Request, res: Response) => {
 };
 
 export const createEquipment = async (req: Request, res: Response) => {
-    const { number, name, serialNumber, categoryId, productionSiteId, supplierId } = req.body;
+    const { number, name, serialNumber, categoryId, productionSiteId, supplierId, internalId, accountingCode } = req.body;
     try {
         const content = await prisma.equipment.create({
             data: {
                 number,
                 name,
                 serialNumber,
+                internalId,
+                accountingCode,
                 // category is deprecated, we use categoryId
                 categoryId: categoryId || null,
                 productionSiteId: productionSiteId || null,
@@ -64,7 +66,7 @@ export const createEquipment = async (req: Request, res: Response) => {
 
 export const updateEquipment = async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { number, name, serialNumber, categoryId, productionSiteId, supplierId } = req.body;
+    const { number, name, serialNumber, categoryId, productionSiteId, supplierId, internalId, accountingCode } = req.body;
     try {
         const updated = await prisma.equipment.update({
             where: { id },
@@ -72,6 +74,8 @@ export const updateEquipment = async (req: Request, res: Response) => {
                 number,
                 name,
                 serialNumber,
+                internalId,
+                accountingCode,
                 categoryId: categoryId || null,
                 productionSiteId: productionSiteId || null,
                 supplierId: supplierId || null

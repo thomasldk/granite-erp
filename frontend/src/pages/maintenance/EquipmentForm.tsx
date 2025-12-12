@@ -25,6 +25,8 @@ const EquipmentForm: React.FC = () => {
     const [formData, setFormData] = useState({
         number: '',
         name: '',
+        internalId: '',
+        accountingCode: '',
         serialNumber: '',
         categoryId: '',
         productionSiteId: '',
@@ -65,6 +67,8 @@ const EquipmentForm: React.FC = () => {
             setFormData({
                 number: data.number,
                 name: data.name,
+                internalId: data.internalId || '',
+                accountingCode: data.accountingCode || '',
                 serialNumber: data.serialNumber || '',
                 categoryId: data.categoryId || '',
                 productionSiteId: data.productionSiteId || '',
@@ -125,6 +129,29 @@ const EquipmentForm: React.FC = () => {
                         required
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm border p-2"
                     />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">No. Équipement (Interne)</label>
+                        <input
+                            type="text"
+                            name="internalId"
+                            value={formData.internalId}
+                            onChange={handleChange}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm border p-2"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">No. Comptable</label>
+                        <input
+                            type="text"
+                            name="accountingCode"
+                            value={formData.accountingCode}
+                            onChange={handleChange}
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm border p-2"
+                        />
+                    </div>
                 </div>
 
                 <div>

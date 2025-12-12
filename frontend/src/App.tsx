@@ -26,6 +26,10 @@ import EquipmentList from './pages/maintenance/EquipmentList';
 import EquipmentForm from './pages/maintenance/EquipmentForm';
 import EquipmentCategoryList from './pages/maintenance/EquipmentCategoryList';
 import EquipmentCategoryForm from './pages/maintenance/EquipmentCategoryForm';
+import PartList from './pages/maintenance/PartList';
+import PartForm from './pages/maintenance/PartForm';
+import PartCategoryList from './pages/maintenance/PartCategoryList';
+import PartCategoryForm from './pages/maintenance/PartCategoryForm';
 import RHDashboard from './pages/rh/RHDashboard';
 
 // Layout Component (unchanged)
@@ -137,7 +141,10 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             {isMaintenanceOpen && (
                                 <div className="ml-8 mt-2 space-y-1 text-sm border-l-2 border-gray-700 pl-4">
                                     <Link to="/maintenance/equipment" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Équipements</Link>
-                                    <Link to="/maintenance/categories" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Catégories</Link>
+                                    <Link to="/maintenance/categories" className="block text-gray-500 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200 ml-3 text-xs">Catégories</Link>
+
+                                    <Link to="/maintenance/parts" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200 mt-2">Pièces</Link>
+                                    <Link to="/maintenance/part-categories" className="block text-gray-500 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200 ml-3 text-xs">Catégories(Pce)</Link>
                                 </div>
                             )}
                         </li>
@@ -222,6 +229,14 @@ function App() {
                     <Route path="/maintenance/categories" element={<EquipmentCategoryList />} />
                     <Route path="/maintenance/categories/new" element={<EquipmentCategoryForm />} />
                     <Route path="/maintenance/categories/:id/edit" element={<EquipmentCategoryForm />} />
+
+                    <Route path="/maintenance/parts" element={<PartList />} />
+                    <Route path="/maintenance/parts/new" element={<PartForm />} />
+                    <Route path="/maintenance/parts/:id/edit" element={<PartForm />} />
+
+                    <Route path="/maintenance/part-categories" element={<PartCategoryList />} />
+                    <Route path="/maintenance/part-categories/new" element={<PartCategoryForm />} />
+                    <Route path="/maintenance/part-categories/:id/edit" element={<PartCategoryForm />} />
 
 
                     <Route path="/rh" element={<RHDashboard />} />
