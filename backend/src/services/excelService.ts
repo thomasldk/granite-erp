@@ -36,93 +36,72 @@ export class ExcelService {
             // Updated mapping based on analysis of rows 15-50
             // Convention seems to be: Label in Col C (3), Value in Col D (4)
 
-            // Client Info (Assuming header starts earlier, mapping based on pattern)
-            // If Row 15 starts with Name/Matisse, maybe Client section is Rows 15-19?
-            // Row 15: [3]=Nom, [4]=Matisse. This looks like the Sender/Internal info or Client?
-            // "Matisse" sounds like a name.
-            // Row 22: Emetteur = Stanislas...
-            // Let's assume Rows 7-13 were Client in the previous version, but maybe they are actually 15-19?
-            // Wait, Row 15 "Matisse" might be previous client example.
-
             // Let's write Client info to D7-D13 trusting previous knowledge BUT shifting to Col D if it was C.
             // If the user says "understand parameters", I should be careful.
             // Row 15 "Nom" might be "Contact Name" or "Client Name".
 
+            // Correct mapping based on analysis: [null, null, null, "Label", Value]
+            // Label is Col D (4), Value is Col E (5)
+
             const client = quote.client as ThirdParty & { addresses: any[], contacts: any[] };
 
-            // Writing to D7 for Client Name (Hypothesis based on D being Value col)
-            paramSheet.getCell(7, 4).value = client.name; // D7
+            // Writing to E7 for Client Name
+            paramSheet.getCell(7, 5).value = client.name;
 
             const address = client.addresses?.[0] || {};
-            paramSheet.getCell(8, 4).value = address.line1 || '';
-            paramSheet.getCell(9, 4).value = address.city || '';
-            paramSheet.getCell(11, 4).value = address.state || '';
-            paramSheet.getCell(12, 4).value = address.country || '';
-            paramSheet.getCell(13, 4).value = address.zipCode || '';
+            paramSheet.getCell(8, 5).value = address.line1 || '';
+            paramSheet.getCell(9, 5).value = address.city || '';
+            paramSheet.getCell(11, 5).value = address.state || '';
+            paramSheet.getCell(12, 5).value = address.country || '';
+            paramSheet.getCell(13, 5).value = address.zipCode || '';
 
             // Map Contact
             const contact = client.contacts?.[0];
-            // Contact info might be around Row 14-19 or 25-30?
-            // Row 25 "Représentant" -> Name Inconnu. This is Internal Rep.
-            // Row 15 "Nom" / "Matisse". Row 16 "Tel". Row 19 "Mail".
-            // This looks like Client Contact block.
-            paramSheet.getCell(15, 4).value = contact ? `${contact.firstName} ${contact.lastName}` : (client.name || '');
-            paramSheet.getCell(16, 4).value = contact?.phone || client.phone || '';
-            paramSheet.getCell(19, 4).value = contact?.email || client.email || '';
+            paramSheet.getCell(15, 5).value = contact ? `${contact.firstName} ${contact.lastName}` : (client.name || '');
+            paramSheet.getCell(16, 5).value = contact?.phone || client.phone || '';
+            paramSheet.getCell(19, 5).value = contact?.email || client.email || '';
 
-            // Project Info (Confirmed)
-            // Row 20: [3]=Projet, [4]=Projet Name -> D20
-            paramSheet.getCell(20, 4).value = quote.project?.name || '';
+            // Project Info
+            paramSheet.getCell(20, 5).value = quote.project?.name || '';
+            paramSheet.getCell(21, 5).value = quote.reference;
 
-            // Row 21: [3]=Numero, [4]=Ref -> D21
-            paramSheet.getCell(21, 4).value = quote.reference;
-
-            // Row 31: [3]=Nombre de semaine -> D31
             if (quote.estimatedWeeks || quote.estimatedWeeks === 0) {
-                paramSheet.getCell(31, 4).value = quote.estimatedWeeks;
+                paramSheet.getCell(31, 5).value = quote.estimatedWeeks;
             }
 
-            // Row 39: [3]=Langue -> D39
-            // Formula checks IF(UPPER(Langue)="FR"...), so case insensitive but cleaner to uppercase
+            // Langue
             let langCode = (client.language || 'fr').toUpperCase();
-            paramSheet.getCell(39, 4).value = langCode;
+            paramSheet.getCell(39, 5).value = langCode;
 
-            // Row 33: [3]=Délai de paiement -> D33
+            // Payment Terms
             if (client.paymentTerms) {
-                // If terms are "Net 30", extracting 30 might be safer if D33 expects just days.
-                // But for now, user didn't complain specifically about this value format, just "parameters created".
-                // We keep passing the string unless we parse it.
-                paramSheet.getCell(33, 4).value = client.paymentTerms;
+                paramSheet.getCell(33, 5).value = client.paymentTerms;
             }
 
-            // Row 40: System de mesure -> E40 (Col 5)
+            // System de mesure -> E40 (Col 5) - Unchanged
             const sys = quote.project?.measureSystem === 'Metric' ? 'Métrique' : 'Impérial';
             paramSheet.getCell(40, 5).value = sys;
 
-            // Currency Code
-            // Analysis Row 65: [3]=Code de la devise client, [4]=USD
-            // Must write to Col 4 (D65)
+            // Currency -> E65
             if (quote.currency) {
-                paramSheet.getCell(65, 4).value = quote.currency;
+                paramSheet.getCell(65, 5).value = quote.currency;
             } else if (client.defaultCurrency) {
-                paramSheet.getCell(65, 4).value = client.defaultCurrency;
+                paramSheet.getCell(65, 5).value = client.defaultCurrency;
             }
 
-            // Exchange Rate -> D38
-            // Check if quote has it, otherwise default 1.0 or client default?
+            // Exchange Rate -> E38
             if (quote.exchangeRate) {
-                paramSheet.getCell(38, 4).value = quote.exchangeRate;
+                paramSheet.getCell(38, 5).value = quote.exchangeRate;
             } else {
-                paramSheet.getCell(38, 4).value = 1.0;
+                paramSheet.getCell(38, 5).value = 1.0;
             }
 
             // Material Price - Intrant
-            // Adding it to a clear free space, e.g. D55
             if (quote.material) {
                 paramSheet.getCell(55, 3).value = "Pierre (Intrant)";
-                paramSheet.getCell(55, 4).value = quote.material.name;
+                paramSheet.getCell(55, 5).value = quote.material.name; // Changed to Col 5
                 paramSheet.getCell(56, 3).value = "Prix Achat ($)";
-                paramSheet.getCell(56, 4).value = quote.material.purchasePrice;
+                paramSheet.getCell(56, 5).value = quote.material.purchasePrice; // Changed to Col 5
             }
         }
 
@@ -132,11 +111,9 @@ export class ExcelService {
 
         const sheet = workbook.getWorksheet('Cotation');
         if (sheet) {
-            // 1. Client Info (Rows 7-13)
-            // E7: Client Name
-            sheet.getCell('E7').value = quote.client?.name || '';
+            // ... (Client info in E7-E13 is Correct as it targets E by string)
 
-            // Address
+            sheet.getCell('E7').value = quote.client?.name || '';
             const addr = quote.client?.addresses?.[0]; // Use first address
             if (addr) {
                 sheet.getCell('E8').value = addr.line1 || '';
@@ -145,125 +122,90 @@ export class ExcelService {
                 sheet.getCell('E11').value = addr.state || ''; // Province
                 sheet.getCell('E13').value = addr.zipCode || '';
             }
-
-            // Reference in D3 (as requested)
             sheet.getCell('D3').value = quote.reference;
-
-            // 2. Project Info (Rows 20-30)
-            // E20: Project Name
             sheet.getCell('E20').value = quote.project?.name || '';
-
-            // Project Location 
-            // We'll put it in E23 (Ville) for now as it's often a city/region name
-            if (quote.project?.location?.name) {
-                sheet.getCell('E23').value = quote.project.location.name;
-            }
-
-            // 3. Project Settings
-            // E31: Estimated Weeks
-            if (quote.project?.estimatedWeeks) {
-                sheet.getCell('E31').value = quote.project.estimatedWeeks;
-            } else if (quote.project?.estimatedWeeks === 0) {
-                sheet.getCell('E31').value = 0;
-            }
-
-            // F40: Measurement System (Impérial / Métrique)
+            if (quote.project?.location?.name) sheet.getCell('E23').value = quote.project.location.name;
+            if (quote.project?.estimatedWeeks || quote.project?.estimatedWeeks === 0) sheet.getCell('E31').value = quote.project.estimatedWeeks;
             const sys = quote.project?.measureSystem === 'Metric' ? 'Métrique' : 'Impérial';
             sheet.getCell('F40').value = sys;
+            if (quote.client?.paymentTerms) sheet.getCell('E43').value = quote.client.paymentTerms;
 
-            // 4. Payment Terms
-            if (quote.client?.paymentTerms) {
-                // Mapping terms string to E43 (Condition de paiement Texte ?) based on previous logic check
-                sheet.getCell('E43').value = quote.client.paymentTerms;
-            }
-
-            // Material Info (Intrant) - Explicit Addition
             if (quote.material) {
-                // Placing it in a likely free area for visibility, matching Paramètre update
                 sheet.getCell('D35').value = "Matériau/Pierre:";
                 sheet.getCell('E35').value = quote.material.name;
                 sheet.getCell('D36').value = "Prix Achat ($):";
                 sheet.getCell('E36').value = quote.material.purchasePrice;
             }
 
-            // --- Dynamic Line Generation ---
-            // Based on Project.numberOfLines
-            // Template Row is Row 13 (based on analysis) containing formulas.
-            // We need to ensure we have 'numberOfLines' rows starting at 13.
-
-            const numberOfLines = quote.project?.numberOfLines || 1; // Default to 1 if not defined
+            // --- Dynamic Line Generation & Population ---
+            const items = quote.items || [];
+            // We ensure we have enough lines for the items + any extra defined by project settings
+            const numberOfLines = Math.max(items.length, quote.project?.numberOfLines || 1);
             const START_ROW = 13;
 
             if (numberOfLines > 0) {
                 const templateRow = sheet.getRow(START_ROW);
 
-                // We loop to ensure rows exist and are copies of template
-                // We start at 1 because Row 13 (index 0 relative check) is already there.
-                // But we might want to "reset" Row 13 if it had dummy data? 
-                // Creating a loop from 0 to N-1
-
                 for (let i = 0; i < numberOfLines; i++) {
                     const currentRowNum = START_ROW + i;
                     const currentRow = sheet.getRow(currentRowNum);
 
-                    if (currentRowNum === START_ROW) {
-                        // It's the template row itself. Keep it but maybe clear values input?
-                        // If we preserve it, good.
-                        continue;
+                    if (currentRowNum !== START_ROW) {
+                        currentRow.height = templateRow.height;
+                        templateRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+                            const targetCell = currentRow.getCell(colNumber);
+                            targetCell.style = cell.style;
+                            // Copy value/formula initially to keep structure
+                            // But we will overwrite data cells next
+                            targetCell.value = cell.value;
+                        });
+                        currentRow.commit();
                     }
 
-                    // For subsequent rows, we copy styles and formulas from Template Row
-                    currentRow.height = templateRow.height;
+                    // Populate Data if item exists for this row
+                    if (i < items.length) {
+                        const item = items[i];
+                        // Mappings based on Analysis:
+                        // K(11): Tag
+                        // L(12): Material (Granite)
+                        // M(13): Qty
+                        // N(14): Unit
+                        // O(15): Length
+                        // P(16): Width
+                        // Q(17): Thickness
+                        // R(18): Description
+                        // S(19): Net Length
+                        // T(20): Net Area
+                        // U(21): Net Volume
+                        // V(22): Weight
+                        // W(23): Unit Price CAD
+                        // X(24): Unit Price USD
+                        // Z(26): Total CAD
+                        // AA(27): Total USD
 
-                    templateRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-                        const targetCell = currentRow.getCell(colNumber);
+                        currentRow.getCell(11).value = item.tag || (i + 1);
+                        currentRow.getCell(12).value = item.material || quote.material?.name || '';
+                        currentRow.getCell(13).value = item.quantity;
+                        currentRow.getCell(14).value = item.unit || 'ea';
+                        currentRow.getCell(15).value = item.length;
+                        currentRow.getCell(16).value = item.width;
+                        currentRow.getCell(17).value = item.thickness;
+                        currentRow.getCell(18).value = item.description;
 
-                        // Copy Style
-                        targetCell.style = cell.style;
+                        // Outputs (Overwriting formulas with calculated values)
+                        currentRow.getCell(19).value = item.netLength;
+                        currentRow.getCell(20).value = item.netArea;
+                        currentRow.getCell(21).value = item.netVolume;
+                        currentRow.getCell(22).value = item.totalWeight;
+                        currentRow.getCell(23).value = item.unitPriceCad;
+                        currentRow.getCell(24).value = item.unitPriceUsd;
+                        // Col Y (25) is 'UNIT' again? Log says "UNIT".
 
-                        // Copy Value / Formula
-                        if (cell.type === ExcelJS.ValueType.Formula) {
-                            // Adjust formula reference: Replace '13' with 'currentRowNum'
-                            // Regex to match '13' preceded by non-digit or at start, followed by non-digit or end.
-                            // But simpler: just replace "13" might be risky if "130" exists.
-                            // Given the specific layout, strictly replacing references like "A13", "AC13" is safer.
-                            // But formulas can be complex.
-                            // Quick heuristic: simple replaceAll "13" with "currentRowNum" IF it looks like a cell ref.
-                            // Most refs are [Letter]13.
-                            // Regex: ([A-Z]+)13(\D|$) -> $1{NewRow}$2
+                        currentRow.getCell(26).value = item.totalPriceCad;
+                        currentRow.getCell(27).value = item.totalPriceUsd;
 
-                            const formula = cell.formula;
-                            const newFormula = formula.replace(/([A-Z]+)13(\b|\D)/g, (match, p1, p2) => {
-                                return `${p1}${currentRowNum}${p2}`;
-                            });
-
-                            // Handling complex "ROW(G13)" or similar
-                            // The regex above handles G13.
-                            // What about "13" as a constant? e.g. /13. If formula has constant division, we might break it.
-                            // But usually constants are not 13.
-                            // Row 13 formulas viewed:
-                            // IF(Mesure="Impérial",N13/12*L13...)
-                            // INDIRECT(...,ROW(M13)-5)
-                            // This regex `([A-Z]+)13` covers N13, L13, M13. Safe.
-
-                            targetCell.value = {
-                                formula: newFormula,
-                                result: undefined // Clear result to force calc
-                            } as any;
-                        } else {
-                            // Copy static value if meant to be template structure (like "step" or values)
-                            // But maybe we want empty values for inputs?
-                            // Inputs are usually in M, N, O, P, Q.
-                            // Template has: 1, "step", 96, 24, 7...
-                            // If we want "Blank" lines for user to fill, we should clear specific columns.
-                            // Let's copy everything first (to keep structure) and then maybe clear inputs if this is a "Blank Quote" generation.
-                            // User said "bypassing manual entry... Excel template itself will serve as mechanism".
-                            // So we just provide the lines.
-                            targetCell.value = cell.value;
-                        }
-                    });
-
-                    currentRow.commit();
+                        currentRow.commit();
+                    }
                 }
             }
         }

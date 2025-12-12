@@ -134,3 +134,13 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Backend Specific
+backend/uploads/
+backend/temp/
+backend/*.sql
+backend/prisma/*.db
+backend/axios_test.xlsx
+backend/scripts/data_dump.json
+backend/test_download.xlsx
+backend/scripts/windows_bridge.js

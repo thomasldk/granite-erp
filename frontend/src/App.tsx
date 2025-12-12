@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { SystemConfigPage } from './pages/settings/SystemConfigPage';
 import { UsersIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import ClientList from './pages/clients/ClientList';
 import ClientForm from './pages/clients/ClientForm';
@@ -19,6 +20,7 @@ import LanguageList from './pages/settings/LanguageList';
 import CurrencyList from './pages/settings/CurrencyList';
 import ProjectLocationList from './pages/settings/ProjectLocationList';
 import ProductionSiteList from './pages/settings/ProductionSiteList';
+import MaintenanceSiteList from './pages/settings/MaintenanceSiteList';
 import { DatabaseSettings } from './pages/settings/DatabaseSettings';
 import ProductionDashboard from './pages/production/ProductionDashboard';
 import MaintenanceDashboard from './pages/maintenance/MaintenanceDashboard';
@@ -207,6 +209,8 @@ function App() {
                         <Route path="currencies" element={<CurrencyList />} />
                         <Route path="locations" element={<ProjectLocationList />} />
                         <Route path="production-sites" element={<ProductionSiteList />} />
+                        <Route path="maintenance-sites" element={<MaintenanceSiteList />} />
+                        <Route path="system" element={<SystemConfigPage />} />
                         <Route path="database" element={<DatabaseSettings />} />
                     </Route>
                 </Routes>

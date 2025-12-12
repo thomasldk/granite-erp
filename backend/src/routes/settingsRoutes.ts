@@ -1,11 +1,17 @@
 import { Router } from 'express';
 import {
     getLanguages, createLanguage, deleteLanguage,
+
     getCurrencies, createCurrency, deleteCurrency,
-    downloadBackup
+    downloadBackup,
+    getSystemSettings, updateSystemSettings
 } from '../controllers/settingsController';
 
 const router = Router();
+
+// System Settings
+router.get('/system', getSystemSettings);
+router.put('/system', updateSystemSettings);
 
 // Languages
 router.get('/languages', getLanguages);

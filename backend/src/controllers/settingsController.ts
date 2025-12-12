@@ -97,3 +97,35 @@ export const downloadBackup = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Failed to generate backup' });
     }
 };
+
+// System Settings (Generic Key-Value)
+export const getSystemSettings = async (req: Request, res: Response) => {
+    try {
+        const settings = await prisma.setting.findMany();
+        // Convert array to object { key: value }
+        const settingsMap: Record<string, string> = {};
+        settings.forEach(s => settingsMap[s.key] = s.value);
+        res.json(settingsMap);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch settings' });
+    }
+};
+
+export const updateSystemSettings = async (req: Request, res: Response) => {
+    try {
+        const settings = req.body; // Expect { key: value, key2: value2 }
+
+        const promises = Object.entries(settings).map(([key, value]) => {
+            return prisma.setting.upsert({
+                where: { key },
+                update: { value: String(value) },
+                create: { key, value: String(value) }
+            });
+        });
+
+        await Promise.all(promises);
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update settings' });
+    }
+};

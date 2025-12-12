@@ -16,8 +16,11 @@ const ClientDetail: React.FC = () => {
 
     useEffect(() => {
         if (id) loadClient();
-        loadContactTypes();
     }, [id]);
+
+    useEffect(() => {
+        if (client) loadContactTypes();
+    }, [client]);
 
     const loadClient = async () => {
         try {
@@ -30,7 +33,9 @@ const ClientDetail: React.FC = () => {
 
     const loadContactTypes = async () => {
         try {
-            const types = await getContactTypes();
+            // Wait for client to be loaded to know the type
+            if (!client) return;
+            const types = await getContactTypes(client.type);
             setContactTypes(types);
         } catch (error) {
             console.error('Error loading contact types', error);
@@ -164,7 +169,7 @@ const ClientDetail: React.FC = () => {
                                 <p><strong>Type:</strong> {client.supplierType}</p>
                                 {client.supplierType === 'Fournisseur de pierre' && client.priceListUrl && (
                                     <p className="mt-2 text-green-700">
-                                        <a href={`http://localhost:5001${client.priceListUrl}`} target="_blank" rel="noopener noreferrer" className="underline font-bold flex items-center gap-2">
+                                        <a href={`${client.priceListUrl}`} target="_blank" rel="noopener noreferrer" className="underline font-bold flex items-center gap-2">
                                             <span>📄 Liste de prix ({client.priceListDate || 'Année non spécifiée'})</span>
                                         </a>
                                     </p>

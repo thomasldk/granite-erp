@@ -10,14 +10,15 @@ const ContactTypeList: React.FC = () => {
     const [types, setTypes] = useState<ContactType[]>([]);
     const [newType, setNewType] = useState('');
     const [loading, setLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState<'Client' | 'Supplier'>('Client');
 
     useEffect(() => {
         loadTypes();
-    }, []);
+    }, [activeTab]);
 
     const loadTypes = async () => {
         try {
-            const data = await getContactTypes();
+            const data = await getContactTypes(activeTab);
             setTypes(data);
         } catch (error) {
             console.error('Error loading contact types', error);
@@ -30,7 +31,7 @@ const ContactTypeList: React.FC = () => {
 
         setLoading(true);
         try {
-            await createContactType(newType);
+            await createContactType(newType, activeTab);
             setNewType('');
             loadTypes();
         } catch (error) {
@@ -54,12 +55,33 @@ const ContactTypeList: React.FC = () => {
         <div className="p-6">
             <h2 className="text-2xl font-bold mb-6 text-gray-800">Types de Contact</h2>
 
+            <div className="flex border-b border-gray-200 mb-6">
+                <button
+                    className={`py-2 px-4 font-medium text-sm focus:outline-none ${activeTab === 'Client'
+                        ? 'border-b-2 border-primary text-primary'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    onClick={() => setActiveTab('Client')}
+                >
+                    Types Clients
+                </button>
+                <button
+                    className={`py-2 px-4 font-medium text-sm focus:outline-none ${activeTab === 'Supplier'
+                        ? 'border-b-2 border-primary text-primary'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    onClick={() => setActiveTab('Supplier')}
+                >
+                    Types Fournisseurs
+                </button>
+            </div>
+
             <form onSubmit={handleAdd} className="mb-8 flex gap-4">
                 <input
                     type="text"
                     value={newType}
                     onChange={(e) => setNewType(e.target.value)}
-                    placeholder="Nouveau type (ex: Architecte, Comptable...)"
+                    placeholder={`Nouveau type ${activeTab === 'Client' ? 'Client' : 'Fournisseur'}...`}
                     className="flex-1 shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <button
@@ -102,7 +124,7 @@ const ContactTypeList: React.FC = () => {
                         {types.length === 0 && (
                             <tr>
                                 <td colSpan={2} className="px-5 py-5 border-b border-gray-200 bg-white text-sm text-center text-gray-500">
-                                    Aucun type de contact défini.
+                                    Aucun type pour {activeTab === 'Client' ? 'Clients' : 'Fournisseurs'}.
                                 </td>
                             </tr>
                         )}

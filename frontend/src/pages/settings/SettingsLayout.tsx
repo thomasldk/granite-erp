@@ -75,7 +75,30 @@ const SettingsLayout: React.FC = () => {
                     >
                         Lieux de Production
                     </NavLink>
+                    <NavLink
+                        to="/settings/maintenance-sites"
+                        className={({ isActive }) =>
+                            `flex items-center px-6 py-2 text-sm font-medium ${isActive
+                                ? 'bg-blue-50 text-primary border-r-4 border-primary'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }`
+                        }
+                    >
+                        Lieux de Maintenance
+                    </NavLink>
                     {/* Add other sub-tabs here later */}
+
+                    <NavLink
+                        to="/settings/system"
+                        className={({ isActive }) =>
+                            `flex items-center px-6 py-2 text-sm font-medium ${isActive
+                                ? 'bg-blue-50 text-primary border-r-4 border-primary'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }`
+                        }
+                    >
+                        Configuration Système
+                    </NavLink>
                     <NavLink
                         to="/settings/database"
                         className={({ isActive }) =>

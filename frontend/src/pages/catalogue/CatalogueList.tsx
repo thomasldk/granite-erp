@@ -156,7 +156,7 @@ const CatalogueList: React.FC<{ category?: string }> = ({ category }) => {
                                                 <p className="text-sm text-primary font-semibold">{main.supplier.name}</p>
                                                 {main.supplier.priceListUrl && (
                                                     <a
-                                                        href={`http://localhost:5001${main.supplier.priceListUrl}`}
+                                                        href={`${main.supplier.priceListUrl}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         title={`Liste de prix ${main.supplier.priceListDate || ''}`}

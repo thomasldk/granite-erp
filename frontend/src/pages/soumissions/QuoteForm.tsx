@@ -32,7 +32,7 @@ export default function QuoteForm() {
     const [projects, setProjects] = useState<any[]>([]);
     const [materials, setMaterials] = useState<Material[]>([]); // New State
     const [loading, setLoading] = useState(!isNew);
-    const [downloading, setDownloading] = useState(false);
+    const [activeAction, setActiveAction] = useState<string | null>(null);
 
 
     useEffect(() => {
@@ -79,20 +79,15 @@ export default function QuoteForm() {
 
     const fetchQuote = async () => {
         try {
-            const res = await api.get(`/quotes/${id}`);
+            const { data } = await api.get(`/quotes/${id}?t=${Date.now()}`);
             setFormData({
-                reference: res.data.reference,
-                thirdPartyId: res.data.thirdPartyId,
-                projectId: res.data.projectId,
-                status: res.data.status,
-                dateIssued: res.data.dateIssued.split('T')[0],
-                estimatedWeeks: res.data.estimatedWeeks || 0,
-                // @ts-ignore
-                materialId: res.data.materialId || '', // Fix: Restore materialId
-                exchangeRate: res.data.exchangeRate || 1.0, // Fetch exchangeRate
-                incoterm: res.data.incoterm || 'Ex Works',
-                currency: res.data.currency || 'CAD',
-                items: res.data.items || []
+                ...data,
+                dateIssued: data.dateIssued ? data.dateIssued.split('T')[0] : new Date().toISOString().split('T')[0],
+                validUntil: data.validUntil ? data.validUntil.split('T')[0] : '',
+                project: {
+                    ...data.project,
+                    numberOfLines: data.project?.numberOfLines || 0
+                }
             });
             // setItems(res.data.items || []); // Removed
         } catch (error) {
@@ -119,7 +114,7 @@ export default function QuoteForm() {
             return;
         }
 
-        setDownloading(true);
+        setActiveAction('SAVE');
         try {
             const payload = {
                 ...formData,
@@ -138,8 +133,7 @@ export default function QuoteForm() {
                     });
                 }
 
-                alert(`Soumission ${res.data.reference} créée avec succès !`);
-                // Redirect to edit mode to enable XML download
+                // Redirect to edit mode
                 navigate(`/quotes/${res.data.id}`);
             } else {
                 await api.put(`/quotes/${id}`, payload);
@@ -151,14 +145,12 @@ export default function QuoteForm() {
                         numberOfLines: currentProj.numberOfLines
                     });
                 }
-
-                alert(`Soumission ${formData.reference} mise à jour avec succès !`);
             }
         } catch (error) {
             console.error(error);
             alert("Erreur lors de la sauvegarde.");
         } finally {
-            setDownloading(false);
+            setActiveAction(null);
         }
     };
 
@@ -199,123 +191,194 @@ export default function QuoteForm() {
                         {isNew ? 'Nouvelle Soumission' : `Soumission ${formData.reference}`}
                     </h1>
                 </div>
-                <div className="flex gap-2">
-                    {!isReadOnly && (
-                        <button
-                            type="button"
-                            onClick={async () => {
-                                if (!id) {
-                                    alert("Veuillez d'abord créer la soumission (Bouton 'Créer la soumission') avant de générer le fichier Excel.");
-                                    return;
-                                }
-                                try {
-                                    setDownloading(true);
-                                    // Call backend which handles RAK generation, Waiting, and Sync
-                                    const res = await api.get(`/quotes/${id}/download-excel`, { timeout: 120000 }); // 2 minute timeout for sync wait
-
-                                    alert(`Génération réussie et données synchronisées ! ${res.data.itemsCount} lignes mises à jour.`);
-                                    fetchQuote();
-                                } catch (error: any) {
-                                    console.error('Erreur generation:', error);
-                                    if (error.response && error.response.data && error.response.data.details) {
-                                        alert(`Erreur (${error.response.status}): ${error.response.data.details}`);
-                                    } else if (error.message) {
-                                        alert(`Erreur technique : ${error.message}`);
-                                    } else {
-                                        alert("Erreur inconnue lors de la génération.");
-                                    }
-                                } finally {
-                                    setDownloading(false);
-                                }
-                            }}
-                            className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-semibold shadow-sm ml-4 ${!id
-                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                : 'bg-green-600 text-white hover:bg-green-500'
-                                }`}
-                        >
-                            {downloading ? 'Génération en cours...' : 'Générer la Cotation (Excel)'}
-                        </button>
-                    )}
-                    {!isNew && (
-                        <button
-                            type="button"
-                            onClick={async () => {
-                                if (confirm(`Voulez-vous créer une révision (Copies de R${formData.reference.split('R').pop()}) ?`)) {
-                                    try {
-                                        setDownloading(true);
-                                        const res = await api.post(`/quotes/${id}/revise`);
-                                        alert("Révision créée : " + res.data.reference);
-                                        navigate(`/quotes/${res.data.id}`);
-                                    } catch (e) {
-                                        console.error(e);
-                                        alert("Erreur lors de la révision");
-                                    } finally {
-                                        setDownloading(false);
-                                    }
-                                }
-                            }}
-                            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded ml-4"
-                        >
-                            Créer Révision
-                        </button>
-                    )}
-
-                    {!isNew && (
-                        <button
-                            type="button"
-                            onClick={async () => {
-                                if (confirm("Voulez-vous dupliquer cette soumission (Nouveau numéro de référence) ?")) {
-                                    try {
-                                        setDownloading(true);
-                                        const res = await api.post(`/quotes/${id}/duplicate`);
-                                        alert("Duplication réussie : " + res.data.reference);
-                                        navigate(`/quotes/${res.data.id}`);
-                                    } catch (e) {
-                                        console.error(e);
-                                        alert("Erreur lors de la duplication");
-                                    } finally {
-                                        setDownloading(false);
-                                    }
-                                }
-                            }}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-                        >
-                            Dupliquer
-                        </button>
-                    )}
-                    {!isNew && formData.status !== 'Accepted' && (
-                        <button
-                            type="button"
-                            onClick={async () => {
-                                if (confirm("Émettre la soumission ? (Le statut passera à 'Accepted')")) {
-                                    try {
-                                        setDownloading(true);
-                                        await api.post(`/quotes/${id}/emit`);
-                                        alert("Soumission émise et envoyée par courriel !");
-                                        // Refresh
-                                        await fetchQuote();
-                                    } catch (e) {
-                                        console.error(e);
-                                        alert("Erreur lors de l'émission");
-                                    } finally {
-                                        setDownloading(false);
-                                    }
-                                }
-                            }}
-                            className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded"
-                        >
-                            Émettre
-                        </button>
-                    )}
-                    {/* Header Action Buttons */}
+                <div className="flex items-center gap-2 flex-wrap">
+                    {/* 1. SAUVEGARDER (BLUE) */}
                     {!isReadOnly && (
                         <button
                             type="button"
                             onClick={handleSubmit}
-                            className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm ${downloading || !formData.thirdPartyId ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'}`}
-                            disabled={downloading || !formData.thirdPartyId}
+                            className={`inline-flex items-center rounded px-2 py-1 text-sm font-semibold text-white shadow-sm ${activeAction === 'SAVE' || !formData.thirdPartyId ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'}`}
+                            disabled={!!activeAction || !formData.thirdPartyId}
                         >
-                            {downloading ? 'Traitement...' : (id ? 'Enregistrer' : 'Créer la soumission')}
+                            {activeAction === 'SAVE' ? '...' : (id ? 'Enregistrer' : 'Créer')}
+                        </button>
+                    )}
+
+                    {/* 2. GENERER EXCEL (GREEN) */}
+                    {!isReadOnly && id && (
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                try {
+                                    setActiveAction('GENERATE');
+                                    // 1. Trigger
+                                    await api.get(`/quotes/${id}/download-excel`);
+
+                                    // 2. Poll
+                                    const pollInterval = setInterval(async () => {
+                                        try {
+                                            const pollRes = await api.get(`/quotes/${id}?t=${Date.now()}`);
+                                            const status = pollRes.data.syncStatus;
+                                            if (status === 'Calculated (Agent)') {
+                                                clearInterval(pollInterval);
+                                                fetchQuote();
+                                                setTimeout(async () => {
+                                                    try {
+                                                        const response = await api.get(`/quotes/${id}/download-result?t=${Date.now()}`, { responseType: 'blob' });
+                                                        const url = window.URL.createObjectURL(new Blob([response.data]));
+                                                        const link = document.createElement('a');
+                                                        link.href = url;
+                                                        // Filename extraction
+                                                        const disposition = response.headers['content-disposition'];
+                                                        console.log("Download Header:", disposition);
+                                                        let fileName = 'soumission.xlsx';
+                                                        if (disposition && disposition.indexOf('attachment') !== -1) {
+                                                            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                                                            const matches = filenameRegex.exec(disposition);
+                                                            if (matches != null && matches[1]) {
+                                                                fileName = matches[1].replace(/['"]/g, '');
+                                                            }
+                                                        }
+                                                        link.setAttribute('download', fileName);
+                                                        document.body.appendChild(link);
+                                                        link.click();
+                                                        link.remove();
+                                                        setActiveAction(null);
+                                                    } catch (e) { setActiveAction(null); }
+                                                }, 1000);
+                                            } else if (status === 'ERROR_AGENT') {
+                                                clearInterval(pollInterval);
+                                                setActiveAction(null);
+                                                alert("Erreur Agent");
+                                            }
+                                        } catch (e) { }
+                                    }, 2000);
+
+                                    // Timeout
+                                    setTimeout(() => { if (activeAction === 'GENERATE') { clearInterval(pollInterval); setActiveAction(null); } }, 120000);
+
+                                } catch (e) { setActiveAction(null); alert("Erreur génération"); }
+                            }}
+                            className={`inline-flex items-center rounded px-2 py-1 text-sm font-semibold text-white shadow-sm ${activeAction === 'GENERATE' ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-500'}`}
+                            disabled={!!activeAction}
+                        >
+                            {activeAction === 'GENERATE' ? 'Génération...' : 'Générer Excel'}
+                        </button>
+                    )}
+
+                    {/* 3. REINTEGRER EXCEL (PURPLE) */}
+                    {!isNew && (
+                        <label className={`inline-flex items-center rounded px-2 py-1 text-sm font-semibold text-white shadow-sm ${activeAction === 'REINTEGRATE' ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500 cursor-pointer'}`}>
+                            {activeAction === 'REINTEGRATE' ? 'Réintégration...' : 'Réintégrer'}
+                            <input
+                                type="file"
+                                accept=".xlsx"
+                                className="hidden"
+                                disabled={!!activeAction}
+                                onChange={async (e) => {
+                                    if (e.target.files && e.target.files[0]) {
+                                        const file = e.target.files[0];
+                                        // NO CONFIRM ALERT
+                                        setActiveAction('REINTEGRATE');
+                                        try {
+                                            const fd = new FormData();
+                                            fd.append('file', file);
+                                            await api.post(`/quotes/${id}/reintegrate-excel`, fd);
+
+                                            // Poll
+                                            const pollInterval = setInterval(async () => {
+                                                try {
+                                                    const res = await api.get(`/quotes/${id}?t=${Date.now()}`);
+                                                    if (res.data.syncStatus === 'Calculated (Agent)') {
+                                                        clearInterval(pollInterval);
+                                                        fetchQuote();
+                                                        setActiveAction(null);
+                                                        // alert("Réintégration terminée !"); // Removed as requested
+                                                    } else if (res.data.syncStatus === 'ERROR_AGENT') {
+                                                        clearInterval(pollInterval);
+                                                        setActiveAction(null);
+                                                        alert("Erreur Agent");
+                                                    }
+                                                } catch (err) { }
+                                            }, 2000);
+                                            setTimeout(() => { if (activeAction === 'REINTEGRATE') { clearInterval(pollInterval); setActiveAction(null); } }, 120000);
+
+                                        } catch (err) {
+                                            console.error(err);
+                                            setActiveAction(null);
+                                            alert("Erreur envoi");
+                                        } finally {
+                                            e.target.value = '';
+                                        }
+                                    }
+                                }}
+                            />
+                        </label>
+                    )}
+
+                    {/* 4. DUPLIQUER (ORANGE) */}
+                    {!isNew && (
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                if (confirm("Dupliquer ?")) {
+                                    try {
+                                        setActiveAction('DUPLICATE');
+                                        const res = await api.post(`/quotes/${id}/duplicate`);
+                                        navigate(`/quotes/${res.data.id}`);
+                                    } catch (e) { alert("Erreur duplication"); }
+                                    finally { setActiveAction(null); }
+                                }
+                            }}
+                            className="inline-flex items-center rounded px-2 py-1 text-sm font-semibold text-white shadow-sm bg-orange-600 hover:bg-orange-500"
+                            disabled={!!activeAction}
+                        >
+                            Dupliquer
+                        </button>
+                    )}
+
+                    {/* 5. RECOPIER / REVISER (YELLOW) */}
+                    {!isNew && (
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                if (confirm("Créer une révision ?")) {
+                                    try {
+                                        setActiveAction('REVISE');
+                                        const res = await api.post(`/quotes/${id}/revise`);
+                                        navigate(`/quotes/${res.data.id}`);
+                                    } catch (e) { alert("Erreur révision"); }
+                                    finally { setActiveAction(null); }
+                                }
+                            }}
+                            className="inline-flex items-center rounded px-2 py-1 text-sm font-semibold text-white shadow-sm bg-yellow-500 hover:bg-yellow-400"
+                            disabled={!!activeAction}
+                        >
+                            Recopier/Rev
+                        </button>
+                    )}
+
+                    {/* SPACER */}
+                    <div className="flex-grow"></div>
+
+                    {/* 6. EMETTRE (RIGHT - RED/DARK) */}
+                    {!isNew && formData.status !== 'Accepted' && (
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                if (confirm("Émettre la soumission ?")) {
+                                    try {
+                                        setActiveAction('EMIT');
+                                        await api.post(`/quotes/${id}/emit`);
+                                        fetchQuote();
+                                    } catch (e) { alert("Erreur émission"); }
+                                    finally { setActiveAction(null); }
+                                }
+                            }}
+                            className="inline-flex items-center rounded px-2 py-1 text-sm font-bold text-white shadow-sm bg-red-600 hover:bg-red-500"
+                            disabled={!!activeAction}
+                        >
+                            Émettre
                         </button>
                     )}
                 </div>
@@ -664,265 +727,27 @@ export default function QuoteForm() {
                 </div>
             </div>
 
-            <div className="flex flex-col mt-8 border-t pt-8">
-                <p className="text-gray-600 mb-4 text-center max-w-md mx-auto">
-                    Enregistrez la soumission pour activer le téléchargement XML.
-                </p>
-
-                <div className="flex flex-wrap items-center justify-center gap-4">
-                    {!isReadOnly && (
-                        <button
-                            type="button"
-                            onClick={handleSubmit}
-                            className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm ${downloading || !formData.thirdPartyId ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'}`}
-                            disabled={downloading || !formData.thirdPartyId}
-                        >
-                            {downloading ? 'Traitement...' : (id ? 'Enregistrer' : 'Créer la soumission')}
-                        </button>
-                    )}
-
-                    {!isNew && (
-                        <>
-                            {!isReadOnly && (
-                                <button
-                                    type="button"
-                                    onClick={async () => {
-                                        if (confirm("Êtes-vous sûr de vouloir émettre cette soumission ? Elle ne sera plus modifiable.")) {
-                                            try {
-                                                setDownloading(true);
-                                                await api.post(`/quotes/${id}/emit`);
-                                                alert("Soumission émise avec succès !");
-                                                fetchQuote();
-                                            } catch (e) {
-                                                console.error(e);
-                                                alert("Erreur lors de l'émission");
-                                            } finally {
-                                                setDownloading(false);
-                                            }
-                                        }
-                                    }}
-                                    className="inline-flex items-center rounded-md bg-orange-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-orange-500 ml-4"
-                                >
-                                    Émettre
-                                </button>
-                            )}
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (!id) {
-                                        alert("Veuillez d'abord créer la soumission.");
-                                        return;
-                                    }
-                                    // Direct validation of backend URL to avoid proxy issues
-                                    window.location.href = `/api/quotes/${id}/download-pdf`;
-                                }}
-                                className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-semibold shadow-sm ml-4 ${!id
-                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                    : 'bg-red-600 text-white hover:bg-red-500'
-                                    }`}
-                            >
-                                Télécharger PDF
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    const link = document.createElement('a');
-                                    link.href = `${api.defaults.baseURL}/quotes/${id}/xml`;
-                                    api.get(`/quotes/${id}/xml`, { responseType: 'blob' })
-                                        .then(response => {
-                                            const url = window.URL.createObjectURL(new Blob([response.data]));
-                                            link.href = url;
-                                            const contentDisposition = response.headers['content-disposition'];
-                                            let fileName = `${formData.reference || 'Soumission'}.rak`;
-                                            if (contentDisposition) {
-                                                const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-                                                if (fileNameMatch && fileNameMatch.length === 2)
-                                                    fileName = fileNameMatch[1];
-                                            }
-                                            link.setAttribute('download', fileName);
-                                            document.body.appendChild(link);
-                                            link.click();
-                                            link.parentNode?.removeChild(link);
-                                        })
-                                        .catch(() => alert("Erreur XML"));
-                                }}
-                                className="inline-flex items-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 disabled:opacity-50 disabled:bg-gray-400 ml-4"
-                                disabled={!id || isNew}
-                            >
-                                <span className="mr-2 font-mono font-bold text-base">&lt;/&gt;</span>
-                                Télécharger XML
-                            </button>
-
-                            {!isReadOnly && (
-                                <>
-                                    <div className="relative">
-                                        <input
-                                            type="file"
-                                            accept=".xml"
-                                            id="xml-upload"
-                                            className="hidden"
-                                            onChange={async (e) => {
-                                                const file = e.target.files?.[0];
-                                                if (!file) return;
-
-                                                const data = new FormData();
-                                                data.append('file', file);
-
-                                                try {
-                                                    await api.post(`/quotes/${id}/import-xml`, data, {
-                                                        headers: { 'Content-Type': 'multipart/form-data' }
-                                                    });
-                                                    alert('Import réussi ! La soumission a été mise à jour.');
-                                                    fetchQuote();
-                                                } catch (error) {
-                                                    console.error(error);
-                                                    alert("Erreur lors de l'importation du XML.");
-                                                }
-                                            }}
-                                            disabled={!id || isNew}
-                                        />
-                                        <input
-                                            type="file"
-                                            accept=".xlsx,.xlsm"
-                                            id="excel-reintegrate"
-                                            className="hidden"
-                                            onChange={async (e) => {
-                                                const file = e.target.files?.[0];
-                                                if (!file) return;
-
-                                                // 1. Upload to backend for network save
-                                                let networkPath = '';
-                                                try {
-                                                    setDownloading(true);
-                                                    const formData = new FormData();
-                                                    formData.append('file', file);
-
-                                                    const res = await api.post(`/quotes/${id}/reintegrate-excel`, formData, {
-                                                        headers: { 'Content-Type': 'multipart/form-data' }
-                                                    });
-
-                                                    // Backend returns { path: 'H:\...' }
-                                                    networkPath = res.data.path;
-                                                    // Silent success - no alert
-                                                    console.log(`Fichier sauvegardé sur le réseau : ${networkPath}`);
-
-                                                } catch (err: any) {
-                                                    console.error("Upload failed", err);
-                                                    // Fallback if backend fails (e.g. locally on Mac without H drive)
-                                                    // We'll just warn but allow XML gen with assumed path
-                                                    const msg = err.response?.data?.error || "Erreur lors de la sauvegarde réseau";
-                                                    alert(`${msg}. Le XML sera quand même généré avec le chemin théorique.`);
-
-                                                    // Fallback path construction
-                                                    const projectName = projects.find(p => p.id === formData.projectId)?.name || 'UnknownProject';
-                                                    networkPath = `F:\\nxerp\\${projectName}\\${file.name}`;
-                                                } finally {
-                                                    setDownloading(false);
-                                                }
-
-                                                const dateNow = new Date();
-                                                const dateStr = `${dateNow.getDate().toString().padStart(2, '0')}-${(dateNow.getMonth() + 1).toString().padStart(2, '0')}-${dateNow.getFullYear()} ${dateNow.getHours().toString().padStart(2, '0')}:${dateNow.getMinutes().toString().padStart(2, '0')}`;
-
-                                                // Use the path from backend or fallback
-                                                const filePath = networkPath || `F:\\nxerp\\${(projects.find(p => p.id === formData.projectId)?.name || 'Projet')}\\${file.name}`;
-
-                                                const xmlContent = `<?xml version='1.0'?>
-<!--Génération par DRC le ${dateStr}-->
-<generation type='Soumission'><meta cible='${filePath}' Langue='fr' action='reintegrer' modele='${filePath}' appCode='03' journal='' socLangue='fr' codeModule='01' definition='C:\\Travail\\XML\\CLAUTOMATEREINTEGRER.xml' codeApplication='03'><resultat flag=''/></meta><devis><externe/></devis></generation>`;
-
-                                                // Local download removed as requested
-
-                                                // Generate incremental filename envoi000001.rak
-                                                let counter = parseInt(localStorage.getItem('rak_counter') || '1', 10);
-                                                if (isNaN(counter)) counter = 1;
-                                                const filename = `envoi${counter.toString().padStart(6, '0')}.rak`;
-
-                                                // Increment for next time
-                                                localStorage.setItem('rak_counter', (counter + 1).toString());
-
-                                                // 3. Send RAK to Network (/Volumes/demo/echange)
-                                                try {
-                                                    await api.post('/quotes/save-rak', {
-                                                        xmlContent: xmlContent,
-                                                        filename: filename
-                                                    });
-                                                    // Silent success - no alert
-                                                    console.log(`Dossier réseau mis à jour : RAK envoyé vers /Volumes/demo/echange/\nFichier: ${filename}`);
-
-                                                    // 4. Wait 7 seconds and Fetch Return XML (.xml)
-                                                    console.log("Waiting 7 seconds for external Excel processing...");
-                                                    setTimeout(async () => {
-                                                        try {
-                                                            const returnRes = await api.post(`/quotes/${id}/fetch-return-xml`, {
-                                                                filename: filename // Backend will swap extension to .xml
-                                                            });
-                                                            console.log("Values updated from return XML", returnRes.data);
-                                                            // Refresh valid quote data
-                                                            fetchQuote();
-                                                            // Subtle notification (optional) - User said "one shot" so maybe just refresh is enough.
-                                                        } catch (fetchErr) {
-                                                            console.error("Failed to fetch return XML after delay", fetchErr);
-                                                            // Silent fail or minimal warning? 
-                                                            // User expects it to update, so if it fails, maybe a warning is needed or just log.
-                                                            // Given "one shot" preference, console log is safer unless critical.
-                                                        }
-                                                    }, 7000);
-
-                                                } catch (e) {
-                                                    console.error("Failed to save RAK to network", e);
-                                                    alert("Attention: Le fichier .rak n'a pas pu être copié automatiquement dans le dossier d'échange (demo/echange). Vérifiez le montage réseau.");
-                                                }
-
-                                                // Reset input
-                                                e.target.value = '';
-                                            }}
-                                        />
-                                        <label
-                                            htmlFor="excel-reintegrate"
-                                            className="cursor-pointer inline-flex items-center rounded-md bg-purple-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-purple-500 mr-4"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.657 48.657 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3" />
-                                            </svg>
-                                            Réintégrer Excel
-                                        </label>
-
-                                        <label
-                                            htmlFor={isNew ? '' : "xml-upload"}
-                                            className={`cursor-pointer inline-flex items-center rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm ${(!id || isNew) ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-500'}`}
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 mr-2">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                                            </svg>
-                                            Importer XML
-                                        </label>
-                                    </div>
-                                </>
-                            )}
-                        </>
-                    )}
-                </div>
-
-                <div className="mt-4 flex justify-center w-full px-4">
+            <div className="flex flex-col mt-8 border-t pt-4">
+                <div className="flex justify-center w-full px-4">
                     <button
                         type="button"
                         onClick={async () => {
                             if (!id) return;
                             try {
-                                const response = await api.get(`/quotes/${id}/download-result`, {
+                                const response = await api.get(`/quotes/${id}/download-result?t=${Date.now()}`, {
                                     responseType: 'blob',
                                 });
                                 const url = window.URL.createObjectURL(new Blob([response.data]));
                                 const link = document.createElement('a');
                                 link.href = url;
-                                const contentDisposition = response.headers['content-disposition'];
+                                const disposition = response.headers['content-disposition'];
                                 let fileName = 'soumission.xlsx';
-                                if (contentDisposition) {
-                                    const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-                                    if (fileNameMatch && fileNameMatch.length === 2)
-                                        fileName = fileNameMatch[1];
+                                if (disposition && disposition.indexOf('attachment') !== -1) {
+                                    const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                                    const matches = filenameRegex.exec(disposition);
+                                    if (matches != null && matches[1]) {
+                                        fileName = matches[1].replace(/['"]/g, '');
+                                    }
                                 }
                                 link.setAttribute('download', fileName);
                                 document.body.appendChild(link);
@@ -943,15 +768,15 @@ export default function QuoteForm() {
                                 }
                             }
                         }}
-                        className="text-blue-600 hover:text-blue-800 underline flex items-center gap-2 cursor-pointer text-lg font-semibold"
+                        className="text-blue-600 hover:text-blue-800 underline flex items-center gap-2 cursor-pointer text-sm font-semibold"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
                         </svg>
                         {getExcelFilename()}
                     </button>
                 </div>
-            </div>
+            </div >
         </form >
     );
 }

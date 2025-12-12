@@ -68,13 +68,18 @@ export const deleteThirdParty = async (id: string) => {
 };
 
 // Contact Types
-export const getContactTypes = async () => {
-    const response = await api.get('/contact-types');
+export const getContactTypes = async (category?: string) => {
+    const response = await api.get('/contact-types', { params: { category } });
     return response.data;
 };
 
-export const createContactType = async (name: string) => {
-    const response = await api.post('/contact-types', { name });
+export const createContactType = async (name: string, category: string = 'Client') => {
+    const response = await api.post('/contact-types', { name, category });
+    return response.data;
+};
+
+export const updateContactType = async (id: string, name: string, category: string) => {
+    const response = await api.put(`/contact-types/${id}`, { name, category });
     return response.data;
 };
 

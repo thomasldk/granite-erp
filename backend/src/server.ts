@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = 5005; // FORCE 5005 to bypass .env conflict
 
 app.use(cors());
 app.use(express.json());
@@ -21,8 +21,10 @@ import projectLocationRoutes from './routes/projectLocationRoutes'; // Added
 import materialRoutes from './routes/materialRoutes';
 import paymentTermRoutes from './routes/paymentTermRoutes'; // Added
 import uploadRoutes from './routes/uploadRoutes'; // Added
+import syncRoutes from './routes/syncRoutes'; // Added
 import productionRoutes from './routes/productionRoutes'; // Added
 import productionSiteRoutes from './routes/productionSiteRoutes'; // Added
+import maintenanceSiteRoutes from './routes/maintenanceSiteRoutes'; // Added
 import path from 'path'; // Added for static serving
 
 app.use('/uploads', express.static(path.join(__dirname, '../uploads'))); // Serve uploads statically
@@ -39,6 +41,9 @@ app.use('/api/payment-terms', paymentTermRoutes); // Added for Payment Terms
 app.use('/api/upload', uploadRoutes); // Added upload route
 app.use('/api/production', productionRoutes); // Added production route
 app.use('/api/production-sites', productionSiteRoutes); // Added production sites route
+app.use('/api/maintenance-sites', maintenanceSiteRoutes); // Added maintenance sites route
+
+app.use('/api/sync', syncRoutes); // Added Sync Agent Routes
 
 // Removed: app.use('/api/quotes', soumissionRoutes); // Using 'soumission' routes for quotes logic (based on Code Edit snippet)
 
@@ -47,8 +52,8 @@ app.get('/', (req: Request, res: Response) => {
 });
 
 if (require.main === module) {
-    app.listen(port, () => {
-        console.log(`Server running on port ${port} - API Ready`);
+    app.listen(port, '0.0.0.0', () => {
+        console.log(`Server running on port ${port} - API Ready (Bound to 0.0.0.0)`);
     });
 }
 

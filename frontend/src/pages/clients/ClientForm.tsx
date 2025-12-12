@@ -582,7 +582,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                                 />
                                 {formData.priceListUrl && (
                                     <p className="mt-2 text-sm text-green-600">
-                                        <a href={`http://localhost:5001${formData.priceListUrl}`} target="_blank" rel="noopener noreferrer" className="underline">
+                                        <a href={`${formData.priceListUrl}`} target="_blank" rel="noopener noreferrer" className="underline">
                                             Voir la liste actuelle ({formData.priceListDate || 'Année non spécifiée'})
                                         </a>
                                     </p>

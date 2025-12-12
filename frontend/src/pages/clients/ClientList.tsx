@@ -82,7 +82,7 @@ const ClientList: React.FC<ClientListProps> = ({ type = 'Client' }) => {
                                             {(client as any).priceListUrl ? (
                                                 <div className="flex items-center justify-center gap-2">
                                                     <a
-                                                        href={`http://localhost:5001${(client as any).priceListUrl}`}
+                                                        href={`${(client as any).priceListUrl}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         title="Liste de prix"

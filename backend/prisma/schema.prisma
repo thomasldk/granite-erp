@@ -273,9 +273,12 @@ model Representative {
 
 model ContactType {
   id        String   @id @default(uuid())
-  name      String   @unique
+  name      String   
+  category  String   @default("Client") // Client, Supplier
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([name, category])
 }
 
 model Language {
@@ -293,6 +296,14 @@ model ProductionSite {
   name      String   @unique // e.g., Factory A, Factory B
   
   items     QuoteItem[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MaintenanceSite {
+  id        String   @id @default(uuid())
+  name      String   @unique // e.g., Site 1, Site 2
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

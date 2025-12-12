@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, QuoteItem } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -7,53 +7,46 @@ import nodemailer from 'nodemailer';
 import { ExcelService } from '../services/excelService';
 import { PdfService } from '../services/pdfService';
 import { XmlService } from '../services/xmlService';
-
-
+import { CalculationService } from '../services/calculationService';
 
 const prisma = new PrismaClient();
 const excelService = new ExcelService();
 const xmlService = new XmlService();
+const calculationService = new CalculationService();
 
 // --- QUOTES ---
 
 export const generateQuoteExcel = async (req: Request, res: Response) => {
+    // Mode: "Sync Agent"
+    // We do NOT calculate locally. We mark it for the PC Agent to pick up.
+
     const { id } = req.params;
     try {
         const quote = await prisma.quote.findUnique({
-            where: { id: id },
-            include: {
-                items: true,
-                project: {
-                    include: { location: true }
-                }, // Fetch Project info & Location
-                client: {
-                    include: {
-                        contacts: true, // Fetch contacts
-                        addresses: true // Fetch addresses
-                    }
-                },
-                material: true // Fetch Material info
-            }
+            where: { id: id }
         });
 
         if (!quote) {
             return res.status(404).json({ error: 'Quote not found' });
         }
 
-        const filePath = await excelService.generateQuoteExcel(quote);
+        console.log(`[Agent-Flow] Queuing Quote ${quote.reference} for PC Agent...`);
 
-        // Download file
-        res.download(filePath, (err) => {
-            if (err) {
-                console.error("Error sending file:", err);
+        // 1. Mark as Pending for Agent
+        await prisma.quote.update({
+            where: { id: quote.id },
+            data: {
+                syncStatus: 'PENDING_AGENT'
             }
-            // Optionally delete file after send? 
-            // fs.unlinkSync(filePath); 
         });
 
-    } catch (error) {
-        console.error("Error generating Excel:", error);
-        res.status(500).json({ error: 'Failed to generate Excel file' });
+        // 2. Return status immediately
+        // Frontend should poll or listen for status change, or just show "Waiting for PC..."
+        res.json({ message: 'Queued for PC Agent', status: 'PENDING_AGENT' });
+
+    } catch (error: any) {
+        console.error("Queue Error:", error);
+        res.status(500).json({ error: 'Failed to queue quote', details: error.message });
     }
 };
 
@@ -126,6 +119,12 @@ export const getQuotes = async (req: Request, res: Response) => {
     }
 };
 
+export const downloadQuoteExcel = async (req: Request, res: Response) => {
+    // Mode: "Sync Agent"
+    // Trigger the Queue process.
+    return generateQuoteExcel(req, res);
+};
+
 export const getQuoteById = async (req: Request, res: Response) => {
     const { id } = req.params;
     try {
@@ -171,7 +170,7 @@ export const createQuote = async (req: Request, res: Response) => {
 
 export const updateQuote = async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { status, validUntil, currency, internalNotes, estimatedWeeks, materialId, exchangeRate, incoterm } = req.body;
+    const { status, validUntil, currency, internalNotes, estimatedWeeks, materialId, exchangeRate, incoterm, numberOfLines } = req.body;
     try {
         const quote = await prisma.quote.update({
             where: { id },
@@ -181,12 +180,20 @@ export const updateQuote = async (req: Request, res: Response) => {
                 currency,
                 estimatedWeeks: estimatedWeeks ? parseInt(estimatedWeeks) : undefined,
                 materialId,
-                exchangeRate: exchangeRate ? parseFloat(exchangeRate) : undefined, // Handle exchangeRate update
-                incoterm
-            }
+                exchangeRate: exchangeRate ? parseFloat(exchangeRate) : undefined,
+                incoterm,
+                // Also update the Project if numberOfLines is provided
+                project: numberOfLines ? {
+                    update: {
+                        numberOfLines: parseInt(numberOfLines)
+                    }
+                } : undefined
+            },
+            include: { project: true } // Return project to confirm update
         });
         res.json(quote);
     } catch (error) {
+        console.error("Update Quote Error:", error);
         res.status(500).json({ error: 'Error updating quote' });
     }
 };
@@ -480,7 +487,7 @@ export const generateQuoteXml = async (req: Request, res: Response) => {
             rep = allReps.find(r => `${r.firstName} ${r.lastName}` === quote.client?.repName);
         }
 
-        const xml = xmlService.generateQuoteXml(quote, rep);
+        const xml = await xmlService.generateQuoteXml(quote, rep);
 
         const safeName = (str: string | undefined) => (str || '').replace(/[^a-zA-Z0-9- ]/g, '');
         const clientName = safeName(quote.client?.name);
@@ -507,289 +514,12 @@ export const generateQuoteXml = async (req: Request, res: Response) => {
 
 
 export const exportQuoteToLocal = async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params;
-        const quote = await prisma.quote.findUnique({
-            where: { id },
-            include: {
-                items: true,
-                project: true,
-                material: true,
-                client: { include: { addresses: true, contacts: true, paymentTerm: true } }
-            }
-        });
-
-        if (!quote) return res.status(404).json({ error: 'Quote not found' });
-
-        // Find Representative manually
-        let rep = null;
-        if (quote.client?.repName) {
-            const allReps = await prisma.representative.findMany();
-            rep = allReps.find(r => `${r.firstName} ${r.lastName}` === quote.client?.repName);
-        }
-
-        console.log("Exporting to local...");
-        const xml = xmlService.generateQuoteXml(quote, rep);
-        console.log("XML Generated length:", xml.length);
-
-        // Define Path
-        // Define Path
-        // User requested: 192.168.3.5/demo/echange
-        // On macOS, assuming 'demo' is the share name mounted at /Volumes/demo
-        const downloadDir = '/Volumes/demo/echange';
-        console.log("Target Directory:", downloadDir);
-
-        // Remove mkdir as requested by user
-        // if (!fs.existsSync(downloadDir)) {
-        //     fs.mkdirSync(downloadDir, { recursive: true });
-        // }
-
-        const safeName = (str: string | undefined) => (str || '').replace(/[^a-zA-Z0-9- ]/g, '');
-        const clientName = safeName(quote.client?.name);
-        const materialName = safeName(quote.material?.name);
-        const projectName = safeName(quote.project?.name);
-        const parts = [
-            quote.reference,
-            clientName,
-            projectName,
-            materialName
-        ].filter(p => p && p.trim() !== '');
-
-        const filename = `${parts.join('_')}.rak`;
-
-        const filePath = path.join(downloadDir, filename);
-        console.log("Target File Path:", filePath);
-
-        fs.writeFileSync(filePath, xml);
-        console.log("File written successfully");
-
-        res.json({ message: 'File exported successfully', path: filePath });
-
-    } catch (error: any) {
-        console.error("Export Local Error Stack:", error.stack);
-        console.error("Export Local Error Message:", error.message);
-        res.status(500).json({ error: 'Failed to export to local folder', details: error.message + " | " + (error.code || '') });
-    }
+    // Mode: "Sync Agent"
+    // Redirect to the Queue logic
+    return generateQuoteExcel(req, res);
 };
 
 
-export const downloadQuoteExcel = async (req: Request, res: Response) => {
-    const logPath = path.join(__dirname, '../../backend_trace.log');
-    const log = (msg: string) => fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`);
-
-    try {
-        log(`Create Request received - ID: ${req.params.id}`);
-        const { id } = req.params;
-        const quote = await prisma.quote.findUnique({
-            where: { id },
-            include: {
-                project: true,
-                material: true,
-                client: true
-            }
-        });
-
-        if (!quote) { log("Quote not found"); return res.status(404).json({ error: 'Quote not found' }); }
-        if (!quote.project) { log("No Project"); return res.status(400).json({ error: 'Quote has no project' }); }
-        if (!quote.material) { log("No Material"); return res.status(400).json({ error: 'Quote has no material' }); }
-
-        // 1. Generate RAK XML (Trigger for Macro)
-        log("Generating XML content...");
-        const xmlContent = xmlService.generateQuoteXml(quote);
-
-        // 2. Save RAK to Exchange folder
-        // Use env var or default. Check for typical macOS mount points.
-        const exchangePath = process.env.EXCHANGE_PATH || '/Volumes/demo/echange';
-
-        if (!fs.existsSync(exchangePath)) {
-            console.error(`Exchange path ${exchangePath} does not exist!`);
-            return res.status(503).json({
-                error: 'Exchange folder not reachable',
-                details: `Le dossier d'échange '${exchangePath}' est introuvable. Assurez-vous que le volume est monté.`
-            });
-        }
-
-        // Risky if other processes are running. We'll rely on timestamp check.
-
-        const rakFilename = `${quote.reference.replace(/\//g, '-')}.rak`;
-        const rakFilePath = path.join(exchangePath, rakFilename);
-        const startTime = Date.now();
-
-        console.log(`[DEBUG] Attempting to write RAK file...`);
-        console.log(`[DEBUG] Reference: ${quote.reference}`);
-        console.log(`[DEBUG] Target Absolute Path: ${rakFilePath}`);
-
-        try {
-            fs.writeFileSync(rakFilePath, xmlContent, 'utf-8');
-            console.log(`[DEBUG] Write SUCCESS. Exists? ${fs.existsSync(rakFilePath)}`);
-        } catch (e: any) {
-            console.error(`[DEBUG] Write FAILED: ${e.message}`);
-            throw e;
-        }
-
-        console.log(`Generating RAK file at: ${rakFilePath}`);
-
-        // 3. Poll for RETURN XML (Output from Macro) in the SAME Exchange folder
-        console.log("Waiting for Return XML in:", exchangePath);
-
-        // Initial pause to let the macro wake up
-        await new Promise(resolve => setTimeout(resolve, 5000));
-
-        let attempts = 0;
-        const maxAttempts = 60; // 60 seconds total
-        let foundXmlPath: string | null = null;
-
-        const checkFile = setInterval(async () => {
-            attempts++;
-            if (attempts % 10 === 0) log(`Polling attempt ${attempts}...`);
-
-            try {
-                if (fs.existsSync(exchangePath)) {
-                    const files = fs.readdirSync(exchangePath);
-                    // Match: Contains Reference AND ends with .xml AND is NOT the RAK file (rak is .rak anyway)
-                    // AND is modified AFTER we wrote the RAK file.
-
-                    const candidates = files
-                        .filter(f => f.toLowerCase().includes(quote.reference.toLowerCase()) && f.toLowerCase().endsWith('.xml'))
-                        .map(f => {
-                            const fullPath = path.join(exchangePath, f);
-                            const stats = fs.statSync(fullPath);
-                            return { name: f, path: fullPath, mtime: stats.mtimeMs };
-                        })
-                        .filter(f => f.mtime > startTime); // Must be newer than our request
-
-                    if (candidates.length > 0) {
-                        // Pick the most recent one
-                        candidates.sort((a, b) => b.mtime - a.mtime);
-                        foundXmlPath = candidates[0].path;
-                    }
-                }
-            } catch (err) {
-                console.error("Error polling files:", err);
-            }
-
-            if (foundXmlPath && fs.existsSync(foundXmlPath)) {
-                clearInterval(checkFile);
-                log(`Return XML found at: ${foundXmlPath}`);
-                console.log("Return XML found:", foundXmlPath);
-
-                // 4. Read and Import
-                try {
-                    // Slight delay to ensure write flush
-                    await new Promise(resolve => setTimeout(resolve, 500));
-
-                    let xmlReturnContent = fs.readFileSync(foundXmlPath, 'utf-8');
-                    // Strip BOM if present
-                    xmlReturnContent = xmlReturnContent.replace(/^\uFEFF/, '');
-
-                    log(`Reading XML content (first 200 chars): ${xmlReturnContent.substring(0, 200).replace(/\n/g, ' ')}`);
-
-                    const items = xmlService.parseExcelReturnXml(xmlReturnContent);
-                    log(`Parsed ${items.length} items from XML.`);
-
-                    if (items.length === 0) {
-                        try {
-                            // Debug logging for empty parse
-                            const { create } = require('xmlbuilder2');
-                            const doc = create(xmlReturnContent);
-                            const obj = doc.end({ format: 'object' });
-                            log(`DEBUG XML Parse: Keys found -> ${JSON.stringify(Object.keys(obj))}`);
-                            if ((obj as any).generation) {
-                                log(`DEBUG XML Parse: generation.devis -> ${!!(obj as any).generation.devis}`);
-                                if ((obj as any).generation.devis) {
-                                    log(`DEBUG XML Parse: devis.externe -> ${!!(obj as any).generation.devis.externe}`);
-                                }
-                            }
-                        } catch (debugErr: any) {
-                            log(`DEBUG Parse Failed: ${debugErr.message}`);
-                        }
-
-                        throw new Error("Aucune ligne trouvée dans le fichier XML retourné. Synchronisation annulée pour protéger les données.");
-                    }
-
-
-                    // Update DB (Transaction)
-                    await prisma.$transaction(async (prisma) => {
-                        // Clear old items
-                        await prisma.quoteItem.deleteMany({ where: { quoteId: id } });
-
-                        // Insert new items
-                        await prisma.quoteItem.createMany({
-                            data: items.map(item => ({
-                                quoteId: id,
-                                tag: item.tag,
-                                description: item.description,
-                                length: item.length,
-                                width: item.width,
-                                thickness: item.thickness || 0,
-                                quantity: item.quantity,
-                                unitPrice: item.unitPrice,
-                                totalPrice: item.totalPrice,
-                                material: item.material,
-                                finish: item.finish || 'Standard',
-                                unit: item.unit,
-                                netLength: item.netLength || 0,
-                                netArea: item.netArea || 0,
-                                netVolume: item.netVolume || 0,
-                                totalWeight: item.totalWeight || 0,
-                                unitPriceCad: item.unitPriceCad || 0,
-                                unitPriceUsd: item.unitPrice || 0,
-                                totalPriceCad: item.totalPriceCad || 0,
-                                totalPriceUsd: item.totalPrice || 0,
-                                stoneValue: item.stoneValue || 0,
-                                primarySawingCost: item.primarySawingCost || 0,
-                                secondarySawingCost: item.secondarySawingCost || 0,
-                                profilingCost: item.profilingCost || 0,
-                                finishingCost: item.finishingCost || 0,
-                                anchoringCost: item.anchoringCost || 0,
-                                unitTime: item.unitTime || 0,
-                                totalTime: item.totalTime || 0
-                            }))
-                        });
-
-                        // Recalculate Total
-                        const totalAmount = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
-                        await prisma.quote.update({
-                            where: { id },
-                            data: {
-                                totalAmount,
-                                syncStatus: 'Synced'
-                            }
-                        });
-                    });
-
-                    // Cleanup returned XML? Maybe keep for audit, or delete?
-                    // fs.unlinkSync(foundXmlPath); 
-
-                    res.json({ message: 'Synchronization successful', itemsCount: items.length });
-
-                } catch (err: any) {
-                    log(`Import Error: ${err.message}\n${err.stack}`);
-                    console.error("Import Error during generation:", err);
-                    res.status(422).json({ error: 'Error importing returned XML', details: err.message });
-                }
-
-            } else if (attempts >= maxAttempts) {
-                clearInterval(checkFile);
-                console.error("Timeout: Return XML not found");
-                res.status(404).json({
-                    error: 'Timeout waiting for Excel/XML generated file',
-                    details: "L'éditeur Excel n'a pas renvoyé le fichier XML confirmation dans les temps (60s)."
-                });
-            }
-        }, 1000);
-
-    } catch (error: any) {
-        log(`Main Error: ${error.message}\n${error.stack}`);
-        console.error("Generate Excel Error:", error);
-
-        fs.writeFileSync(path.join(__dirname, '../../backend_error.log'), `[${new Date().toISOString()}] ${error.message}\n${error.stack}\n`);
-
-        if (!res.headersSent) {
-            res.status(500).json({ error: 'Failed to generate flow', details: error.message });
-        }
-    }
-};
 
 export const importQuoteXml = async (req: Request, res: Response) => {
     try {
@@ -989,7 +719,6 @@ export const importNetworkXml = async (req: Request, res: Response) => {
     }
 };
 
-// Reintegrate Excel: Uploads file to H:/Project/File
 export const reintegrateExcel = async (req: Request, res: Response) => {
     const { id } = req.params;
     const file = req.file;
@@ -1001,73 +730,51 @@ export const reintegrateExcel = async (req: Request, res: Response) => {
     try {
         const quote = await prisma.quote.findUnique({
             where: { id },
-            include: { project: true }
+            include: { project: true, material: true, client: true }
         });
 
         if (!quote || !quote.project) {
             return res.status(404).json({ error: 'Quote or Project not found' });
         }
 
-        const projectName = quote.project.name || 'UnknownProject';
-        // Construct target path: \\192.168.3.5\travail\[Project Name]\[Original Filename]
+        // Rename logic to persist ORIGINAL filename (for PC matching)
+        // Use triple underscore as separator to avoid confusion
+        // We do NOT replace spaces here, we want the exact PC name.
+        const originalName = file.originalname;
+        const filename = `${id}___${originalName}`;
 
-        // Note: On non-Windows servers, this UNC path is just a string for the target logic usually,
-        // but fs.copyFileSync will fail if not mounted. 
-        // We will construct the path using path.join but ensure UNC prefix.
+        const uploadsDir = path.join(__dirname, '../../uploads');
+        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
-        // For writing files on the server, we assume the server has this path mounted or accessible.
-        // If the server is running on the Mac, it won't be able to write to \\192.168.3.5 directly without mounting it to a local folder.
-        // HOWEVER, the user asked to put it there. I will use the path as provided for the LOGIC.
-        // But for the actual fs write, if on Mac/Linux, we might need a local mount point or just simulate it?
-        // Given the user context "Essai thomas", I will try to write to the path but expect it might fail if not mounted.
+        const finalPath = path.join(uploadsDir, filename);
 
-        // Standardizing the base path
-        // MAC SERVER SPECIFIC: We write to the local mount point
-        const localMountPath = '/Volumes/nxerp';
-        // WINDOWS CLIENT SPECIFIC: The XML must point to the mapped drive
-        // User specified: F:\nxerp\Projet\Fichier
-        const winBasePath = 'F:\\nxerp';
-
-        const targetDir = path.join(localMountPath, projectName);
-        const targetPath = path.join(targetDir, file.originalname);
-
-        // The path we want in the XML
-        const xmlPath = `${winBasePath}\\${projectName}\\${file.originalname}`;
-
-        console.log(`Reintegrate: Copying from ${file.path} to ${targetPath}`);
-
-        // Ensure target directory exists (recursive)
-        if (!fs.existsSync(targetDir)) {
-            try {
-                fs.mkdirSync(targetDir, { recursive: true });
-            } catch (e) {
-                console.warn(`Could not create target directory ${targetDir} (likely permission or mount issue):`, e);
-            }
-        }
-
+        // Move/Rename
         try {
-            fs.copyFileSync(file.path, targetPath);
-        } catch (copyError) {
-            console.error("Failed to copy to network drive:", copyError);
-            return res.status(500).json({
-                error: `Failed to save file to ${targetPath}. Check if '/Volumes/nxerp' is mounted on the server.`,
-                details: String(copyError)
-            });
+            fs.renameSync(file.path, finalPath);
+        } catch (mvErr) {
+            fs.copyFileSync(file.path, finalPath);
+            fs.unlinkSync(file.path);
         }
 
-        // Cleanup temp
-        fs.unlinkSync(file.path);
+        console.log(`[Reintegrate] Uploaded ${originalName} -> ${finalPath}. Queuing for Agent.`);
+
+        // Store standard relative path "uploads/..."
+        await prisma.quote.update({
+            where: { id },
+            data: {
+                syncStatus: 'PENDING_REIMPORT',
+                excelFilePath: `uploads/${filename}`
+            }
+        });
 
         res.json({
-            message: 'File uploaded and saved to network',
-            path: xmlPath, // Return the UNC path for the XML
-            localPath: targetPath, // Debug info
-            filename: file.originalname
+            message: 'Queued for Reintegration',
+            status: 'PENDING_REIMPORT'
         });
 
     } catch (error) {
-        console.error('Reintegrate Excel Error:', error);
-        res.status(500).json({ error: 'Internal Server Error', details: String(error) });
+        console.error('Reintegrate Quote Error:', error);
+        res.status(500).json({ error: 'Failed to queue reintegration', details: String(error) });
     }
 };
 
@@ -1268,69 +975,94 @@ export const downloadQuoteResult = async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'Quote or Project not found' });
         }
 
-        // Update path logic for download
+        // STRATEGY A: Sync Agent File (Priority)
+        // If status says Agent finished or we have a path, strictly try to serve it.
+        // Prevent fallback to legacy if Status is Calculated.
+        if (quote.syncStatus === 'Calculated (Agent)' || quote.excelFilePath) {
+            console.log(`[DEBUG] Strategy A (Strict Agent). Path: ${quote.excelFilePath}, Status: ${quote.syncStatus}`);
 
-        // MAC SERVER: Check /Volumes/nxerp or fallback to Travail/nxerp or Travail
-        // User asked for F:\nxerp. 
+            if (quote.excelFilePath && fs.existsSync(quote.excelFilePath)) {
+                // Return the specific uploaded file
+                let downloadName = path.basename(quote.excelFilePath);
+                // Clean the ID prefix (separated by ___ or __)
+                if (downloadName.includes('___')) {
+                    downloadName = downloadName.split('___').slice(1).join('___');
+                } else if (downloadName.includes('__')) {
+                    downloadName = downloadName.split('__').slice(1).join('__');
+                }
+                console.log(`[DEBUG] Sending Synced Excel: ${quote.excelFilePath}. Name: ${downloadName}`);
+                const stats = fs.statSync(quote.excelFilePath);
+                console.log(`[DEBUG] File Size: ${stats.size} bytes`);
+
+                // Explicitly expose the header for CORS if needed (though usually not issue for direct download)
+                res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+                res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+                const fileStream = fs.createReadStream(quote.excelFilePath);
+                return fileStream.pipe(res);
+            } else {
+                // File missing despite status
+                console.error("Agent said calculated, but file missing at:", quote.excelFilePath);
+                return res.status(404).json({
+                    error: "Le fichier Excel n'est pas encore disponible.",
+                    details: "L'agent a signalé la fin du calcul, mais le fichier n'est pas encore arrivé sur le serveur. Veuillez réessayer dans quelques secondes."
+                });
+            }
+        }
+
+        // STRATEGY B: Legacy Fallback: Search in Network Drive /Volumes/nxerp
+        // Only reachable if not in Agent mode (or if quote pre-dates agent)
+        console.log(`[Download] Fallback to Network Search for ${quote.reference}...`);
+
         let projectPath = path.join('/Volumes/nxerp', quote.project.name);
 
         if (!fs.existsSync(projectPath)) {
             return res.status(404).json({
-                error: `Project folder not found at ${projectPath}.`,
-                details: "Le dossier du projet est introuvable dans '/Volumes/nxerp'. Vérifiez que le dossier 'nxerp' est monté sur le serveur."
+                error: `Excel file not found (Sync pending? Network path invalid?)`,
+                details: `Tried local upload and ${projectPath}`
             });
         }
 
-        const logDebug = (msg: string) => {
-            fs.appendFileSync(path.join(__dirname, '../../backend_download_debug.log'), `[${new Date().toISOString()}] ${msg}\n`);
-        };
-
-        logDebug(`Download request for Quote ID: ${id}`);
-        logDebug(`Project Name: ${quote.project.name}, Reference: ${quote.reference}`);
-        logDebug(`Searching in Project Path: ${projectPath}`);
+        console.log(`Download request for Quote ID: ${id}`);
+        console.log(`Project Name: ${quote.project.name}, Reference: ${quote.reference}`);
+        console.log(`Searching in Project Path: ${projectPath}`);
 
         // Find the excel file corresponding to this quote reference
         let files: string[] = [];
         try {
             files = fs.readdirSync(projectPath);
-            logDebug(`Files found in folder (${files.length}): ${files.join(', ')}`);
+            console.log(`Files found in folder (${files.length}): ${files.join(', ')}`);
         } catch (e: any) {
-            logDebug(`Error reading directory: ${e.message}`);
+            console.log(`Error reading directory: ${e.message}`);
             return res.status(404).json({ error: `Could not read project directory: ${projectPath}`, details: e.message });
         }
 
         // Look for .xlsx NOT starting with ~$ (temp lock files) AND NOT starting with ._ (Mac metadata)
         let excelFile = files.find(f => f.includes(quote.reference) && f.endsWith('.xlsx') && !f.startsWith('~$') && !f.startsWith('._'));
-        logDebug(`Exact match search result: ${excelFile}`);
+        console.log(`Exact match search result: ${excelFile}`);
 
-        // Fallback: Fuzzy search (e.g. if mismatch between C1R0 and C0R0, find the most recent for this Project/BaseRef)
+        // Fallback: Fuzzy search
         if (!excelFile) {
             const baseRefParts = quote.reference.split('-');
-            // Assumption: Ref format is PROJECT-NUM-REV (e.g. DRC25-0011-C1R0)
-            // Try matching PROJECT-NUM (e.g. DRC25-0011)
             if (baseRefParts.length >= 2) {
                 const baseRef = baseRefParts.slice(0, 2).join('-');
-                logDebug(`Attempting fuzzy match with baseRef: ${baseRef}`);
+                console.log(`Attempting fuzzy match with baseRef: ${baseRef}`);
 
                 const candidates = files.filter(f => f.includes(baseRef) && f.endsWith('.xlsx') && !f.startsWith('~$') && !f.startsWith('._'));
-                logDebug(`Fuzzy candidates found: ${candidates.join(', ')}`);
 
                 if (candidates.length > 0) {
-                    // Sort by modification time (most recent first)
                     candidates.sort((a, b) => {
                         const statA = fs.statSync(path.join(projectPath, a));
                         const statB = fs.statSync(path.join(projectPath, b));
                         return statB.mtime.getTime() - statA.mtime.getTime();
                     });
                     excelFile = candidates[0];
-                    logDebug(`Selected best candidate: ${excelFile}`);
                     console.log(`[Download Fuzzy] Found file using base ref ${baseRef}: ${excelFile}`);
                 }
             }
         }
 
         if (!excelFile) {
-            logDebug(`FAILURE: No file found matching reference.`);
+            console.log(`FAILURE: No file found matching reference.`);
             return res.status(404).json({
                 error: 'Excel file not found yet. Please wait for macro to complete.',
                 details: `Searched in ${projectPath} for reference ${quote.reference}`
@@ -1339,22 +1071,45 @@ export const downloadQuoteResult = async (req: Request, res: Response) => {
 
         const fullPath = path.join(projectPath, excelFile);
         const stat = fs.statSync(fullPath);
-        logDebug(`Sending file: ${fullPath} (Size: ${stat.size} bytes)`);
+        console.log(`Sending file: ${fullPath} (Size: ${stat.size} bytes)`);
 
         if (stat.size === 0) {
-            logDebug(`WARNING: File is empty!`);
+            console.log(`WARNING: File is empty!`);
             return res.status(500).json({ error: 'File is empty (0 bytes)' });
         }
 
         res.download(fullPath, excelFile, (err) => {
             if (err) {
-                logDebug(`Error sending file: ${err.message}`);
+                console.log(`Error sending file: ${err.message}`);
             } else {
-                logDebug(`File sent successfully.`);
+                console.log(`File sent successfully.`);
             }
         });
+
     } catch (error) {
         console.error('Error downloading result:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
+export const downloadSourceExcel = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    try {
+        const quote = await prisma.quote.findUnique({ where: { id } });
+        if (!quote || !quote.excelFilePath) {
+            return res.status(404).json({ error: 'Quote or Source Excel not found' });
+        }
+
+        const filePath = path.resolve(quote.excelFilePath);
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: 'File on disk not found', path: filePath });
+        }
+
+        res.download(filePath, `Source_${quote.reference}.xlsx`);
+    } catch (error: any) {
+        console.error("Download Source Excel Error:", error);
+        res.status(500).json({ error: 'Failed to download source excel', details: error.message });
+    }
+};
+
+

@@ -352,7 +352,7 @@ export const generateQuoteXml = async (req: Request, res: Response) => {
         }
 
         const xmlService = new XmlService();
-        const xmlContent = xmlService.generateQuoteXml(quote, rep);
+        const xmlContent = await xmlService.generateQuoteXml(quote, rep);
 
         res.header('Content-Type', 'application/xml');
         res.attachment(`${quote.reference}.rak`); // Extension changed to .rak
