@@ -7,8 +7,11 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: granite_erp
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     networks:
       - granite-network
 
@@ -22,12 +25,12 @@ services:
     networks:
       - granite-network
     volumes:
-       - ./backend/uploads:/app/uploads
+      - ./backend/uploads:/app/uploads
 
   frontend:
     build: ./frontend
     ports:
-      - "8080:80"
+      - "8080:8080"
     depends_on:
       - backend
     networks:
