@@ -22,13 +22,16 @@ import ProductionSiteList from './pages/settings/ProductionSiteList';
 import { DatabaseSettings } from './pages/settings/DatabaseSettings';
 import ProductionDashboard from './pages/production/ProductionDashboard';
 import MaintenanceDashboard from './pages/maintenance/MaintenanceDashboard';
+import EquipmentList from './pages/maintenance/EquipmentList';
+import EquipmentForm from './pages/maintenance/EquipmentForm';
 import RHDashboard from './pages/rh/RHDashboard';
 
 // Layout Component (unchanged)
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [isTiersOpen, setIsTiersOpen] = useState(true);
     const [isCatalogueOpen, setIsCatalogueOpen] = useState(true);
-    const [isProductionOpen, setIsProductionOpen] = useState(true); // Added for Production Accordion
+    const [isProductionOpen, setIsProductionOpen] = useState(true);
+    const [isMaintenanceOpen, setIsMaintenanceOpen] = useState(true); // Added
 
     return (
         <div className="min-h-screen bg-gray-50 flex">
@@ -113,11 +116,28 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                 </div>
                             )}
                         </li>
-                        <li className="px-6 py-2 hover:bg-gray-700 cursor-pointer text-gray-300 hover:text-white transition-colors border-l-4 border-transparent hover:border-blue-500">
-                            <Link to="/maintenance" className="flex items-center">
-                                <span className="mr-3 w-5 h-5 flex items-center justify-center">🔧</span>
-                                Maintenance
-                            </Link>
+                        {/* Maintenance Accordion */}
+                        <li className="px-6 py-2">
+                            <button
+                                onClick={() => setIsMaintenanceOpen(!isMaintenanceOpen)}
+                                className="flex items-center justify-between w-full text-gray-300 hover:text-white group focus:outline-none transition-colors border-l-4 border-transparent hover:border-blue-500"
+                            >
+                                <span className="flex items-center">
+                                    <span className="mr-3 w-5 h-5 flex items-center justify-center">🔧</span>
+                                    Maintenance
+                                </span>
+                                {isMaintenanceOpen ? (
+                                    <ChevronDownIcon className="w-4 h-4 text-gray-500 group-hover:text-white" />
+                                ) : (
+                                    <ChevronRightIcon className="w-4 h-4 text-gray-500 group-hover:text-white" />
+                                )}
+                            </button>
+                            {isMaintenanceOpen && (
+                                <div className="ml-8 mt-2 space-y-1 text-sm border-l-2 border-gray-700 pl-4">
+                                    <Link to="/maintenance/equipment" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Équipements</Link>
+                                    <Link to="/maintenance" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Tableau de Bord</Link>
+                                </div>
+                            )}
                         </li>
                         <li className="px-6 py-2 hover:bg-gray-700 cursor-pointer text-gray-300 hover:text-white transition-colors border-l-4 border-transparent hover:border-blue-500">
                             <Link to="/rh" className="flex items-center">
@@ -191,7 +211,12 @@ function App() {
                     <Route path="/soumissions/:projectId/new-quote" element={<QuoteForm />} />
 
                     <Route path="/production" element={<ProductionDashboard />} />
+
                     <Route path="/maintenance" element={<MaintenanceDashboard />} />
+                    <Route path="/maintenance/equipment" element={<EquipmentList />} />
+                    <Route path="/maintenance/equipment/new" element={<EquipmentForm />} />
+                    <Route path="/maintenance/equipment/:id/edit" element={<EquipmentForm />} />
+
                     <Route path="/rh" element={<RHDashboard />} />
 
                     {/* Keeping /quotes for direct access or legacy if needed, but main flow is via Project */}

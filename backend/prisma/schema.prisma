@@ -73,6 +73,7 @@ model ThirdParty {
   projects    Project[] // Projets dont ce tiers est le client principal (généralement architecte/proprio)
   quotes      Quote[]   // Devis spécifiques envoyés à ce tiers (ex: installateurs)
   materials   Material[] // Matériaux fournis par ce tiers
+  suppliedEquipment Equipment[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
@@ -293,6 +294,7 @@ model ProductionSite {
   name      String   @unique // e.g., Factory A, Factory B
   
   items     QuoteItem[]
+  equipment     Equipment[]
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -305,4 +307,53 @@ model Currency {
   symbol    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// --- MAINTENANCE ---
+
+model Equipment {
+  id             String         @id @default(uuid())
+  number         String         @unique // Numéro d'équipement
+  name           String         
+  serialNumber   String?        // Numéro de série
+  category       String         // Catégorie
+  
+  productionSiteId String?
+  productionSite ProductionSite? @relation(fields: [productionSiteId], references: [id])
+  
+  supplierId     String?
+  supplier       ThirdParty?    @relation(fields: [supplierId], references: [id])
+  
+  parts          Part[]
+  requests       MaintenanceRequest[]
+  
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model Part {
+  id             String      @id @default(uuid())
+  name           String
+  reference      String?
+  stockQuantity  Int         @default(0)
+  minQuantity    Int         @default(0)
+  
+  equipmentId    String?
+  equipment      Equipment?  @relation(fields: [equipmentId], references: [id])
+  
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+model MaintenanceRequest {
+  id             String      @id @default(uuid())
+  description    String
+  status         String      @default("Open") // Open, In Progress, Done
+  priority       String      @default("Medium") // Low, Medium, High
+  
+  equipmentId    String?
+  equipment      Equipment?  @relation(fields: [equipmentId], references: [id])
+  
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 }
