@@ -110,7 +110,11 @@ const StoneForm: React.FC<{ defaultCategory?: string }> = ({ defaultCategory }) 
         const loadSuppliers = async () => {
             try {
                 const data = await getThirdParties();
-                const stoneSuppliers = data.filter(s => s.type === 'Supplier' && s.supplierType === 'Fournisseur de pierre');
+                // Relaxed filter: Validates "Fournisseur de pierre", "Fournisseur de Pierre", etc.
+                const stoneSuppliers = data.filter(s =>
+                    s.type === 'Supplier' &&
+                    s.supplierType?.toLowerCase() === 'fournisseur de pierre'
+                );
                 setSuppliers(stoneSuppliers);
             } catch (error) {
                 console.error('Error loading suppliers', error);

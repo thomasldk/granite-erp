@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { createThirdParty, getThirdPartyById, updateThirdParty, getLanguages, getCurrencies } from '../../services/thirdPartyService';
+import { createThirdParty, getThirdPartyById, updateThirdParty, getLanguages, getCurrencies, getContactTypes } from '../../services/thirdPartyService';
 import { getRepresentatives, Representative } from '../../services/representativeService';
 import { getPaymentTerms, PaymentTerm, generatePaymentTermLabel } from '../../services/paymentTermService';
 import { formatPhoneNumber } from '../../utils/formatters';
@@ -17,6 +17,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
     const [currencies, setCurrencies] = useState<any[]>([]);
     const [incoterms, setIncoterms] = useState<any[]>([]); // New
     const [paymentTermsList, setPaymentTermsList] = useState<PaymentTerm[]>([]);
+    const [supplierTypesList, setSupplierTypesList] = useState<any[]>([]); // Added
     const [systemDefaults, setSystemDefaults] = useState<any>({}); // New v8
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
@@ -69,13 +70,14 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
     useEffect(() => {
         const init = async () => {
             try {
-                const [repsData, langsData, currsData, termsData, fetchedIncoterms, sysData] = await Promise.all([
+                const [repsData, langsData, currsData, termsData, fetchedIncoterms, sysData, suppTypes] = await Promise.all([
                     getRepresentatives(),
                     getLanguages(),
                     getCurrencies(),
                     getPaymentTerms(),
                     fetch('/api/incoterms').then(r => r.json()).catch(() => []),
-                    fetch('/api/system-config').then(r => r.json()).catch(() => ({}))
+                    fetch('/api/system-config').then(r => r.json()).catch(() => ({})),
+                    getContactTypes('Supplier').catch(() => [])
                 ]);
                 setReps(repsData);
                 setLanguages(langsData);
@@ -83,6 +85,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                 setPaymentTermsList(termsData);
                 setIncoterms(fetchedIncoterms); // Fetch Properly
                 setSystemDefaults(sysData);
+                setSupplierTypesList(suppTypes);
 
                 // V8: Pre-fill defaults only for New Clients
                 if (!id && sysData) {
@@ -737,16 +740,14 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                             required={!isClient}
                         >
                             <option value="">-- Sélectionner --</option>
-                            <option value="Fournisseur de pierre">Fournisseur de pierre</option>
-                            <option value="Fournisseurs de pièce">Fournisseurs de pièce</option>
-                            <option value="Transporteur">Transporteur</option>
-                            <option value="Courtier">Courtier</option>
-                            <option value="Autres">Autres</option>
-                            <option value="Autres">Autres</option>
+                            {/* Use dynamic Supplier Types from Settings (shared with Contact Roles for now) */}
+                            {supplierTypesList.map((type: any) => (
+                                <option key={type.id} value={type.name}>{type.name}</option>
+                            ))}
                         </select>
                     </div>
                     {/* Price List Upload - Only for Stone Supplier */}
-                    {!isClient && formData.supplierType === 'Fournisseur de pierre' && (
+                    {!isClient && formData.supplierType?.toLowerCase() === 'fournisseur de pierre' && (
                         <div className="col-span-2 grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-gray-700 text-sm font-bold mb-2">

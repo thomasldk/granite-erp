@@ -64,3 +64,19 @@ Ce guide explique comment déployer l'application sur Railway via GitHub.
  1. **PostgreSQL** (La base de données)
  2. **Backend** (L'API, connectée à la BDD via `DATABASE_URL`)
  3. **Frontend** (L'interface, connectée au Backend via `VITE_API_URL`)
+
+## Partager la Base de Données (PostgreSQL)
+
+Pour qu'un collaborateur puisse se connecter à la même base de données que vous (et voir les mêmes données en temps réel) :
+
+1.  Allez sur votre dashboard Railway.
+2.  Cliquez sur votre service **PostgreSQL**.
+3.  Allez dans l'onglet **Variables**.
+4.  Trouvez la ligne `DATABASE_URL`.
+5.  Cliquez sur l'icône "Copy" pour copier la valeur (elle commence par `postgresql://...`).
+6.  Envoyez cette URL à votre collaborateur.
+7.  Votre collaborateur doit mettre cette URL dans son fichier `.env` local :
+    ```env
+    DATABASE_URL="votre_url_copiee_ici"
+    ```
+8.  Il redémarre son backend (`npm run dev`), et voilà ! Il est connecté à votre Cloud.
