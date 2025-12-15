@@ -21,6 +21,8 @@ import CurrencyList from './pages/settings/CurrencyList';
 import ProjectLocationList from './pages/settings/ProjectLocationList';
 import ProductionSiteList from './pages/settings/ProductionSiteList';
 import MaintenanceSiteList from './pages/settings/MaintenanceSiteList';
+import IncotermList from './pages/settings/IncotermList'; // Added
+import SystemConfig from './pages/settings/GlobalParameters'; // Added V8
 import { DatabaseSettings } from './pages/settings/DatabaseSettings';
 import ProductionDashboard from './pages/production/ProductionDashboard';
 import MaintenanceDashboard from './pages/maintenance/MaintenanceDashboard';
@@ -206,8 +208,9 @@ function App() {
                         <Route path="contact-types" element={<ContactTypeList />} />
                         <Route path="languages" element={<LanguageList />} />
                         <Route path="currencies" element={<CurrencyList />} />
-                        <Route path="currencies" element={<CurrencyList />} />
                         <Route path="locations" element={<ProjectLocationList />} />
+                        <Route path="incoterms" element={<IncotermList />} /> {/* Added */}
+                        <Route path="system-config" element={<SystemConfig />} /> {/* Added V8 */}
                         <Route path="production-sites" element={<ProductionSiteList />} />
                         <Route path="maintenance-sites" element={<MaintenanceSiteList />} />
                         <Route path="system" element={<SystemConfigPage />} />

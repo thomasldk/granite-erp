@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 
+import { formatPhoneNumber } from '../../utils/formatters';
+
 interface Representative {
     id: string;
     firstName: string;
@@ -47,9 +49,9 @@ const RepresentativeList: React.FC = () => {
             firstName: rep.firstName,
             lastName: rep.lastName,
             email: rep.email || '',
-            phone: rep.phone || '',
-            mobile: rep.mobile || '',
-            fax: rep.fax || ''
+            phone: formatPhoneNumber(rep.phone || ''),
+            mobile: formatPhoneNumber(rep.mobile || ''),
+            fax: formatPhoneNumber(rep.fax || '')
         });
         setEditingRepId(rep.id);
         setFormVisible(true);
@@ -58,6 +60,14 @@ const RepresentativeList: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            // Un-format before sending if needed? 
+            // The API/DB might expect raw numbers, but ClientForm sends formatted strings usually?
+            // Actually ClientForm uses formatPhoneNumber on change, so it holds formatted string in state.
+            // But we should strip for consistent DB storage? 
+            // The previous code sent `formData` directly.
+            // If the user inputs formatted string, DB gets formatted string.
+            // If we format here, we send formatted string.
+            // This is consistent with ClientForm which usually saves what's in the input.
             if (editingRepId) {
                 await api.put(`/representatives/${editingRepId}`, formData);
             } else {
@@ -71,17 +81,6 @@ const RepresentativeList: React.FC = () => {
             console.error('Error saving rep', error);
             alert("Erreur lors de la sauvegarde.");
         }
-    };
-
-    const formatPhoneNumber = (value: string) => {
-        if (!value) return value;
-        const phoneNumber = value.replace(/[^\d]/g, '');
-        const phoneNumberLength = phoneNumber.length;
-        if (phoneNumberLength < 4) return phoneNumber;
-        if (phoneNumberLength < 7) {
-            return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
-        }
-        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
     };
 
     return (

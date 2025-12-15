@@ -7,7 +7,12 @@ async function main() {
 
     // 1. Materials (Replacing StoneType logic)
     // Category: Stone, Type: Granite/Quartz/etc.
-    const materials: any[] = [];
+    // Category: Stone, Type: Granite/Quartz/etc.
+    const materials: any[] = [
+        { name: 'Granite Noir St-Henry', category: 'Stone', type: 'Granite', purchasePrice: 25.00, sellingPrice: 45.00, unit: 'sqft', density: 168, wasteFactor: 1.25, densityUnit: 'lb/ft3', quality: 'A' },
+        { name: 'Quartz Blanc Pur', category: 'Stone', type: 'Quartz', purchasePrice: 35.00, sellingPrice: 65.00, unit: 'sqft', density: 150, wasteFactor: 1.15, densityUnit: 'lb/ft3', quality: 'A' },
+        { name: 'Marbre Carrara', category: 'Stone', type: 'Marble', purchasePrice: 40.00, sellingPrice: 80.00, unit: 'sqft', density: 165, wasteFactor: 1.30, densityUnit: 'lb/ft3', quality: 'S' }
+    ];
 
     for (const mat of materials) {
         // Simple check if exists by name
@@ -24,9 +29,17 @@ async function main() {
     const contactTypes = ['Architecte', 'Designer', 'Chargé de projet', 'Comptabilité', 'Gérant de chantier', 'Vendeur', 'Directeur de vente', 'Technicien'];
     for (const type of contactTypes) {
         await prisma.contactType.upsert({
-            where: { name: type },
+            where: {
+                name_category: {
+                    name: type,
+                    category: 'Client'
+                }
+            },
             update: {},
-            create: { name: type }
+            create: {
+                name: type,
+                category: 'Client'
+            }
         });
     }
     console.log('✅ Contact Types created');
@@ -100,6 +113,33 @@ async function main() {
             }
         });
         console.log('✅ Sample Client created');
+    }
+
+    // 5b. Sample Supplier
+    const existingSupplier = await prisma.thirdParty.findFirst({ where: { code: 'F-STONE' } });
+    if (!existingSupplier) {
+        await prisma.thirdParty.create({
+            data: {
+                name: 'Stone Supplier Import',
+                type: 'Supplier',
+                code: 'F-STONE',
+                email: 'orders@stonesupplier.com',
+                phone: '888-555-9999',
+                supplierType: 'Stone',
+                paymentTerms: 'Net 30',
+                defaultCurrency: 'USD',
+                language: 'en',
+                addresses: {
+                    create: {
+                        type: 'Main',
+                        line1: '999 Quarry Road',
+                        city: 'Vermont',
+                        country: 'USA'
+                    }
+                }
+            }
+        });
+        console.log('✅ Sample Supplier created');
     }
 
     // 6. Languages

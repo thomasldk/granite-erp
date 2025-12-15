@@ -34,7 +34,8 @@ router.get('/:id/download-excel', quoteController.downloadQuoteExcel); // Downlo
 // Import XML
 router.post('/:id/import-xml', upload.single('file'), quoteController.importQuoteXml);
 router.post('/:id/reintegrate-excel', upload.single('file'), quoteController.reintegrateExcel);
-router.get('/:id/download-source-excel', quoteController.downloadSourceExcel); // For Agent to download uploaded Excel
+// Basic CRUD
+router.get('/:id/download-source', quoteController.downloadQuoteResult); // Alias for Agent to get previous file
 router.post('/save-rak', quoteController.saveRakToNetwork);
 router.post('/:id/fetch-return-xml', quoteController.fetchReturnXml);
 router.get('/:id/download-pdf', quoteController.downloadQuotePdf);

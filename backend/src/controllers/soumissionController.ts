@@ -345,8 +345,8 @@ export const generateQuoteXml = async (req: Request, res: Response) => {
             const lastName = rest.join(' ');
             rep = await prisma.representative.findFirst({
                 where: {
-                    firstName: { contains: firstName, mode: 'insensitive' },
-                    lastName: { contains: lastName, mode: 'insensitive' }
+                    firstName: { contains: firstName },
+                    lastName: { contains: lastName }
                 }
             });
         }

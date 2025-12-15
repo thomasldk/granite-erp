@@ -5,10 +5,15 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
-const port = 5005; // FORCE 5005 to bypass .env conflict
+const port = 5006; // forced port to avoid env conflict
 
 app.use(cors());
 app.use(express.json());
+
+app.use((req, res, next) => {
+    console.log(`[Request] ${req.method} ${req.url}`);
+    next();
+});
 
 // Routes
 import thirdPartyRoutes from './routes/thirdPartyRoutes';
@@ -25,6 +30,8 @@ import syncRoutes from './routes/syncRoutes'; // Added
 import productionRoutes from './routes/productionRoutes'; // Added
 import productionSiteRoutes from './routes/productionSiteRoutes'; // Added
 import maintenanceSiteRoutes from './routes/maintenanceSiteRoutes'; // Added
+import incotermRoutes from './routes/incotermRoutes'; // Added
+import systemConfigRoutes from './routes/systemConfigRoutes'; // Added V8
 import path from 'path'; // Added for static serving
 
 app.use('/uploads', express.static(path.join(__dirname, '../uploads'))); // Serve uploads statically
@@ -42,6 +49,8 @@ app.use('/api/upload', uploadRoutes); // Added upload route
 app.use('/api/production', productionRoutes); // Added production route
 app.use('/api/production-sites', productionSiteRoutes); // Added production sites route
 app.use('/api/maintenance-sites', maintenanceSiteRoutes); // Added maintenance sites route
+app.use('/api/incoterms', incotermRoutes); // Added
+app.use('/api/system-config', systemConfigRoutes); // Added V8
 
 app.use('/api/sync', syncRoutes); // Added Sync Agent Routes
 
@@ -51,9 +60,57 @@ app.get('/', (req: Request, res: Response) => {
     res.send('Granite DRC ERP API is running');
 });
 
+
+import { BackupService } from './services/BackupService';
+
 if (require.main === module) {
-    app.listen(port, '0.0.0.0', () => {
+    console.log('--- SERVER V3 DEBUG START ---'); // Debug 
+    const backupService = new BackupService();
+
+    const server = app.listen(port, '0.0.0.0', () => {
+        console.log(`\n\n🚨 SERVER RESTART V2 CHECK - IF YOU SEE THIS, SERVER.TS IS UPDATED 🚨`);
         console.log(`Server running on port ${port} - API Ready (Bound to 0.0.0.0)`);
+
+        // Start Backup Service
+        console.log("🚀 Triggering initial backup on startup...");
+        backupService.startAutomatedBackup();
+    });
+
+    // Graceful Shutdown
+    const shutdown = (signal: string) => {
+        console.log(`Received ${signal}. Closing server...`);
+
+        // Stop Backup Service
+        backupService.stop();
+
+        // Force close any existing connections
+        if (server.closeAllConnections) {
+            server.closeAllConnections();
+        }
+
+        server.close(() => {
+            console.log('Server closed. Port released.');
+            process.exit(0);
+        });
+
+        // Fail-safe if close takes too long
+        setTimeout(() => {
+            console.error('Could not close connections in time, forcefully shutting down');
+            process.exit(1);
+        }, 10000);
+    };
+
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+    // Handle nodemon restart specifically
+    process.once('SIGUSR2', () => {
+        if (server.closeAllConnections) {
+            server.closeAllConnections();
+        }
+        server.close(() => {
+            process.kill(process.pid, 'SIGUSR2');
+        });
     });
 }
 

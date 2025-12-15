@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient, QuoteItem } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -22,19 +22,45 @@ export const generateQuoteExcel = async (req: Request, res: Response) => {
 
     const { id } = req.params;
     try {
-        const quote = await prisma.quote.findUnique({
-            where: { id: id }
+        const quoteFull = await prisma.quote.findUnique({
+            where: { id: id },
+            include: {
+                items: true,
+                project: true,
+                material: true,
+                contact: true,
+                paymentTerm: true,
+                representative: true,
+                client: { include: { addresses: true, contacts: true, paymentTerm: true } }
+            }
         });
 
-        if (!quote) {
+        if (!quoteFull) {
             return res.status(404).json({ error: 'Quote not found' });
         }
 
-        console.log(`[Agent-Flow] Queuing Quote ${quote.reference} for PC Agent...`);
+        // Generate XML
+        let rep = quoteFull.representative;
+        if (!rep && quoteFull.client?.repName) {
+            const allReps = await prisma.representative.findMany();
+            rep = allReps.find(r => `${r.firstName} ${r.lastName}` === quoteFull.client?.repName) || null;
+        }
+
+        const xmlContent = await xmlService.generateQuoteXml(quoteFull, rep);
+
+        // Save to pending_xml
+        const safeName = (str: string | undefined) => (str || '').replace(/[^a-zA-Z0-9- ]/g, '');
+        const filename = `${safeName(quoteFull.reference)}.xml`;
+        const outputPath = path.join(__dirname, '../../pending_xml', filename);
+
+        fs.writeFileSync(outputPath, xmlContent);
+        console.log(`[Agent-Flow] XML saved to ${outputPath}`);
+
+        console.log(`[Agent-Flow] Queuing Quote ${quoteFull.reference} for PC Agent...`);
 
         // 1. Mark as Pending for Agent
         await prisma.quote.update({
-            where: { id: quote.id },
+            where: { id: quoteFull.id },
             data: {
                 syncStatus: 'PENDING_AGENT'
             }
@@ -106,16 +132,17 @@ export const getNextQuoteReference = async (req: Request, res: Response) => {
 export const getQuotes = async (req: Request, res: Response) => {
     try {
         const quotes = await prisma.quote.findMany({
-            include: {
-                client: true,
-                project: true,
-                items: true
+            where: {
+                status: {
+                    not: 'PENDING_CREATION' // Hide incomplete duplicates
+                }
             },
-            orderBy: { updatedAt: 'desc' }
+            include: { project: true, client: true, items: true },
+            orderBy: { dateIssued: 'desc' }
         });
         res.json(quotes);
     } catch (error) {
-        res.status(500).json({ error: 'Error fetching quotes' });
+        res.status(500).json({ error: 'Failed to fetch quotes' });
     }
 };
 
@@ -133,7 +160,10 @@ export const getQuoteById = async (req: Request, res: Response) => {
             include: {
                 client: true,
                 project: true,
-                items: true
+                items: true,
+                paymentTerm: true,
+                representative: true,
+                contact: true
             }
         });
         if (!quote) return res.status(404).json({ error: 'Quote not found' });
@@ -144,8 +174,35 @@ export const getQuoteById = async (req: Request, res: Response) => {
 };
 
 export const createQuote = async (req: Request, res: Response) => {
-    const { reference, projectId, thirdPartyId, contactId, currency, estimatedWeeks, materialId, exchangeRate, incoterm } = req.body;
+    const {
+        reference, projectId, thirdPartyId, contactId, currency, estimatedWeeks, materialId, exchangeRate, incoterm,
+        incotermId, incotermCustomText,
+        // V8 Snapshot
+        semiStandardRate, salesCurrency, palletPrice, palletRequired,
+        paymentTermId, paymentDays, depositPercentage, discountPercentage, discountDays, paymentCustomText,
+        validityDuration, // Check for explicit override
+        representativeId // Added
+    } = req.body;
+    console.log("[CreateQuote] Payload:", JSON.stringify(req.body, null, 2));
     try {
+        // Calculate Validity Duration if not provided
+        let finalValidityDuration = validityDuration ? parseInt(validityDuration) : null;
+
+        if (finalValidityDuration === null) {
+            // 1. Try Client Default
+            if (thirdPartyId) {
+                const client = await prisma.thirdParty.findUnique({ where: { id: thirdPartyId } });
+                if (client?.validityDuration) {
+                    finalValidityDuration = client.validityDuration;
+                }
+            }
+            // 2. Try System Default (if still null)
+            if (finalValidityDuration === null) {
+                const config = await prisma.systemConfig.findUnique({ where: { key: 'GLOBAL' } });
+                finalValidityDuration = config?.defaultValidityDuration ?? 30; // Fallback 30
+            }
+        }
+
         const quote = await prisma.quote.create({
             data: {
                 reference,
@@ -157,41 +214,132 @@ export const createQuote = async (req: Request, res: Response) => {
                 materialId,
                 exchangeRate: exchangeRate ? parseFloat(exchangeRate) : 1.0, // Handle exchangeRate
                 incoterm: incoterm || 'Ex Works',
+                incotermId: incotermId || null,
+                incotermCustomText,
                 status: 'Draft',
                 version: 1,
+                // V8
+                semiStandardRate: semiStandardRate ? parseFloat(semiStandardRate) : null,
+                salesCurrency,
+                palletPrice: palletPrice ? parseFloat(palletPrice) : null,
+                palletRequired: (palletRequired !== undefined && palletRequired !== null) ? Boolean(palletRequired) : null,
+                // V8 Payment Snapshot
+                paymentTermId,
+                paymentDays: paymentDays ? parseInt(paymentDays) : 0,
+                depositPercentage: depositPercentage ? parseFloat(depositPercentage) : 0,
+                discountPercentage: discountPercentage ? parseFloat(discountPercentage) : 0,
+                discountDays: discountDays ? parseInt(discountDays) : 0,
+                paymentCustomText,
+                validityDuration: finalValidityDuration,
+                representativeId: representativeId || null
             }
         });
         res.json(quote);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Error creating quote' });
+    } catch (error: any) {
+        console.error("Create Quote Error Details:", error);
+        res.status(500).json({ error: 'Error creating quote', details: error.message, meta: error.meta });
     }
 };
 
 export const updateQuote = async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { status, validUntil, currency, internalNotes, estimatedWeeks, materialId, exchangeRate, incoterm, numberOfLines } = req.body;
+    const {
+        contactId, // FIX
+        status,
+        validUntil,
+        currency,
+        internalNotes,
+        estimatedWeeks,
+        materialId,
+        exchangeRate,
+        incoterm,
+        incotermId,
+        incotermCustomText,
+        numberOfLines,
+        // Optional client fields (may be undefined if not sent)
+        clientName,
+        clientAddress1,
+        clientCity,
+        clientState,
+        clientZipCode,
+        clientPhone,
+        clientFax,
+        clientEmail,
+        // V8 Snapshot
+        // V8 Snapshot
+        semiStandardRate, salesCurrency, palletPrice, palletRequired,
+        paymentTermId, paymentDays, depositPercentage, discountPercentage, discountDays, paymentCustomText,
+        validityDuration, representativeId
+    } = req.body;
     try {
+        console.log(`[UPDATE QUOTE] ID=${id} IncotermId=${incotermId} Incoterm=${incoterm}`);
+        // 1️⃣ Update the Quote itself (same as before)
         const quote = await prisma.quote.update({
             where: { id },
             data: {
+                contactId: contactId !== undefined ? (contactId || null) : undefined,
                 status,
                 validUntil: validUntil ? new Date(validUntil) : undefined,
                 currency,
                 estimatedWeeks: estimatedWeeks ? parseInt(estimatedWeeks) : undefined,
-                materialId,
+                materialId: materialId !== undefined ? (materialId || null) : undefined,
                 exchangeRate: exchangeRate ? parseFloat(exchangeRate) : undefined,
                 incoterm,
+                incotermId: incotermId !== undefined ? (incotermId || null) : undefined,
+                incotermCustomText,
                 // Also update the Project if numberOfLines is provided
                 project: numberOfLines ? {
                     update: {
                         numberOfLines: parseInt(numberOfLines)
                     }
-                } : undefined
+                } : undefined,
+                // V8
+                semiStandardRate: semiStandardRate !== undefined ? (semiStandardRate ? parseFloat(semiStandardRate) : null) : undefined,
+                salesCurrency: salesCurrency !== undefined ? salesCurrency : undefined,
+                palletPrice: palletPrice !== undefined ? (palletPrice ? parseFloat(palletPrice) : null) : undefined,
+                palletRequired: (palletRequired !== undefined) ? (palletRequired ? true : false) : undefined,
+                // V8 Payment
+                paymentTermId: paymentTermId !== undefined ? (paymentTermId || null) : undefined,
+                paymentDays: (paymentDays !== undefined && paymentDays !== '') ? parseInt(paymentDays) : undefined,
+                depositPercentage: (depositPercentage !== undefined && depositPercentage !== '') ? parseFloat(depositPercentage) : undefined,
+                discountPercentage: (discountPercentage !== undefined && discountPercentage !== '') ? parseFloat(discountPercentage) : undefined,
+                discountDays: (discountDays !== undefined && discountDays !== '') ? parseInt(discountDays) : undefined,
+                paymentCustomText,
+                validityDuration: (validityDuration !== undefined && validityDuration !== '') ? parseInt(validityDuration) : undefined,
+                representativeId: representativeId !== undefined ? (representativeId || null) : undefined
             },
-            include: { project: true } // Return project to confirm update
+            include: { project: true, client: true } // Include client to get clientId for update
         });
-        res.json(quote);
+        // 2️⃣ If any client fields were sent, update the related ThirdParty (client) record
+        if (clientName || clientAddress1 || clientCity || clientState || clientZipCode || clientPhone || clientFax || clientEmail) {
+            await prisma.thirdParty.update({
+                where: { id: quote.thirdPartyId },
+                data: {
+                    name: clientName ?? undefined,
+                    addresses: clientAddress1 || clientCity || clientState || clientZipCode ? {
+                        updateMany: {
+                            where: { thirdPartyId: quote.thirdPartyId }, // Ensure we update addresses belonging to this client
+                            data: {
+                                line1: clientAddress1 ?? undefined,
+                                city: clientCity ?? undefined,
+                                state: clientState ?? undefined,
+                                zipCode: clientZipCode ?? undefined
+                            }
+                        }
+                    } : undefined,
+                    contacts: clientPhone || clientFax || clientEmail ? {
+                        updateMany: {
+                            where: { thirdPartyId: quote.thirdPartyId }, // Ensure we update contacts belonging to this client
+                            data: {
+                                phone: clientPhone ?? undefined,
+                                fax: clientFax ?? undefined,
+                                email: clientEmail ?? undefined
+                            }
+                        }
+                    } : undefined
+                }
+            });
+        } res.json(quote);
     } catch (error) {
         console.error("Update Quote Error:", error);
         res.status(500).json({ error: 'Error updating quote' });
@@ -254,7 +402,7 @@ export const deleteQuote = async (req: Request, res: Response) => {
     }
 };
 
-export const reviseQuote = async (req: Request, res: Response) => {
+export const reviseQuote_LEGACY = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
 
@@ -299,6 +447,19 @@ export const reviseQuote = async (req: Request, res: Response) => {
                 incoterm: (originalQuote as any).incoterm,
                 validUntil: undefined, // Reset validity
                 dateIssued: new Date(), // New date
+                // V8
+                semiStandardRate: (originalQuote as any).semiStandardRate,
+                salesCurrency: (originalQuote as any).salesCurrency,
+                palletPrice: (originalQuote as any).palletPrice,
+                palletRequired: (originalQuote as any).palletRequired,
+                // V8 Payment Snapshot
+                paymentTermId: (originalQuote as any).paymentTermId,
+                paymentDays: (originalQuote as any).paymentDays,
+                depositPercentage: (originalQuote as any).depositPercentage,
+                discountPercentage: (originalQuote as any).discountPercentage,
+                discountDays: (originalQuote as any).discountDays,
+                paymentCustomText: (originalQuote as any).paymentCustomText,
+                representativeId: originalQuote.representativeId
             }
         });
 
@@ -356,65 +517,76 @@ export const reviseQuote = async (req: Request, res: Response) => {
 export const duplicateQuote = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
+        const { newClientId, newContactId } = req.body;
 
         // 1. Get original quote
         const originalQuote = await prisma.quote.findUnique({
             where: { id },
-            include: { items: true, project: { include: { quotes: true } } }
+            include: { items: true, project: { include: { quotes: true } }, client: true, material: true }
         });
 
         if (!originalQuote || !originalQuote.project) return res.status(404).json({ error: 'Quote or Project not found' });
 
-        // 2. Generate New Reference (DRC25-001-C{Next}R0)
-        // Similar to getNextQuoteReference logic
-        const project = originalQuote.project;
-        const year = new Date().getFullYear().toString().slice(-2);
-        const projectRefParts = project.reference.split('-'); // P-0001 or similar?
-        // Actually, we should parse the project reference or just use the project sequence if stored.
-        // Let's rely on the existing reference pattern if possible, or re-calculate.
-        // Pattern: DRC{YY}-{Seq}-C{Index}R0
-        // Quickest way: Count quotes in project and +1.
-        const clientIndex = project.quotes.length; // 0-based index becomes 1-based count, or just next index?
-        // If we have 2 quotes (C0, C1), length is 2. Next is C2.
+        // 2. Resolve New Client & Contact
+        let finalClientId = originalQuote.thirdPartyId;
+        let finalContactId = originalQuote.contactId;
 
-        // Extract Project Seq from original reference if possible, or Project Reference
-        // Original: DRC25-0001-C0R0
-        // Parts: DRC25, 0001, C0R0
-        const refParts = originalQuote.reference.split('-');
-        let newReference = '';
-
-        if (refParts.length >= 3) {
-            const prefix = refParts.slice(0, 2).join('-'); // DRC25-0001
-            newReference = `${prefix}-C${clientIndex}R0`;
-        } else {
-            // Fallback
-            newReference = `${originalQuote.reference}-COPY`;
+        if (newClientId) {
+            finalClientId = newClientId;
+            finalContactId = newContactId || null;
         }
 
-        // 3. Create Duplicate
+        const newClient = await prisma.thirdParty.findUnique({ where: { id: finalClientId }, include: { addresses: true, contacts: true, paymentTerm: true } });
+        const newContact = finalContactId ? await prisma.contact.findUnique({ where: { id: finalContactId } }) : null;
+
+        // 3. Generate New Reference
+        const project = originalQuote.project;
+        const clientIndex = project.quotes.length;
+
+        const refParts = originalQuote.reference.split('-');
+        let newReference = '';
+        if (refParts.length >= 3) {
+            const prefix = refParts.slice(0, 2).join('-');
+            newReference = `${prefix}-C${clientIndex}R0`;
+        } else {
+            newReference = `${originalQuote.reference}-COPY-${Date.now().toString().slice(-4)}`;
+        }
+
+        // 4. Create Duplicate Quote
         const newQuote = await prisma.quote.create({
             data: {
                 reference: newReference,
                 projectId: originalQuote.projectId,
-                thirdPartyId: originalQuote.thirdPartyId, // Keep same client? Yes, duplication usually implies same context.
-                contactId: originalQuote.contactId,
+                thirdPartyId: finalClientId,
+                contactId: finalContactId,
                 currency: originalQuote.currency,
-                status: 'Draft',
+                status: 'PENDING_CREATION', // Hidden until PC Agent returns
                 version: 1,
                 estimatedWeeks: originalQuote.estimatedWeeks,
                 materialId: originalQuote.materialId,
                 exchangeRate: originalQuote.exchangeRate,
                 incoterm: originalQuote.incoterm,
+                incotermId: originalQuote.incotermId,
+                incotermCustomText: originalQuote.incotermCustomText,
                 validUntil: undefined,
                 dateIssued: new Date(),
+                semiStandardRate: (originalQuote as any).semiStandardRate,
+                salesCurrency: (originalQuote as any).salesCurrency,
+                palletPrice: (originalQuote as any).palletPrice,
+                palletRequired: (originalQuote as any).palletRequired,
+                paymentTermId: (originalQuote as any).paymentTermId,
+                paymentDays: (originalQuote as any).paymentDays,
+                depositPercentage: (originalQuote as any).depositPercentage,
+                discountPercentage: (originalQuote as any).discountPercentage,
+                discountDays: (originalQuote as any).discountDays,
+                paymentCustomText: (originalQuote as any).paymentCustomText,
+                representativeId: originalQuote.representativeId,
+                syncStatus: 'PENDING_DUPLICATE' // Special status to preserve RAK
             }
         });
 
-        // 4. Clone Items
+        // 5. Clone Items
         if (originalQuote.items.length > 0) {
-            console.log(`[Duplicate] Found ${originalQuote.items.length} items to clone.`);
-            console.log(`[Duplicate] First item keys:`, Object.keys(originalQuote.items[0]));
-
             const itemsData = originalQuote.items.map((item: any) => ({
                 quoteId: newQuote.id,
                 tag: item.tag,
@@ -430,7 +602,6 @@ export const duplicateQuote = async (req: Request, res: Response) => {
                 numSlots: item.numSlots,
                 unitPrice: item.unitPrice,
                 totalPrice: item.totalPrice,
-                // Full Clone
                 netLength: item.netLength,
                 netArea: item.netArea,
                 netVolume: item.netVolume,
@@ -445,23 +616,91 @@ export const duplicateQuote = async (req: Request, res: Response) => {
                 anchoringCost: item.anchoringCost,
                 unitTime: item.unitTime,
                 totalTime: item.totalTime,
+                unitPriceInternal: item.unitPriceInternal,
+                totalPriceInternal: item.totalPriceInternal,
                 productionStatus: 'Pending',
                 productionNotes: item.productionNotes
             }));
 
-            await prisma.quoteItem.createMany({
-                data: itemsData
-            });
+            await prisma.quoteItem.createMany({ data: itemsData });
         }
+
+        // 6. Generate RAK XML
+        const safeName = (str: string | undefined) => (str || '').replace(/[^a-zA-Z0-9- ]/g, '');
+
+        // 6. LOGIC: Copy Excel File on Server (F:\nxerp OR /Volumes/nxerp)
+        // We handle cross-platform paths so the Mac backend can write to the "F" drive mounted on /Volumes.
+
+        // DETECT PLATFORM
+        const isMac = process.platform === 'darwin';
+        const basePath = isMac ? '/Volumes/nxerp' : 'F:\\nxerp';
+
+        const pName = safeName(project.name);
+
+        // 6a. Construct Source Path (Original Quote)
+        // Heuristic: Most reliable is to reconstruct standard format
+        const oldClientName = safeName(originalQuote.client?.name);
+        const oldMaterialName = safeName(originalQuote.material?.name);
+        const oldRef = safeName(originalQuote.reference);
+        const oldFilename = `${oldRef}_${oldClientName}_${pName}_${oldMaterialName}.xlsx`;
+        const oldPath = path.join(basePath, pName, oldFilename);
+
+        // 6b. Construct Target Path (New Quote)
+        const newClientName = safeName(newClient?.name || 'Unknown');
+        const newRef = safeName(newReference);
+        const newFilename = `${newRef}_${newClientName}_${pName}_${oldMaterialName}.xlsx`;
+        const newPath = path.join(basePath, pName, newFilename);
+
+        console.log(`[Duplicate] Platform: ${process.platform}. BasePath: ${basePath}`);
+        console.log(`[Duplicate] Copying: ${oldPath} -> ${newPath}`);
+
+        try {
+            if (fs.existsSync(oldPath)) {
+                // Ensure target dir exists
+                if (!fs.existsSync(path.dirname(newPath))) {
+                    fs.mkdirSync(path.dirname(newPath), { recursive: true });
+                }
+                fs.copyFileSync(oldPath, newPath);
+                console.log(`[Duplicate] Excel copied successfully.`);
+
+                // Save the new path to the quote record
+                await prisma.quote.update({
+                    where: { id: newQuote.id },
+                    data: { excelFilePath: newPath }
+                });
+
+            } else {
+                console.warn(`[Duplicate] WARNING: Original file not found at ${oldPath}. Check mount point!`);
+            }
+        } catch (e: any) {
+            console.error(`[Duplicate] File Copy Failed:`, e.message);
+        }
+
+        // 7. Generate RAK Trigger
+        // The RAK 'cible' will point to F:\nxerp... (Windows Path) because the Agent runs on Windows.
+        // We must ensure the 'cible' in the XML matches the Windows reality.
+        // XmlService handles this if we pass standard objects.
+
+        const fullNewQuote = await prisma.quote.findUnique({
+            where: { id: newQuote.id },
+            include: { client: { include: { addresses: true, contacts: true, paymentTerm: true } }, project: { include: { location: true } }, material: true, items: true, incotermRef: true, paymentTerm: true }
+        });
+
+        // Use standard generation
+        const xmlService = new (require('../services/xmlService').XmlService)();
+        const xmlContent = await xmlService.generateQuoteXml(fullNewQuote, null);
+
+        const xmlFilename = `${newReference}.rak`;
+        const outputPath = path.join(__dirname, '../../pending_xml', xmlFilename);
+        fs.writeFileSync(outputPath, xmlContent);
 
         res.json(newQuote);
 
     } catch (error) {
-        console.error("Duplicate Error:", error);
-        res.status(500).json({ error: 'Failed to duplicate quote', details: error });
+        console.error("Duplicate Quote Error:", error);
+        res.status(500).json({ error: 'Failed to duplicate quote' });
     }
 };
-
 // XML Export logic moved to top
 
 
@@ -474,6 +713,9 @@ export const generateQuoteXml = async (req: Request, res: Response) => {
                 items: true,
                 project: true,
                 material: true,
+                contact: true, // Specific contact selected
+                paymentTerm: true, // Needed for Code (1-8)
+                representative: true,
                 client: { include: { addresses: true, contacts: true, paymentTerm: true } }
             }
         });
@@ -481,10 +723,21 @@ export const generateQuoteXml = async (req: Request, res: Response) => {
         if (!quote) return res.status(404).json({ error: 'Quote not found' });
 
         // Find Representative manually (No FK)
-        let rep = null;
-        if (quote.client?.repName) {
-            const allReps = await prisma.representative.findMany(); // Cache efficient enough for small set
-            rep = allReps.find(r => `${r.firstName} ${r.lastName}` === quote.client?.repName);
+        // Find Representative
+        let rep = quote.representative;
+        if (!rep && quote.client?.repName) {
+            const allReps = await prisma.representative.findMany();
+            const target = quote.client.repName.trim().toLowerCase();
+            console.log(`[XML-DEBUG] Target Rep Name: '${target}' (Original: '${quote.client.repName}')`);
+
+            console.log(`[XML-DEBUG] Available Reps in DB:`, allReps.map(r => `${r.firstName} ${r.lastName}`));
+
+            rep = allReps.find(r => `${r.firstName} ${r.lastName}`.trim().toLowerCase() === target) || null;
+
+            if (rep) console.log(`[XML-DEBUG] Found Match via Name: ID ${rep.id}`);
+            else console.warn(`[XML-DEBUG] NO MATCH FOUND for '${target}'`);
+        } else if (rep) {
+            console.log(`[XML-DEBUG] Used Linked Rep: ${rep.firstName} ${rep.lastName}`);
         }
 
         const xml = await xmlService.generateQuoteXml(quote, rep);
@@ -978,30 +1231,54 @@ export const downloadQuoteResult = async (req: Request, res: Response) => {
         // STRATEGY A: Sync Agent File (Priority)
         // If status says Agent finished or we have a path, strictly try to serve it.
         // Prevent fallback to legacy if Status is Calculated.
-        if (quote.syncStatus === 'Calculated (Agent)' || quote.excelFilePath) {
+        // FIX: Premature Download Protection. Even if we have excelFilePath, DO NOT serve if PENDING_REVISION.
+        const isPending = quote.syncStatus === 'PENDING_REVISION' || quote.syncStatus === 'PENDING';
+
+        if ((quote.syncStatus === 'Calculated (Agent)' || quote.excelFilePath) && !isPending) {
             console.log(`[DEBUG] Strategy A (Strict Agent). Path: ${quote.excelFilePath}, Status: ${quote.syncStatus}`);
 
-            if (quote.excelFilePath && fs.existsSync(quote.excelFilePath)) {
+            let servePath = quote.excelFilePath;
+
+            // FIX: Translate Windows Path (F:) to Mac Path (/Volumes/nxerp)
+            // OR Handle Local Uploads (Tunnel Mode)
+            if (servePath && (servePath.startsWith('uploads/') || servePath.startsWith('uploads\\'))) {
+                // Local Upload Mode
+                servePath = path.join(__dirname, '../../', servePath);
+                console.log(`[DEBUG] Serving Local Upload: ${servePath}`);
+            } else if (servePath && (servePath.startsWith('F:') || servePath.startsWith('f:'))) {
+                // Windows Path Mode (Local Network)
+                // Remove drive letter and convert backslashes
+                let relativePath = servePath.substring(2).replace(/\\/g, '/'); // \nxerp\Projet\Fichier.xlsx -> /nxerp/Projet/Fichier.xlsx
+                // Check if it starts with /nxerp, if so, map to /Volumes/nxerp
+                if (relativePath.toLowerCase().startsWith('/nxerp')) {
+                    servePath = `/Volumes${relativePath}`; // /Volumes/nxerp/...
+                } else {
+                    servePath = `/Volumes/nxerp${relativePath}`; // Fallback if no nxerp in path
+                }
+                console.log(`[DEBUG] Path Translated for Mac: ${quote.excelFilePath} -> ${servePath}`);
+            }
+
+            if (servePath && fs.existsSync(servePath)) {
                 // Return the specific uploaded file
-                let downloadName = path.basename(quote.excelFilePath);
+                let downloadName = path.basename(servePath);
                 // Clean the ID prefix (separated by ___ or __)
                 if (downloadName.includes('___')) {
                     downloadName = downloadName.split('___').slice(1).join('___');
                 } else if (downloadName.includes('__')) {
                     downloadName = downloadName.split('__').slice(1).join('__');
                 }
-                console.log(`[DEBUG] Sending Synced Excel: ${quote.excelFilePath}. Name: ${downloadName}`);
-                const stats = fs.statSync(quote.excelFilePath);
+                console.log(`[DEBUG] Sending Synced Excel: ${servePath}. Name: ${downloadName}`);
+                const stats = fs.statSync(servePath);
                 console.log(`[DEBUG] File Size: ${stats.size} bytes`);
 
                 // Explicitly expose the header for CORS if needed (though usually not issue for direct download)
                 res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
                 res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
-                const fileStream = fs.createReadStream(quote.excelFilePath);
+                const fileStream = fs.createReadStream(servePath);
                 return fileStream.pipe(res);
             } else {
                 // File missing despite status
-                console.error("Agent said calculated, but file missing at:", quote.excelFilePath);
+                console.error("Agent said calculated, but file missing at:", servePath);
                 return res.status(404).json({
                     error: "Le fichier Excel n'est pas encore disponible.",
                     details: "L'agent a signalé la fin du calcul, mais le fichier n'est pas encore arrivé sur le serveur. Veuillez réessayer dans quelques secondes."
@@ -1113,3 +1390,172 @@ export const downloadSourceExcel = async (req: Request, res: Response) => {
 };
 
 
+
+export const reviseQuote = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const {
+            materialId, incotermId, paymentTermId,
+            incotermCustomText, paymentCustomText,
+            depositPercentage, delayDays, discountPercentage, discountDays,
+            // V8 Fields
+            salesCurrency, exchangeRate, validityDuration, estimatedWeeks, palletRequired,
+            quality, unitPrice // Accepted from body
+        } = req.body;
+
+        console.log(`[Revise] Request for Quote ${id}`);
+
+        // 1. Fetch Original Quote
+        const originalQuote = await prisma.quote.findUnique({
+            where: { id },
+            include: {
+                client: { include: { addresses: true, contacts: true, paymentTerm: true } },
+                project: { include: { location: true } },
+                material: true,
+                items: true,
+                contact: true
+            }
+        });
+
+        if (!originalQuote) {
+            return res.status(404).json({ error: 'Original quote not found' });
+        }
+
+        // Pre-fetch Material Name if ID is changing
+        let newMaterialName: string | undefined;
+        if (materialId) {
+            const mat = await prisma.material.findUnique({ where: { id: materialId } });
+            if (mat) newMaterialName = mat.name;
+        }
+
+        // 3. Calculate New Reference (C same, R+1)
+        const refRegex = /C(\d+)R(\d+)/;
+        let newReference = originalQuote.reference;
+        const match = originalQuote.reference.match(refRegex);
+
+        if (match) {
+            const cVal = match[1];
+            const rVal = parseInt(match[2], 10);
+            const newR = rVal + 1;
+            newReference = originalQuote.reference.replace(`C${cVal}R${rVal}`, `C${cVal}R${newR}`);
+        } else {
+            newReference = `${originalQuote.reference}_R1`;
+        }
+
+        console.log(`[Revise] Reference: ${originalQuote.reference} -> ${newReference}`);
+
+        // FIX P2002: Check if this revision already exists (Retry scenario)
+        const existingRev = await prisma.quote.findUnique({ where: { reference: newReference } });
+        if (existingRev) {
+            console.warn(`[Revise] Warning: Revision ${newReference} already exists. Cleaning up for retry...`);
+            // Cleanup: Delete items first due to cascade? Prisma usually handles cascade if configured.
+            // Safest: Delete specific relations or just delete quote.
+            // If we have manual cascade:
+            await prisma.quoteItem.deleteMany({ where: { quoteId: existingRev.id } });
+            await prisma.quote.delete({ where: { id: existingRev.id } });
+            console.log(`[Revise] Cleared existing revision ${newReference}.`);
+        }
+
+        // 4. Create New Quote Record
+        const newQuote = await prisma.quote.create({
+            data: {
+                reference: newReference,
+                projectId: originalQuote.projectId,
+                thirdPartyId: originalQuote.thirdPartyId,
+                contactId: originalQuote.contactId,
+                representativeId: originalQuote.representativeId,
+
+                // NEW VALUES (or keep old if not provided)
+                materialId: materialId || originalQuote.materialId,
+                incotermId: incotermId || originalQuote.incotermId,
+                paymentTermId: paymentTermId || originalQuote.paymentTermId,
+
+                // Financials
+                depositPercentage: depositPercentage !== undefined ? Number(depositPercentage) : originalQuote.depositPercentage,
+                paymentDays: delayDays !== undefined ? Number(delayDays) : originalQuote.paymentDays,
+                discountPercentage: discountPercentage !== undefined ? Number(discountPercentage) : originalQuote.discountPercentage,
+                discountDays: discountDays !== undefined ? Number(discountDays) : originalQuote.discountDays,
+
+                incotermCustomText: incotermCustomText !== undefined ? incotermCustomText : originalQuote.incotermCustomText,
+                paymentCustomText: paymentCustomText !== undefined ? paymentCustomText : originalQuote.paymentCustomText,
+
+                // V8 Commercial Fields
+                salesCurrency: salesCurrency || originalQuote.salesCurrency,
+                exchangeRate: exchangeRate !== undefined ? Number(exchangeRate) : originalQuote.exchangeRate,
+                validityDuration: validityDuration !== undefined ? Number(validityDuration) : originalQuote.validityDuration,
+                estimatedWeeks: estimatedWeeks !== undefined ? Number(estimatedWeeks) : originalQuote.estimatedWeeks,
+                palletRequired: palletRequired !== undefined ? Boolean(palletRequired) : originalQuote.palletRequired,
+
+                status: 'PENDING_REVISION',
+                syncStatus: 'PENDING'
+            }
+        });
+
+        // 5. Copy Items (Robustly)
+        if (originalQuote.items.length > 0) {
+            const itemsData = originalQuote.items.map((item: any) => ({
+                quoteId: newQuote.id,
+                tag: item.tag || '',
+                material: newMaterialName || item.material, // Update material name if changed
+                description: item.description,
+                quantity: item.quantity,
+                unit: item.unit,
+                length: item.length,
+                width: item.width,
+                thickness: item.thickness,
+                finish: quality || item.finish, // Update finish/quality if changed
+
+                // --- COSTING FIELDS (Crucial for avoiding data loss) ---
+                numHoles: item.numHoles,
+                numSlots: item.numSlots,
+                unitPrice: unitPrice ? Number(unitPrice) : item.unitPrice,
+                totalPrice: unitPrice ? (Number(unitPrice) * item.quantity) : item.totalPrice,
+                netLength: item.netLength,
+                netArea: item.netArea,
+                netVolume: item.netVolume,
+                totalWeight: item.totalWeight,
+                unitPriceCad: item.unitPriceCad,
+                totalPriceCad: item.totalPriceCad,
+                stoneValue: item.stoneValue,
+                primarySawingCost: item.primarySawingCost,
+                secondarySawingCost: item.secondarySawingCost,
+                profilingCost: item.profilingCost,
+                finishingCost: item.finishingCost,
+                anchoringCost: item.anchoringCost,
+                unitTime: item.unitTime,
+                totalTime: item.totalTime,
+                unitPriceInternal: item.unitPriceInternal,
+                totalPriceInternal: item.totalPriceInternal,
+                productionStatus: 'Pending',
+                productionNotes: item.productionNotes
+            }));
+
+            await prisma.quoteItem.createMany({
+                data: itemsData
+            });
+        }
+
+        // 5. Agent Delegation (No Local Copy)
+        // We do NOT copy files here. The backend runs on Mac and cannot see the Windows Server (F:).
+        // Instead, we mark the quote as PENDING_REVISION.
+        // The PC Agent will pick this up via the Tunnel, find the original file on F:, copy/rename it, and save the result.
+
+        console.log(`[Revise] Quote ${newQuote.reference} created. Status: PENDING_REVISION. Waiting for Agent.`);
+
+        // Ensure status is correct for Polling
+        await prisma.quote.update({
+            where: { id: newQuote.id },
+            data: {
+                syncStatus: 'PENDING_REVISION'
+            }
+        });
+
+
+
+        res.json(newQuote);
+
+    } catch (error: any) {
+        console.error("Revise Quote Error:", error);
+        res.status(500).json({ error: 'Failed to revise quote', details: error.message });
+    }
+};

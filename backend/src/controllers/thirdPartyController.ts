@@ -10,8 +10,14 @@ export const createThirdParty = async (req: Request, res: Response) => {
             addressLine1, addressCity, addressState, addressZip, addressCountry,
             contactFirstName, contactLastName, contactEmail, contactPhone, contactRole,
             defaultCurrency, paymentTermId, paymentDays, depositPercentage,
-            taxScheme, creditLimit, repName, supplierType, language, unitSystem, incoterm, priceListUrl, priceListDate, // Added
-            internalNotes
+            taxScheme, creditLimit, repName, supplierType, language, unitSystem, incoterm,
+            incotermId, incotermCustomText, // Added
+            priceListUrl, priceListDate,
+            internalNotes,
+            // V8
+            semiStandardRate, salesCurrency, palletPrice, palletRequired,
+            discountPercentage, discountDays, paymentCustomText, exchangeRate,
+            validityDuration
         } = req.body;
 
         const thirdParty = await prisma.thirdParty.create({
@@ -34,9 +40,21 @@ export const createThirdParty = async (req: Request, res: Response) => {
                 language,
                 unitSystem,
                 incoterm,
+                incotermId: incotermId || null,
+                incotermCustomText,
                 priceListUrl,
                 priceListDate, // Added
                 internalNotes,
+                // V8
+                semiStandardRate,
+                salesCurrency,
+                palletPrice,
+                palletRequired,
+                discountPercentage: discountPercentage ? parseFloat(discountPercentage) : 0,
+                discountDays: discountDays ? parseInt(discountDays) : 0,
+                paymentCustomText,
+                exchangeRate: exchangeRate ? parseFloat(exchangeRate) : null,
+                validityDuration: validityDuration ? parseInt(validityDuration) : null,
                 addresses: {
                     create: {
                         line1: addressLine1,
@@ -71,7 +89,7 @@ export const getThirdParties = async (req: Request, res: Response) => {
         const where = type ? { type: String(type) } : {};
         const thirdParties = await prisma.thirdParty.findMany({
             where,
-            include: { contacts: true, addresses: true },
+            include: { contacts: true, addresses: true, paymentTerm: true },
             orderBy: { updatedAt: 'desc' }
         });
         res.json(thirdParties);
@@ -85,7 +103,7 @@ export const getThirdPartyById = async (req: Request, res: Response) => {
         const { id } = req.params;
         const thirdParty = await prisma.thirdParty.findUnique({
             where: { id },
-            include: { contacts: true, addresses: true },
+            include: { contacts: true, addresses: true, paymentTerm: true },
         });
         if (!thirdParty) {
             return res.status(404).json({ error: 'Third party not found' });
@@ -149,8 +167,12 @@ export const updateThirdParty = async (req: Request, res: Response) => {
             name, type, code, email, phone, fax, website,
             defaultCurrency, paymentTerms, paymentTermId, taxScheme, creditLimit,
             paymentDays, depositPercentage, supplierType, priceListUrl, priceListDate, // Added
-            repName, language, unitSystem, incoterm, internalNotes,
-            addressLine1, addressCity, addressState, addressZip, addressCountry
+            repName, language, unitSystem, incoterm, incotermId, incotermCustomText, internalNotes,
+            addressLine1, addressCity, addressState, addressZip, addressCountry,
+            // V8
+            semiStandardRate, salesCurrency, palletPrice, palletRequired,
+            discountPercentage, discountDays, paymentCustomText, exchangeRate,
+            validityDuration
         } = req.body;
 
         // update core fields
@@ -167,7 +189,20 @@ export const updateThirdParty = async (req: Request, res: Response) => {
                 supplierType,
                 priceListUrl, // Added
                 priceListDate, // Added
-                repName, language, unitSystem, incoterm, internalNotes // unitSystem is included in the update data
+                repName, language, unitSystem, incoterm,
+                incotermId: incotermId || null, // Fix foreign key
+                incotermCustomText,
+                internalNotes, // unitSystem is included in the update data
+                // V8
+                semiStandardRate,
+                salesCurrency,
+                palletPrice,
+                palletRequired,
+                discountPercentage: discountPercentage !== undefined ? parseFloat(discountPercentage) : undefined,
+                discountDays: discountDays !== undefined ? parseInt(discountDays) : undefined,
+                paymentCustomText,
+                exchangeRate: exchangeRate !== undefined ? parseFloat(exchangeRate) : undefined,
+                validityDuration: validityDuration !== undefined ? parseInt(validityDuration) : undefined
             }
         });
 

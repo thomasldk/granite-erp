@@ -1,571 +1,439 @@
-
 import { create } from 'xmlbuilder2';
-import { PrismaClient } from '@prisma/client';
+import { parseStringPromise } from 'xml2js';
+import fs from 'fs';
+import path from 'path';
 
 export class XmlService {
-
-    private formatPhoneNumber(value: string | null | undefined): string {
-        if (!value) return '';
-        const phoneNumber = value.replace(/[^\d]/g, '');
-        const phoneNumberLength = phoneNumber.length;
-        if (phoneNumberLength < 4) return phoneNumber;
-        if (phoneNumberLength < 7) {
-            return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
-        }
-        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
+    private fmtPhone(v: any): string {
+        if (!v) return '';
+        const d = v.replace(/[^\d]/g, '');
+        if (d.length < 10) return v;
+        return `+1_(${d.slice(0, 3)})_${d.slice(3, 6)}-${d.slice(6)}`;
     }
 
-    private getPaymentLabel(code: number, days: number, deposit: number, lang: string = 'fr'): string {
+    private getMesureCode(val: string): string {
+        if (!val) return 'an';
+        if (val.toLowerCase().includes('imp')) return 'an';
+        if (val.toLowerCase().includes('met')) return 'm';
+        return 'an';
+    }
+
+    private formatDecimal(val: number | null | undefined): string {
+        if (val === null || val === undefined) return '';
+        let s = val.toString().replace('.', ',');
+        if (s.startsWith('0,')) return s.substring(1); // "0,3" -> ",3"
+        return s;
+    }
+
+    private generatePaymentTermLabel(code: number, days: number, deposit: number, lang: string = 'fr', discountPercent: number = 0, discountDays: number = 0): string {
         if (lang === 'fr') {
             switch (code) {
-                case 1: return "Paiement à la commande";
-                case 2: return `${deposit}% à la commande, le solde avant expédition`;
-                case 3: return `${deposit}% à la commande le solde ${days} jours net après date de facturation`;
-                case 4: return `net ${days} jours avec ${deposit}% d'escompte si paiement reçu par VIREMENT BANCAIRE chez DRC avant ${days} jours`;
+                case 1: return `net ${days} jours`;
+                case 2: return "COD";
+                case 3: return "Comptant";
+                case 4: return `${deposit}% à la commande, solde à la livraison`;
                 case 5: return `net ${days} jours après date de facturation`;
                 case 6: return "A déterminer";
+                case 7: return "Saisie manuelle";
+                case 8: return `${deposit}% à la commande et ${discountPercent}% de remise sur le solde si paiement reçu sous ${discountDays} jours terme ${days} jours`;
                 default: return "";
             }
         } else {
             switch (code) {
-                case 1: return "Payment upon confirmation of order";
-                case 2: return `${deposit}% deposit on confirmation of order, balance before delivery`;
-                case 3: return `${deposit}% deposit on confirmation of order, balance net ${days} days after date of invoice`;
-                case 4: return `net ${days} days and ${deposit}% discount if payment by WIRE TRANSFER is received before`;
-                case 5: return `net ${days} days of date of invoice`;
-                case 6: return "Terms to be confirmed";
+                case 1: return `net ${days} days`;
+                case 2: return "COD";
+                case 3: return "Cash";
+                case 4: return `${deposit}% deposit on confirmation of order, balance on delivery`;
+                case 5: return `net ${days} days from date of invoice`;
+                case 6: return "To be determined";
+                case 7: return "Manual entry";
+                case 8: return `${deposit}% deposit on confirmation of order and ${discountPercent}% discount on balance if payment received before ${discountDays} days from date of invoice`;
                 default: return "";
             }
         }
     }
 
-    async generateQuoteXml(quote: any, rep?: any): Promise<string> {
+    async generateQuoteXml(quote: any, rep?: any, revisionData?: any): Promise<string> {
         try {
-            // Based on "que-22712D6E8E48F13685258D59005E8500.xml"
+            console.log('🚨 XML GEN V7 (INCOTERM DYNAMIC) ');
+            console.log('--- DEBUG DATA ---');
+            console.log('Quote ID:', quote.id);
+            if (revisionData) console.log('REVISION MODE DETECTED:', revisionData);
 
-            // 1. Fetch Dynamic Settings
-            const prisma = new PrismaClient(); // Or inject if possible
-            const settings = await prisma.setting.findMany();
-            const config: Record<string, string> = {};
-            settings.forEach((s: any) => config[s.key] = s.value);
+            // ... (keeping debug logs)
 
-            await prisma.$disconnect();
-
-            // 2. Determine Environment
-            const isProduction = process.env.RAILWAY_ENVIRONMENT === 'production' || process.env.NODE_ENV === 'production';
-
-            // 3. Select target path for the meta 'cible' attribute
-            // New config key 'path.cible' overrides everything (useful when you want the Windows path even in LOCAL mode)
-            const targetBase = config['path.cible']
-                ? config['path.cible']
-                : isProduction
-                    ? (config['path.prod.excel'] || 'F:\\Demo\\Echange')
-                    : (config['path.local.excel'] || '/Volumes/nxerp');
-
-            // Use targetBase to build the full path for the Excel file
-            const excelTargetBase = targetBase;
-
-            // Default model is on H: (as per user sample), independent of target drive
-            const modelPath = config['path.prod.model'] || 'H:\\Modeles\\Directe\\Modele de cotation defaut.xlsx';
-
-
-
-
-
-
-            // Document
             const doc = create({ version: '1.0' });
-
-            // Add comment
             const now = new Date();
-            const hours = now.getHours().toString().padStart(2, '0');
-            const minutes = now.getMinutes().toString().padStart(2, '0');
-            const timeStr = `${hours}:${minutes}`;
+            const dateStr = `${now.getDate().toString().padStart(2, '0')}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getFullYear()} ${now.getHours()}:${now.getMinutes()}`;
+            const dateEmission = `${now.getDate().toString().padStart(2, '0')}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getFullYear()}`;
 
-            // Format: Génération par DRC le DD-MM-YYYY HH:mm
-            const day = now.getDate().toString().padStart(2, '0');
-            const month = (now.getMonth() + 1).toString().padStart(2, '0');
-            const year = now.getFullYear();
+            doc.com(`Génération par DRC le ${dateStr}`);
 
-            doc.com(`Génération par DRC le ${day}-${month}-${year} ${timeStr}`);
-            doc.com(`Génération par DRC le ${day}-${month}-${year} ${timeStr}`);
-            // Removed Environment comment to match legacy format perfectly
-
-
-            // Root Element
             const root = doc.ele('generation').att('type', 'Soumission');
 
-            // Meta
-            // Helper to safe name (Allow accents? No, strict match to syncController to ensure compatibility)
-            // SyncController uses: .replace(/[^a-zA-Z0-9-]/g, '_')
-            // This replaces spaces, accents, and special chars with underscores.
-            const safeName = (str: string | undefined) => (str || '').replace(/[^a-zA-Z0-9-]/g, '_');
-            const clientName = safeName(quote.client?.name);
-            const materialName = safeName(quote.material?.name);
-            const projectName = safeName(quote.project?.name);
+            let meta = root.ele('meta');
 
-            const parts = [
-                safeName(quote.reference), // Ensure reference is safe
-                clientName,
-                projectName,
-                materialName
-            ].filter(p => p && p.trim() !== '');
+            // Default Values (EMCOT)
+            const excelTargetBase = 'F:\\nxerp';
+            const safe = (s: any) => (s || '').replace(/[^a-zA-Z0-9-]/g, '_');
+            const filename = `${safe(quote.reference)}_${safe(quote.client?.name)}_${safe(quote.project?.name)}_${safe(quote.material?.name)}.xlsx`;
+            const defaultFullPath = `${excelTargetBase}\\${quote.project?.name || 'Projet'}\\${filename}`;
 
-            const targetFilename = `${parts.join('_')}.xlsx`;
+            if (revisionData) {
+                // REVISION MODE
+                meta.att('cible', revisionData.cible)
+                    .att('Langue', quote.client?.language || 'fr')
+                    .att('action', 'reviser')
+                    .att('modele', revisionData.cible) // Modele = Cible for Revision
+                    .att('appCode', '03').att('journal', '').att('socLangue', quote.client?.language || 'fr').att('codeModule', '01')
+                    .att('definition', 'C:\\Travail\\XML\\CLAUTOMATEREVISION.xml')
+                    .att('ancienNom', revisionData.ancienNom)
+                    .att('nouveauNom', revisionData.nouveauNom)
+                    .att('ancienCouleur', revisionData.ancienCouleur)
+                    .att('nouveauCouleur', revisionData.nouveauCouleur)
+                    .att('ancienQualite', revisionData.ancienQualite || '')
+                    .att('nouvelleQualite', revisionData.nouvelleQualite || '') // Corrected to 'nouvelle'
+                    .att('codeApplication', '03'); // Ensure this matches sample
 
-            // Construct target full path
-            // Determine separator based on the target path format (not just environment)
-            // If the configured path has backslashes or looks like "X:", force Windows style
-            const isTargetWindows = excelTargetBase.includes('\\') || /^[a-zA-Z]:/.test(excelTargetBase);
-            const sep = isTargetWindows ? '\\' : '/';
-
-            // Build path and normalize it (replace / with \ if windows)
-            let rawPath = `${excelTargetBase}${sep}${quote.project?.name || 'Projet'}${sep}${targetFilename}`;
-            if (isTargetWindows) {
-                rawPath = rawPath.replace(/\//g, '\\');
+            } else {
+                // STANDARD MODE (EMCOT)
+                meta.att('cible', defaultFullPath)
+                    .att('Langue', quote.client?.language || 'fr')
+                    .att('action', 'emcot')
+                    .att('modele', 'H:\\Modeles\\Directe\\Modele de cotation defaut.xlsx')
+                    .att('definition', 'C:\\Travail\\XML\\CLAUTOMATEEMISSIONCOTATION.xml')
+                    .att('appCode', '03').att('journal', '').att('socLangue', quote.client?.language || 'fr').att('codeModule', '01').att('codeApplication', '03');
             }
-            const targetPath = rawPath;
 
-            root.ele('meta')
-                .att('cible', targetPath)
-                .att('Langue', 'fr')
-                .att('action', 'emcot')
-                .att('modele', modelPath)
-                .att('appCode', '03')
-                .att('journal', '')
-                .att('socLangue', 'fr')
-                .att('codeModule', '01')
-                .att('definition', 'C:\\Travail\\XML\\CLAUTOMATEEMISSIONCOTATION.xml')
-                .att('codeApplication', '03')
-                .ele('resultat').att('flag', '').up();
+            meta.ele('resultat').att('flag', '').up();
 
-            // Client
-            const client = root.ele('client')
+            const cli = root.ele('client')
                 .att('nom', quote.client?.name || '')
                 .att('pays', 'CA')
                 .att('ville', quote.client?.addresses?.[0]?.city || '')
                 .att('langue', 'fr')
-                .att('region', quote.client?.addresses?.[0]?.state ? `CA-${quote.client.addresses[0].state}` : 'CA-QC')
+                .att('region', 'CA-QC')
                 .att('adresse1', quote.client?.addresses?.[0]?.line1 || '')
-                .att('codepostal', quote.client?.addresses?.[0]?.zipCode || '')
-                .att('abbreviation', '');
+                .att('codepostal', quote.client?.addresses?.[0]?.zipCode || '');
 
-            const contacts = client.ele('contacts');
-            if (quote.client?.contacts && quote.client.contacts.length > 0) {
-                const c = quote.client.contacts[0];
+            const contacts = cli.ele('contacts');
+            const targetContact = quote.contact || (quote.client?.contacts && quote.client.contacts[0]);
+            if (targetContact) {
                 contacts.ele('contact')
-                    .att('cel', this.formatPhoneNumber(c.mobile))
-                    .att('fax', this.formatPhoneNumber(c.fax || quote.client?.fax))
-                    .att('nom', c.lastName || c.name || '')
-                    .att('tel', this.formatPhoneNumber(c.phone))
-                    .att('mail', c.email || '')
-                    .att('prenom', c.firstName || '')
-                    .up();
+                    .att('cel', this.fmtPhone(targetContact.mobile))
+                    .att('fax', '')
+                    .att('nom', targetContact.lastName || '')
+                    .att('tel', this.fmtPhone(targetContact.phone))
+                    .att('mail', targetContact.email || '')
+                    .att('prenom', targetContact.firstName || '').up();
             }
 
-            // Representant
             if (rep) {
                 root.ele('representant')
-                    .att('cel', this.formatPhoneNumber(rep.mobile || rep.phone))
-                    .att('fax', this.formatPhoneNumber(rep.fax))
+                    .att('cel', this.fmtPhone(rep.mobile || rep.phone))
+                    .att('fax', '')
                     .att('nom', rep.lastName || '')
-                    .att('tel', this.formatPhoneNumber(rep.phone))
+                    .att('tel', this.fmtPhone(rep.phone))
                     .att('mail', rep.email || '')
-                    .att('prenom', rep.firstName || '')
-                    .up();
+                    .att('prenom', rep.firstName || '').up();
             } else {
                 root.ele('representant')
-                    .att('cel', '')
-                    .att('fax', '')
-                    .att('nom', 'System')
-                    .att('tel', '')
-                    .att('mail', 'admin@granitedrc.com')
-                    .att('prenom', 'Admin')
-                    .up();
+                    .att('cel', '').att('fax', '').att('nom', 'System').att('tel', '').att('mail', 'admin@granitedrc.com').att('prenom', 'Admin').up();
             }
 
-            const pt = quote.client?.paymentTerm;
-            const daysVal = (quote.client?.paymentDays && quote.client.paymentDays > 0) ? quote.client.paymentDays : (pt?.days || 0);
-            const depositVal = (quote.client?.depositPercentage && quote.client.depositPercentage > 0) ? quote.client.depositPercentage : (pt?.depositPercentage || 0);
-            const lang = quote.client?.language || 'fr';
+            // --- INCOTERM LOGIC V7 ---
+            let valIncoterm = 'Ex-Works';
+            let valIncotermS = ' ';
+            let valIncotermInd = 'EXW';
 
-            // Infer code
-            let codeVal = pt?.code || 6;
-            if (codeVal === 6) {
-                if (daysVal > 0 && depositVal > 0) {
-                    codeVal = 3;
-                } else if (daysVal > 0 && depositVal === 0) {
-                    codeVal = 5;
-                } else if (daysVal === 0 && depositVal > 0) {
-                    codeVal = 2;
+            if (quote.incotermRef) {
+                valIncotermInd = quote.incotermRef.xmlCode || 'EXW';
+
+                if (quote.incotermRef.requiresText) {
+                    // Code 3 (Manual) logic
+                    valIncoterm = 'Saisie';
+                    valIncotermS = quote.incotermCustomText || ' ';
+                } else {
+                    // Standard logic (EXW, FOB)
+                    valIncoterm = quote.incotermRef.name || 'Ex-Works';
+                    valIncotermS = ' ';
                 }
+            } else {
+                // FALLBACK to Legacy String if no relation
+                // Try to guess from string
+                const leg = (quote.incoterm || '').toUpperCase();
+                if (leg.includes('FOB')) { valIncoterm = 'FOB'; valIncotermInd = 'FOB'; }
             }
 
-            const accompteStr = (depositVal > 0) ? (depositVal / 100).toString().replace('.', ',').replace(/^0,/, ',') : '0';
+            const mesureCode = this.getMesureCode(quote.project?.measurementSystem || quote.client?.unitSystem);
 
-            // Devis
             const devis = root.ele('devis')
-                .att('UC', quote.currency || 'CAD')
+                .att('UC', 'CAD')
                 .att('nom', quote.project?.name || 'Projet')
-                .att('Mesure', 'an')
-                .att('TxSemi', ',4')
-                .att('devise', quote.currency || 'CAD')
+                .att('Mesure', mesureCode)
+                .att('TxSemi', this.formatDecimal(quote.semiStandardRate || 0.4))
+                .att('devise', quote.salesCurrency || quote.currency || 'CAD')
                 .att('numero', quote.reference || '')
-                .att('CratePU', '8')
-                .att('Accompte', accompteStr)
-                .att('Escompte', ',05')
-                .att('Incoterm', quote.incoterm || 'Ex Works')
-                .att('Paiement', daysVal.toString())
-                .att('delaiNbr', '4')
-                .att('emetteur', 'Thomas Leguen')
+                .att('CratePU', this.formatDecimal(quote.palletPrice || 50))
+                .att('Accompte', this.formatDecimal((quote.depositPercentage ?? 30) / 100)) // V8
+                .att('Escompte', this.formatDecimal((quote.discountPercentage ?? 0) / 100)) // V8
+                .att('Incoterm', valIncoterm)
+                .att('IncotermS', valIncotermS)
+                .att('IncotermInd', valIncotermInd)
+                .att('Paiement', (quote.paymentDays ?? 30).toString()) // V8
+                .att('delaiNbr', (quote.estimatedWeeks || '3').toString())
+                .att('emetteur', 'Thomas Leguen') // TODO: Dynamic User
                 .att('valideur', '')
-                .att('IncotermS', '')
                 .att('Complexite', 'Spécifique')
-                .att('TauxChange', quote.exchangeRate ? quote.exchangeRate.toString() : '1')
-                .att('optPalette', '0')
-                .att('IncotermInd', 'EXW')
-                .att('DureValidite', '30')
-                .att('DelaiEscompte', '30')
-                .att('ConditionPaiement', this.getPaymentLabel(codeVal, daysVal, depositVal, lang))
-                .att('ConditionPaiementInd', codeVal.toString())
-                .att('ConditionPaiementSaisie', '');
+                .att('TauxChange', this.formatDecimal(quote.exchangeRate || 1)) // V8
+                .att('optPalette', quote.palletRequired ? '1' : '0')
+                .att('DureValidite', (quote.validityDuration ?? 30).toString())
+                .att('dateEmission', dateEmission)
+                .att('DelaiEscompte', (quote.discountDays ?? 0).toString()) // V8
+                .att('ConditionPaiement', ((quote.client?.language === 'en' ? quote.paymentTerm?.label_en : quote.paymentTerm?.label_fr) || this.generatePaymentTermLabel(
+                    quote.paymentTerm?.code || 1,
+                    quote.paymentDays ?? 30,
+                    quote.depositPercentage ?? 0,
+                    quote.client?.language || 'fr',
+                    quote.discountPercentage ?? 0,
+                    quote.discountDays ?? 0
+                )))
+                .att('ConditionPaiementInd', quote.paymentTerm?.code?.toString() || '1') // V8 Code
+                .att('ConditionPaiementSaisie', quote.paymentCustomText || ''); // V8
 
-            const d = quote.dateIssued ? new Date(quote.dateIssued) : new Date();
-            const emissionDay = d.getDate().toString().padStart(2, '0');
-            const emissionMonth = (d.getMonth() + 1).toString().padStart(2, '0');
-            const emissionYear = d.getFullYear();
-            devis.att('dateEmission', `${emissionDay}-${emissionMonth}-${emissionYear}`);
+            devis.ele('LOADING').att('nom', 'GRANITE DRC RAP').att('pays', 'CA').att('ville', 'Rivière-à-Pierre').att('region', 'CA-QC').att('adresse1', '475 Avenue Delisle').att('codepostal', 'G0A3A0').up();
+            devis.ele('externe').att('devise', '').up();
 
-            devis.ele('LOADING')
-                .att('nom', 'GRANITE DRC RAP')
-                .att('pays', 'CA')
-                .att('ville', 'Rivière-à-Pierre')
-                .att('region', 'CA-QC')
-                .att('adresse1', '475 Avenue Delisle')
-                .att('regiondsp', 'Quebec')
-                .att('codepostal', 'G0A3A0')
-                .att('paysTraduit', 'Canada')
-                .att('abbreviation', '')
-                .up();
-
-            const externe = devis.ele('externe').att('devise', '');
-
-            // Determine target number of lines
-            // Priority: Project Config > Existing Items count > 0
-            const targetCount = quote.project?.numberOfLines || quote.items?.length || 0;
-
-            // We loop targetCount times
-            for (let i = 0; i < targetCount; i++) {
-                // Use existing item data if available.
-                // IF NOT, use the FIRST item as a template (Clone) to avoid zero-values.
-                // If no items exist at all, use empty object.
-                const templateItem = (quote.items && quote.items.length > 0) ? quote.items[0] : {};
-                const item = (quote.items && quote.items[i]) ? quote.items[i] : templateItem;
-
-                // Match User's "Working" XML: Do NOT send explicit lines if we want the Automation to generate them from 'quantite'.
-                // User sample has <externe devise=''/> (Empty).
-                /* 
-                const defaultDesc = item.description || quote.material?.name || `Item ${i + 1}`;
-                externe.ele('ligne')
-                    .att('ID', '') // Force empty ID to ensure Automation treats it as a new calculation request
-                    .att('Type', '')
-                    .att('No', 'L' + (i + 1).toString())
-                    .att('Ref', defaultDesc)
-                    .att('TAG', (quote.items && quote.items[i]) ? item.tag : (i + 1).toString()) // Auto-increment tag for new lines
-                    .att('GRANITE', item.material || quote.material?.name || '')
-                    .att('QTY', item.quantity?.toString() || '1') // Default to 1
-                    .att('Item', defaultDesc)
-                    .att('Longeur', item.length?.toString().replace('.', ',') || '96') // Default to 96
-                    .att('Largeur', item.width?.toString().replace('.', ',') || '24') // Default to 24
-                    .att('Epaisseur', item.thickness?.toString().replace('.', ',') || '7') // Default to 7
-                    .att('Description', defaultDesc)
-                    .att('Poid_Tot', (item.totalWeight || 0).toFixed(2).replace('.', ','))
-                    .att('Prix_unitaire_interne', (item.unitPriceCad || item.unitPrice || 0).toFixed(2).replace('.', ','))
-                    .att('Prix_unitaire_externe', (item.unitPriceUsd || item.unitPrice || 0).toFixed(2).replace('.', ','))
-                    .att('Unité', item.unit ? '/ ' + item.unit : '/ ea')
-                    .att('Prix_interne', (item.totalPriceCad || item.totalPrice || 0).toFixed(2).replace('.', ','))
-                    .att('Prix_externe', (item.totalPriceUsd || item.totalPrice || 0).toFixed(2).replace('.', ','))
-                    .up();
-                */
-            }
-
-            // Pierre
-            const wasteVal = quote.material?.wasteFactor || 4;
-            const perteStr = (wasteVal / 100).toString().replace('.', ',').replace(/^0,/, ',');
+            const qty = quote.project?.numberOfLines || 4;
 
             devis.ele('pierre')
-                .att('Poid', quote.material?.density?.toString() || '165')
-                .att('prix', quote.material?.purchasePrice?.toString() || '0')
-                .att('perte', perteStr)
-                .att('unite', (quote.material?.unit === 'Metric' || quote.material?.unit === 'm2') ? 'm3' : 'pi3')
+                .att('Poid', '175')
+                .att('prix', (quote.material?.purchasePrice || 750).toString())
+                .att('perte', ',4')
+                .att('unite', quote.material?.unit || 'm3')
                 .att('devise', quote.currency || 'CAD')
-                .att('couleur', quote.material?.name || 'Standard')
+                .att('couleur', quote.material?.name || 'Ash')
                 .att('qualite', quote.material?.quality || 'S')
-                .att('quantite', (quote.project?.numberOfLines || quote.items?.length || 0).toString())
-                .att('unitePoid', 'lbs')
-                .up();
+                .att('quantite', qty.toString())
+                .att('unitePoid', 'lbs').up();
 
-            // Fournisseurs
             root.ele('Fournisseurs').up();
 
             const xml = doc.end({ prettyPrint: false });
             return xml.replace(/"/g, "'");
 
-        } catch (e: any) {
-            console.error("CRASH IN XML SERVICE (generateQuoteXml):", e);
-            throw e;
-        }
+        } catch (e) { console.error(e); throw e; }
     }
 
-    // --- REINTEGRATION ---
+    async generateReintegrationXml(p: string): Promise<string> {
+        // Implementation based on User Example (v7 Reintegration)
+        // Action: Integrates the Excel file content back into XML return
+        const root = create({ version: '1.0', encoding: 'UTF-8' })
+            .ele('generation', { type: 'Soumission' });
 
-    async generateReintegrationXml(targetExcelPath: string): Promise<string> {
-        try {
-            // Document
-            const doc = create({ version: '1.0' });
+        root.ele('meta')
+            .att('cible', p)
+            .att('Langue', 'en') // Matches user example
+            .att('action', 'reintegrer')
+            .att('modele', p)
+            .att('appCode', '03')
+            .att('journal', '')
+            .att('socLangue', 'en')
+            .att('codeModule', '01')
+            .att('definition', 'C:\\Travail\\XML\\CLAUTOMATEREINTEGRER.xml')
+            .att('codeApplication', '03')
+            .ele('resultat', { flag: '' });
 
-            // Add comment
-            const now = new Date();
-            const hours = now.getHours().toString().padStart(2, '0');
-            const minutes = now.getMinutes().toString().padStart(2, '0');
-            const timeStr = `${hours}:${minutes}`;
-            const day = now.getDate().toString().padStart(2, '0');
-            const month = (now.getMonth() + 1).toString().padStart(2, '0');
-            const year = now.getFullYear();
+        const devis = root.ele('devis');
+        devis.ele('externe');
 
-            doc.com(`Génération par DRC le ${day}-${month}-${year} ${timeStr}`);
-
-            // Root Element
-            const root = doc.ele('generation').att('type', 'Soumission');
-
-            // Logic for Reintegration:
-            // action = 'reintegrer'
-            // modele = TARGET EXCEL (self)
-            // cible = TARGET EXCEL (self)
-            // definition = CLAUTOMATEREINTEGRER.xml
-
-            root.ele('meta')
-                .att('cible', targetExcelPath) // F:\...\File.xlsx
-                .att('Langue', 'fr') // Assuming FR
-                .att('action', 'reintegrer')
-                .att('modele', targetExcelPath) // SAME AS CIBLE
-                .att('appCode', '03')
-                .att('journal', '')
-                .att('socLangue', 'fr')
-                .att('codeModule', '01')
-                .att('definition', 'C:\\Travail\\XML\\CLAUTOMATEREINTEGRER.xml')
-                .att('codeApplication', '03')
-                .ele('resultat').att('flag', '').up();
-
-            // Minimal Structure: <devis><externe/></devis>
-            const devis = root.ele('devis');
-            devis.ele('externe');
-
-            const xml = doc.end({ prettyPrint: false });
-            return xml.replace(/"/g, "'");
-
-        } catch (e: any) {
-            console.error("Error generating Reintegration XML:", e);
-            throw e;
-        }
+        return root.end({ prettyPrint: true, headless: false });
     }
 
+    // Helper to format Country to 2 chars
+    private formatCountry(str: string | undefined | null): string {
+        if (!str) return '';
+        const normalized = str.trim().toUpperCase();
+        if (normalized === 'CANADA') return 'CA';
+        if (normalized === 'USA' || normalized === 'UNITED STATES' || normalized === 'ETATS-UNIS') return 'US';
+        return normalized.length === 2 ? normalized : normalized.substring(0, 2);
+    }
+
+    // Helper to format Province/State to 2 chars
+    private formatProvince(str: string | undefined | null): string {
+        if (!str) return '';
+        const normalized = str.trim().toUpperCase();
+        if (normalized === 'QUEBEC') return 'QC';
+        if (normalized === 'ONTARIO') return 'ON';
+        if (normalized === 'NEW BRUNSWICK' || normalized === 'NOUVEAU-BRUNSWICK') return 'NB';
+        return normalized.length === 2 ? normalized : normalized.substring(0, 2);
+    }
+
+    async generateDuplicateXml(quote: any, sourcePath: string, targetPath: string, originalReference: string): Promise<string> {
+        // "Recopier": Manual String Construction
+
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+        const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', ':');
+
+        const materialName = quote.material?.name || '';
+        const client = quote.client || {};
+        const contact = quote.contact || {};
+
+        const escape = (str: string | undefined | null) => (str || '').replace(/'/g, "&apos;");
+        const dateEmission = new Date(quote.createdAt).toLocaleDateString("fr-FR", { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+
+        // XML String Construction (Compact Loop-Safe)
+        let xml = `<?xml version='1.0'?>\n`;
+        // User requested compact format (line 1, line 2, line 3=content)
+
+        xml += `<!--Génération par DRC le ${dateStr} ${timeStr}-->\n`;
+        xml += `<generation type='Soumission'>`;
+
+        xml += `<meta`;
+        xml += ` cible='${escape(targetPath)}'`;
+        xml += ` Langue='${(client.language && client.language.toLowerCase().startsWith('en')) ? 'en' : 'fr'}'`;
+        xml += ` action='recopier'`;
+        xml += ` modele='${escape(sourcePath)}'`;
+        xml += ` appCode='03'`;
+        xml += ` journal=''`;
+        xml += ` ancienNom='${escape(originalReference)}'`;
+        xml += ` socLangue='en'`;
+        xml += ` codeModule='01'`;
+        xml += ` definition='C:\\Travail\\XML\\CLAUTOMATERECOPIER.xml'`;
+        xml += ` nouveauNom='${escape(quote.reference)}'`;
+        xml += ` ancienCouleur='${escape(materialName)}'`;
+        xml += ` ancienQualite='${escape(quote.material?.quality || '')}'`;
+        xml += ` nouveauCouleur='${escape(materialName)}'`;
+        xml += ` codeApplication='03'`;
+        xml += ` nouvelleQualite='${escape(quote.material?.quality || '')}'>`;
+        xml += `<resultat flag=''/></meta>`;
+
+        const tel = contact.phone || client.phone || '';
+        const email = contact.email || client.email || '';
+        const address = client.addresses && client.addresses.length > 0 ? client.addresses[0] : {};
+        const provinceCode = this.formatProvince(address.state || client.province || '');
+        const countryCode = this.formatCountry(address.country || client.country || 'Canada');
+
+        xml += `<client nom='${escape(client.name)}' pays='${escape(countryCode)}' ville='${escape(client.city || address.city)}' langue='${(client.language && client.language.toLowerCase().startsWith('en')) ? 'en' : 'fr'}' region='${escape(provinceCode)}' adresse1='${escape(client.address || address.line1)}' codepostal='${escape(client.postalCode || address.zipCode)}' abbreviation=''><contacts><contact cel='' fax='' nom='${escape(contact.lastName)}' tel='${escape(tel)}' mail='${escape(email)}' prenom='${escape(contact.firstName)}'/></contacts></client>`;
+
+        xml += `<representant cel='+1_(514)_651-4296' fax='+1' nom='Ares' tel='+1_514-651-4296' mail='sares@granitedrc.com' prenom='Sophie'/>`;
+
+        xml += `<devis UC='CAD' Mesure='an' devise='USD' Accompte=',3' Escompte=',03' Incoterm='Entry' Paiement='30' delaiNbr='3' emetteur='Thomas Leguen' IncotermS='FOB Harwich, MA' TauxChange='1' IncotermInd='3' DureValidite='30' dateEmission='${dateEmission}' DelaiEscompte='15' ConditionPaiement='net X days and % discount if payment received before 30 days from date of invoice' ConditionPaiementInd='4' ConditionPaiementSaisie=''>`;
+        xml += `<LOADING nom='GRANITE DRC RAP' pays='CA' ville='Rivière-à-Pierre' region='CA-QC' adresse1='475 Avenue Delisle' regiondsp='Quebec' codepostal='G0A3A0' paysTraduit='Canada' abbreviation=''/>`;
+        const matUnit = (quote.material?.unit === 'sqft') ? 'pi3' : (quote.material?.unit === 'm2' ? 'm3' : (quote.material?.unit || 'm3'));
+        xml += `<pierre Poid='0' prix='${quote.material?.purchasePrice || 0}' perte='0' unite='${matUnit}' couleur='${escape(materialName)}' qualite='${escape(quote.material?.quality || '')}' quantite='${quote.project?.numberOfLines || 0}' unitePoid='lbs'/><externe devise=''/>`;
+        xml += `</devis>`;
+
+        xml += `<Fournisseurs/>`;
+        xml += `</generation>`;
+
+        return xml;
+    }
     parseExcelReturnXml(xmlContent: string): any[] {
         try {
-            // Strategy B: Robust Regex Parsing (Bypasses xmlbuilder2 structure issues)
-            const lines: any[] = [];
+            console.log('[XmlService] Parsing Return XML...');
+            const doc = create(xmlContent);
+            const obj = doc.toObject() as any;
 
-            console.log(`[DEBUG_XML] Raw Content Length: ${xmlContent.length}`);
-            console.log(`[DEBUG_XML] Raw Content Preview (First 500): ${xmlContent.substring(0, 500)}`);
-
-            // Regex to find ANY <ligne ...> opening tag. We don't care how it closes.
-            // We capture everything until the closing > of the opening tag.
-            // Note: This assumes attributes don't contain > (which they shouldn't in valid XML, they use &gt;)
-            const lineRegex = /<ligne\s+([^>]+)>/gi;
-            let match;
-
-            while ((match = lineRegex.exec(xmlContent)) !== null) {
-                const attributesStr = match[1];
-                const attributes: any = {};
-
-                // Parse attributes: key="value" or key='value'
-                const attrRegex = /([a-zA-Z0-9_\-\.]+)\s*=\s*(["'])(.*?)\2/g;
-                let attrMatch;
-                while ((attrMatch = attrRegex.exec(attributesStr)) !== null) {
-                    attributes[attrMatch[1]] = attrMatch[3]; // key = value
-                }
-                lines.push(attributes);
+            const devis = obj?.generation?.devis;
+            if (devis) {
+                console.log(`[DEBUG] Devis Keys: ${Object.keys(devis).join(', ')}`);
+                if (devis.externe) console.log(`[DEBUG] Devis.externe Keys: ${Object.keys(devis.externe).join(', ')}`);
+                if (devis.Externe) console.log(`[DEBUG] Devis.Externe Keys: ${Object.keys(devis.Externe).join(', ')}`);
+            }
+            if (!devis) {
+                console.warn('[XmlService] No <devis> tag found in XML.');
+                return [];
             }
 
-            console.log(`[DEBUG_XML] Regex found ${lines.length} lines.`);
+            // Target <externe><ligne> or <externe><Ligne>
+            let lignes = devis.externe?.ligne || devis.externe?.Ligne;
 
-            if (lines.length === 0) return [];
-
-            const mappedItems = lines.map((l: any) => {
-                const parseFloatComma = (val: string | undefined): number => {
-                    if (!val) return 0;
-                    return parseFloat(val.toString().replace(',', '.'));
-                };
-
-                const getVar = (...keys: string[]) => {
-                    for (const k of keys) {
-                        const v = l[k];
-                        if (v !== undefined && v !== null && v !== '') return v;
-                    }
-                    return undefined;
-                };
-
-                let desc = getVar('Description');
-                // ... rest of mapping logic remains similar but uses l[key] directly
-                const itemLabel = getVar('Item');
-                console.log(`[DEBUG_XML_DESC] Tag: ${getVar('TAG')}, Desc: "${desc}", Item: "${itemLabel}"`);
-                // Removed 'A renseigner' check as per user request.
-                // Only fallback if description is strictly empty/null.
-                if (!desc || desc.trim() === '') {
-                    if (itemLabel) desc = itemLabel;
+            // Fallback to <pierre> if <ligne> not found (legacy/robustness)
+            if (!lignes) {
+                if (devis.externe) {
+                    console.log(`[XmlService] <externe> keys: ${Object.keys(devis.externe).join(', ')}`);
                 }
-
-                let unitVal = getVar('Unité', 'Unit') || '';
-                // ... (Continue mapping)
-                unitVal = unitVal.replace(/\/ \/ /g, '').replace(/\//g, '').trim();
-
-                // TAG Normalization: Handle "014-1" -> "1"
-                let rawTag = getVar('TAG', 'Tag', 'Ref Tag', 'No') || '';
-
-                // User requested to preserve the full Tag (e.g. AA-01)
-                // Removed regex splitting logic.
-                let normalizedTag = rawTag;
-
-                return {
-                    tag: normalizedTag, // Use raw tag directly
-                    originalTag: rawTag,
-                    material: getVar('GRANITE', 'Granite') || '',
-                    description: desc || '',
-                    quantity: parseFloatComma(getVar('QTY', 'Qty')),
-                    unit: unitVal,
-                    length: parseFloatComma(getVar('Longeur', 'Length')),
-                    width: parseFloatComma(getVar('Largeur', 'Width', 'Width/Deep')),
-                    thickness: parseFloatComma(getVar('Epaisseur', 'Thickness', 'Thick/Height', 'Thick')),
-                    netLength: parseFloatComma(getVar('Long.net', 'Total Length Net')),
-                    netArea: parseFloatComma(getVar('Surface_net', 'Total Area Net')),
-                    netVolume: parseFloatComma(getVar('Vol_Tot', 'Total Volume Net')),
-                    totalWeight: parseFloatComma(getVar('Poid_Tot', 'Tot. Weight')),
-                    unitPriceCad: parseFloatComma(getVar('Prix_unitaire_interne', 'Unit Price CAD$')),
-                    unitPrice: parseFloatComma(getVar('Prix_unitaire_externe', 'Unit Price USD$')),
-                    totalPriceCad: (() => {
-                        const raw = getVar('Prix_interne', 'Total CDN$');
-                        const parsed = parseFloatComma(raw);
-                        console.log(`[DEBUG_PRICE] Raw Prix_interne: "${raw}", Parsed: ${parsed}`);
-                        return parsed;
-                    })(),
-                    totalPrice: parseFloatComma(getVar('Prix_externe', 'Total USD$')),
-                    stoneValue: parseFloatComma(getVar('valeurPierre')),
-                    primarySawingCost: parseFloatComma(getVar('scPrimaire')),
-                    secondarySawingCost: parseFloatComma(getVar('scSecondaire')),
-                    profilingCost: parseFloatComma(getVar('profilage')),
-                    finishingCost: parseFloatComma(getVar('Finition')),
-                    anchoringCost: parseFloatComma(getVar('Ancrage')),
-                    unitTime: parseFloatComma(getVar('tempsUnitaire')),
-                    totalTime: parseFloatComma(getVar('tempsTotal'))
-                };
-            });
-
-            const uniqueItems = new Map<string, any>();
-
-            // First pass: Collect all items
-            const allItems = mappedItems;
-            console.log(`[DEBUG_XML] Total parsed items: ${allItems.length}`);
-
-            allItems.forEach((item: any) => {
-                const tag = item.tag;
-                console.log(`[DEBUG_XML] Item Tag: "${tag}" (Original: "${item.originalTag}"), Price: ${item.totalPriceCad}`);
-
-                if (!tag) return;
-
-                const existing = uniqueItems.get(tag);
-
-                if (!existing) {
-                    console.log(`[DEBUG_XML] New Item (Set): ${tag}`);
-                    uniqueItems.set(tag, item);
-                } else {
-                    // Smart Merge Logic
-                    const currentPrice = (item.totalPriceCad || 0) + (item.totalPrice || 0);
-                    const existingPrice = (existing.totalPriceCad || 0) + (existing.totalPrice || 0);
-
-                    const currentVolume = (item.netVolume || 0) + (item.netArea || 0);
-                    const existingVolume = (existing.netVolume || 0) + (existing.netArea || 0);
-
-                    console.log(`[DEBUG_XML] Conflict for ${tag}: Existing($${existingPrice}) vs Current($${currentPrice})`);
-
-                    let winner = existing;
-                    let loser = item;
-                    let isCurrentBetter = false;
-
-                    if (currentPrice > existingPrice) {
-                        isCurrentBetter = true;
-                    } else if (currentPrice === existingPrice && currentVolume > existingVolume) {
-                        isCurrentBetter = true;
-                    }
-
-                    if (isCurrentBetter) {
-                        console.log(`[DEBUG_XML] -> Current is better (Price/Vol)`);
-                        winner = item;
-                        loser = existing;
-                    } else {
-                        console.log(`[DEBUG_XML] -> Existing is better or equal`);
-                    }
-
-                    // Cleaning Winner Data (Sanitize "step" or empty fields using Loser data)
-                    const isInvalidDesc = (d: string) => {
-                        if (!d) return true;
-                        const lower = d.toLowerCase();
-                        return lower === 'step' || lower.includes('renseigner');
-                    };
-
-                    if (isInvalidDesc(winner.description) && !isInvalidDesc(loser.description)) {
-                        console.log(`[DEBUG_XML] Fix Description (Merge): "${winner.description}" -> "${loser.description}"`);
-                        winner.description = loser.description;
-                    }
-
-                    if ((!winner.material || winner.material === 'step') && loser.material) {
-                        winner.material = loser.material;
-                    }
-                    // Add other fields to preserve if needed (Ref, etc?)
-
-                    uniqueItems.set(tag, winner);
-                }
-            });
-
-            // Second Pass: Final Cleanup for invalid descriptions (if no merge happened or merge failed)
-            uniqueItems.forEach((item) => {
-                const isInvalidDesc = (d: string) => {
-                    if (!d) return true;
-                    const lower = d.toLowerCase();
-                    return lower === 'step';
-                };
-
-                if (isInvalidDesc(item.description)) {
-                    if (item.material && item.material !== 'step') {
-                        console.log(`[DEBUG_XML] Fix Description (Fallback): "${item.description}" -> "${item.material}"`);
-                        item.description = item.material;
-                    }
-                }
-            });
-
-            const finalItems = Array.from(uniqueItems.values());
-            console.log(`[DEBUG_XML] Final items count: ${finalItems.length}`);
-            return finalItems;
-
-        } catch (error: any) {
-            console.error("Error parsing XML:", error);
-            try {
-                const doc = create(xmlContent);
-                const obj = doc.end({ format: 'object' });
-                console.log("Parsed Object Structure:", JSON.stringify(obj, null, 2));
-            } catch (e) {
-                console.log("Could not even re-parse for debug logging.");
+                console.log('[XmlService] No <externe><ligne> found. Check <pierre>...');
+                lignes = devis.pierre;
             }
-            throw new Error(`Failed to parse XML file compatibility: ${error.message}`);
+
+            if (!lignes) {
+                console.warn('[XmlService] No lines found (checked <externe><ligne> and <pierre>).');
+                if (devis) console.log(`[XmlService] Devis keys: ${Object.keys(devis).join(', ')}`);
+                return [];
+            }
+
+            if (!Array.isArray(lignes)) {
+                lignes = [lignes];
+            }
+
+            const items: any[] = [];
+            const parseNum = (val: any) => {
+                if (!val) return 0;
+                if (typeof val === 'string') return parseFloat(val.replace(',', '.').replace(/[^0-9.-]/g, ''));
+                return Number(val);
+            };
+
+            lignes.forEach((p: any, index: number) => {
+                if (index === 0) console.log(`[XmlService] Line[0] Keys: ${Object.keys(p).join(', ')}`);
+
+                // Helper to get attribute case-insensitive (handle @ prefix or direct)
+                const getAtt = (k: string) => p[`@${k}`] || p[`@${k.toLowerCase()}`] || p[`@${k.toUpperCase()}`] || p[k] || p[k.toLowerCase()] || p[k.toUpperCase()];
+
+                // Mapping based on "16:20" XML
+                const item = {
+                    tag: getAtt('TAG') || getAtt('tag') || getAtt('No') || 'Ligne',
+                    description: getAtt('Description') || getAtt('nom') || 'Item',
+                    material: getAtt('GRANITE') || getAtt('couleur') || 'N/A',
+                    quantity: parseNum(getAtt('QTY') || getAtt('quantite') || 1),
+                    unit: getAtt('Unité') || getAtt('unite') || 'ea',
+
+                    length: parseNum(getAtt('Longeur') || getAtt('longueur')),
+                    width: parseNum(getAtt('Largeur') || getAtt('largeur')),
+                    thickness: parseNum(getAtt('Epaisseur') || getAtt('epaisseur')),
+
+                    netLength: parseNum(getAtt('Long.net') || getAtt('netLength')),
+                    netArea: parseNum(getAtt('Surface_net') || getAtt('surface')),
+                    netVolume: parseNum(getAtt('Vol_Tot') || getAtt('volume')),
+                    totalWeight: parseNum(getAtt('Poid_Tot') || getAtt('poid')),
+
+                    // Pricing
+                    unitPrice: parseNum(getAtt('Prix_unitaire_externe') || getAtt('prix')),
+                    totalPrice: parseNum(getAtt('Prix_externe') || getAtt('total')),
+
+                    // Internal Pricing (from XML)
+                    unitPriceInternal: parseNum(getAtt('Prix_unitaire_interne')),
+                    totalPriceInternal: parseNum(getAtt('Prix_interne')),
+
+                    stoneValue: parseNum(getAtt('valeurPierre')),
+
+                    // Manufacturing Costs
+                    primarySawingCost: parseNum(getAtt('scPrimaire')),
+                    secondarySawingCost: parseNum(getAtt('scSecondaire')),
+                    profilingCost: parseNum(getAtt('profilage')),
+                    finishingCost: parseNum(getAtt('Finition')),
+                    anchoringCost: parseNum(getAtt('Ancrage')),
+
+                    // Time
+                    unitTime: parseNum(getAtt('tempsUnitaire')),
+                    totalTime: parseNum(getAtt('tempsTotal'))
+                };
+
+                items.push(item);
+            });
+
+            if (items.length > 0) {
+                const i = items[0];
+                console.log(`[XmlService] CHECK -> Item 1: MATERIAL='${i.material}', ScP=${i.primarySawingCost}, ScS=${i.secondarySawingCost}, UnitTime=${i.unitTime}, PriceInt=${i.unitPriceInternal}, TotalInt=${i.totalPriceInternal}`);
+            }
+            console.log(`[XmlService] Successfully parsed ${items.length} items.`);
+            return items;
+
+        } catch (e) {
+            console.error('[XmlService] Parsing Error:', e);
+            return [];
         }
     }
 }

@@ -15,12 +15,15 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
     const [reps, setReps] = useState<Representative[]>([]);
     const [languages, setLanguages] = useState<any[]>([]);
     const [currencies, setCurrencies] = useState<any[]>([]);
+    const [incoterms, setIncoterms] = useState<any[]>([]); // New
     const [paymentTermsList, setPaymentTermsList] = useState<PaymentTerm[]>([]);
+    const [systemDefaults, setSystemDefaults] = useState<any>({}); // New v8
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
         code: '',
         phone: '',
+        mobile: '',
         fax: '',
         website: '',
         type: defaultType,
@@ -38,13 +41,25 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
         language: 'fr',
         unitSystem: 'Imperial',
         incoterm: '',
+        incotermId: '', // New
+        incotermCustomText: '', // New
         internalNotes: '',
         // Address
         addressLine1: '',
         addressCity: '',
         addressState: '',
         addressZip: '',
-        addressCountry: 'Canada'
+        addressCountry: 'Canada',
+        // V8 Overrides
+        semiStandardRate: '',
+        salesCurrency: '',
+        palletPrice: '',
+        palletRequired: '', // 'true', 'false', or '' (default)
+        exchangeRate: '',
+        discountPercentage: '',
+        discountDays: '',
+        paymentCustomText: '',
+        validityDuration: ''
     });
 
     const isClient = formData.type === 'Client';
@@ -54,16 +69,44 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
     useEffect(() => {
         const init = async () => {
             try {
-                const [repsData, langsData, currsData, termsData] = await Promise.all([
+                const [repsData, langsData, currsData, termsData, fetchedIncoterms, sysData] = await Promise.all([
                     getRepresentatives(),
                     getLanguages(),
                     getCurrencies(),
-                    getPaymentTerms()
+                    getPaymentTerms(),
+                    fetch('/api/incoterms').then(r => r.json()).catch(() => []),
+                    fetch('/api/system-config').then(r => r.json()).catch(() => ({}))
                 ]);
                 setReps(repsData);
                 setLanguages(langsData);
                 setCurrencies(currsData);
                 setPaymentTermsList(termsData);
+                setIncoterms(fetchedIncoterms); // Fetch Properly
+                setSystemDefaults(sysData);
+
+                // V8: Pre-fill defaults only for New Clients
+                if (!id && sysData) {
+                    setFormData(prev => ({
+                        ...prev,
+                        semiStandardRate: sysData.defaultSemiStandardRate !== undefined ? String(sysData.defaultSemiStandardRate) : '',
+                        salesCurrency: sysData.defaultSalesCurrency || 'CAD',
+                        palletPrice: sysData.defaultPalletPrice !== undefined ? String(sysData.defaultPalletPrice) : '',
+                        palletRequired: sysData.defaultPalletRequired !== undefined ? String(sysData.defaultPalletRequired) : 'false',
+                        exchangeRate: sysData.defaultExchangeRate !== undefined ? String(sysData.defaultExchangeRate) : '',
+
+                        // V8 Payment Defaults
+                        paymentTermId: sysData.defaultPaymentTermId || '',
+                        paymentDays: sysData.defaultPaymentDays !== undefined ? String(sysData.defaultPaymentDays) : '30',
+                        depositPercentage: sysData.defaultDepositPercentage !== undefined ? String(sysData.defaultDepositPercentage) : '0',
+                        discountPercentage: sysData.defaultDiscountPercentage !== undefined ? String(sysData.defaultDiscountPercentage) : '0',
+                        discountDays: sysData.defaultDiscountDays !== undefined ? String(sysData.defaultDiscountDays) : '10',
+
+                        validityDuration: sysData.defaultValidityDuration !== undefined ? String(sysData.defaultValidityDuration) : '30',
+
+                        // V8 Measure Unit Default
+                        unitSystem: (sysData.defaultMeasureUnit === 'm') ? 'Metric' : 'Imperial'
+                    }));
+                }
 
                 if (id) {
                     setLoading(true);
@@ -74,6 +117,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                         name: client.name,
                         code: client.code || '',
                         phone: client.phone || '',
+                        mobile: (client as any).mobile || '',
                         fax: client.fax || '',
                         website: client.website || '',
                         type: (client.type as 'Client' | 'Supplier') || 'Client',
@@ -91,12 +135,23 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                         language: client.language || 'fr',
                         unitSystem: (client as any).unitSystem || 'Imperial',
                         incoterm: (client as any).incoterm || '',
+                        incotermId: (client as any).incotermId || '',
+                        incotermCustomText: (client as any).incotermCustomText || '',
                         internalNotes: client.internalNotes || '',
                         addressLine1: mainAddr.line1 || '',
                         addressCity: mainAddr.city || '',
                         addressState: mainAddr.state || '',
                         addressZip: mainAddr.zipCode || '',
-                        addressCountry: mainAddr.country || 'Canada'
+                        addressCountry: mainAddr.country || 'Canada',
+                        semiStandardRate: (client as any).semiStandardRate !== null ? String((client as any).semiStandardRate || '') : '',
+                        salesCurrency: (client as any).salesCurrency || '',
+                        palletPrice: (client as any).palletPrice !== null ? String((client as any).palletPrice || '') : '',
+                        palletRequired: (client as any).palletRequired === null ? '' : String((client as any).palletRequired),
+                        exchangeRate: (client as any).exchangeRate !== null ? String((client as any).exchangeRate || '') : '',
+                        discountPercentage: (client as any).discountPercentage !== undefined ? String((client as any).discountPercentage) : '',
+                        discountDays: (client as any).discountDays !== undefined ? String((client as any).discountDays) : '',
+                        paymentCustomText: (client as any).paymentCustomText || '',
+                        validityDuration: (client as any).validityDuration !== undefined && (client as any).validityDuration !== null ? String((client as any).validityDuration) : ''
                     });
                     setLoading(false);
                 }
@@ -154,19 +209,17 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
         const { name, value } = e.target;
 
         if (name === 'paymentTermId') {
-            const selectedTerm = paymentTermsList.find(t => t.id === value);
-            if (selectedTerm) {
-                setFormData({
-                    ...formData,
-                    paymentTermId: value,
-                    paymentDays: String(selectedTerm.days),
-                    depositPercentage: String(selectedTerm.depositPercentage)
-                    // Text will be updated by useEffect
-                });
-            } else {
-                setFormData({ ...formData, [name]: value });
-            }
-        } else if (name === 'phone' || name === 'fax') {
+            // User Workflow Fix:
+            // When selecting a Payment Term, we typically just set the ID (Code).
+            // The user may have ALREADY entered specific days/discounts manually.
+            // We should NOT overwrite them with the generic term defaults (which are often 0/empty).
+            // We ONLY update the ID.
+            setFormData({
+                ...formData,
+                paymentTermId: value
+                // Do NOT overwrite existing values
+            });
+        } else if (name === 'phone' || name === 'mobile' || name === 'fax') {
             setFormData({ ...formData, [name]: formatPhoneNumber(value) });
         } else {
             setFormData({ ...formData, [name]: value });
@@ -182,7 +235,17 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                 priceListDate: formData.priceListDate || undefined, // explicit inclusion
                 creditLimit: formData.creditLimit ? parseFloat(formData.creditLimit) : undefined,
                 paymentDays: formData.paymentDays ? parseInt(formData.paymentDays) : 0,
-                depositPercentage: formData.depositPercentage ? parseFloat(formData.depositPercentage) : 0
+                depositPercentage: formData.depositPercentage ? parseFloat(formData.depositPercentage) : 0,
+                // V8 Overrides
+                semiStandardRate: formData.semiStandardRate ? parseFloat(formData.semiStandardRate) : null,
+                salesCurrency: formData.salesCurrency || null,
+                palletPrice: formData.palletPrice ? parseFloat(formData.palletPrice) : null,
+                palletRequired: formData.palletRequired === '' ? null : (formData.palletRequired === 'true'),
+                exchangeRate: formData.exchangeRate ? parseFloat(formData.exchangeRate) : null,
+                discountPercentage: formData.discountPercentage ? parseFloat(formData.discountPercentage) : 0,
+                discountDays: formData.discountDays ? parseInt(formData.discountDays) : 0,
+                paymentCustomText: formData.paymentCustomText || null,
+                validityDuration: formData.validityDuration ? parseInt(formData.validityDuration) : null
             };
 
             if (id) {
@@ -241,7 +304,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                 </div>
 
                 <div className="flex gap-4 mb-4">
-                    <div className="w-1/2">
+                    <div className="w-1/3">
                         <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="phone">
                             Téléphone
                         </label>
@@ -254,7 +317,20 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                             onChange={handleChange}
                         />
                     </div>
-                    <div className="w-1/2">
+                    <div className="w-1/3">
+                        <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="mobile">
+                            Cellulaire
+                        </label>
+                        <input
+                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
+                            id="mobile"
+                            name="mobile"
+                            type="tel"
+                            value={formData.mobile}
+                            onChange={handleChange}
+                        />
+                    </div>
+                    <div className="w-1/3">
                         <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="fax">
                             Fax
                         </label>
@@ -311,7 +387,20 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                                 className="shadow border rounded w-full py-2 px-3 text-gray-700 bg-white leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
                                 name="addressState"
                                 value={formData.addressState}
-                                onChange={handleChange}
+                                onChange={(e) => {
+                                    handleChange(e);
+                                    // Auto-detect Tax Scheme based on Province
+                                    if (formData.addressCountry === 'Canada') {
+                                        const prov = e.target.value;
+                                        let scheme = 'TPS/TVQ'; // Fallback
+                                        if (prov === 'QC') scheme = 'TPS/TVQ';
+                                        else if (['ON', 'NB', 'NS', 'NL', 'PE'].includes(prov)) scheme = 'TVH';
+                                        else scheme = 'TPS'; // AB, BC, MB, SK, Territories
+
+                                        // Use specific setter to ensure update
+                                        setFormData(prev => ({ ...prev, taxScheme: scheme }));
+                                    }
+                                }}
                             >
                                 <option value="">-- Province / État --</option>
                                 {formData.addressCountry === 'Canada' ? (
@@ -416,111 +505,205 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="defaultCurrency">
-                            Devise
-                        </label>
-                        <select
-                            className="shadow border rounded w-full py-2 px-3 text-gray-700 bg-white leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
-                            name="defaultCurrency"
-                            value={formData.defaultCurrency}
-                            onChange={handleChange}
-                        >
-                            {currencies.map(curr => (
-                                <option key={curr.id} value={curr.code}>{curr.code} - {curr.name}</option>
-                            ))}
-                        </select>
+                {/* FINANCIAL CONDITIONS - CLIENTS ONLY */}
+
+                <div className="bg-slate-50 rounded-lg p-6 mb-6 border border-slate-200">
+                    <h2 className="text-lg font-semibold text-slate-800 mb-6 flex items-center gap-2">
+                        <span className="text-xl">💰</span> Conditions Financières
+                    </h2>
+
+                    {/* ROW 1: General Financial Info */}
+                    <div className={`grid grid-cols-1 md:grid-cols-${formData.type === 'Client' ? '3' : '2'} gap-6 mb-8`}>
+                        <div>
+                            <label className="block text-slate-700 text-sm font-bold mb-2">
+                                Devise (Défaut)
+                            </label>
+                            <select
+                                className="w-full shadow-sm border-slate-300 rounded-lg py-2 px-3 text-slate-700 bg-white focus:ring-2 focus:ring-blue-500"
+                                name="defaultCurrency"
+                                value={formData.defaultCurrency}
+                                onChange={handleChange}
+                            >
+                                {currencies.map(curr => (
+                                    <option key={curr.id} value={curr.code}>{curr.code} - {curr.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-slate-700 text-sm font-bold mb-2">
+                                Régime de Taxe
+                            </label>
+                            <select
+                                className="w-full shadow-sm border-slate-300 rounded-lg py-2 px-3 text-slate-700 bg-white focus:ring-2 focus:ring-blue-500"
+                                name="taxScheme"
+                                value={formData.taxScheme}
+                                onChange={handleChange}
+                            >
+                                <option value="TPS/TVQ">TPS/TVQ (Québec)</option>
+                                <option value="TPS">TPS (Alberta, etc)</option>
+                                <option value="TVH">TVH (Ontario, Atlantique)</option>
+                                <option value="Exempt">Exonéré</option>
+                            </select>
+                        </div>
+
+                        {formData.type === 'Client' && (
+                            <div>
+                                <label className="block text-slate-700 text-sm font-bold mb-2">
+                                    Limite de Crédit
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-2 text-slate-400">$</span>
+                                    <input
+                                        className="w-full pl-8 shadow-sm border-slate-300 rounded-lg py-2 px-3 text-slate-700 focus:ring-2 focus:ring-blue-500"
+                                        name="creditLimit"
+                                        type="number"
+                                        placeholder="0.00"
+                                        value={formData.creditLimit}
+                                        onChange={handleChange}
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="paymentTerms">
-                            Conditions de Paiement
-                        </label>
-                        <select
-                            className="shadow border rounded w-full py-2 px-3 text-gray-700 bg-white leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
-                            name="paymentTermId"
-                            value={formData.paymentTermId}
-                            onChange={handleChange}
-                        >
-                            <option value="">-- Sélectionner --</option>
-                            {paymentTermsList.map(term => {
-                                let label = `${term.code} - ${term.label_fr}`;
-                                if (term.id === formData.paymentTermId) {
-                                    // Calculate dynamic label for the selected term using form data
-                                    const days = formData.paymentDays ? parseInt(formData.paymentDays) : 0;
-                                    const deposit = formData.depositPercentage ? parseFloat(formData.depositPercentage) : 0;
-                                    const dynamicLabel = generatePaymentTermLabel(term.code, days, deposit, formData.language);
-                                    label = `${term.code} - ${dynamicLabel}`;
-                                }
-                                return (
-                                    <option key={term.id} value={term.id}>
-                                        {label}
-                                    </option>
-                                );
-                            })}
-                        </select>
+
+                    {/* ROW 2: Payment Terms (Full Width Card) */}
+                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                        <div className="flex flex-col md:flex-row gap-6 mb-6">
+                            <div className="w-full md:w-1/2">
+                                <label className="block text-slate-700 text-sm font-bold mb-2">
+                                    Conditions de Paiement (Base)
+                                </label>
+                                <select
+                                    className="w-full shadow-sm border-slate-300 rounded-lg py-2 px-3 text-slate-700 bg-white focus:ring-2 focus:ring-blue-500"
+                                    name="paymentTermId"
+                                    value={formData.paymentTermId}
+                                    onChange={handleChange}
+                                >
+                                    <option value="">-- Sélectionner le code terme --</option>
+                                    {paymentTermsList.map(term => (
+                                        <option key={term.id} value={term.id}>
+                                            {term.code} - {term.label_fr}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* DYNAMIC TERM PREVIEW */}
+                            <div className="w-full md:w-1/2">
+                                {formData.paymentTermId ? (
+                                    <div className="h-full p-3 bg-blue-50 text-blue-800 text-sm rounded border border-blue-100 flex items-start gap-2">
+                                        <span className="text-lg">👁️</span>
+                                        <div>
+                                            <p className="font-bold text-xs uppercase tracking-wider mb-1 text-blue-600">Aperçu du libellé (Calculé)</p>
+                                            <p className="text-sm text-slate-700 font-medium whitespace-pre-wrap">
+                                                {(() => {
+                                                    const term = paymentTermsList.find(t => t.id === formData.paymentTermId);
+                                                    if (!term) return '...';
+
+                                                    const days = formData.paymentDays ? parseInt(formData.paymentDays) : 0;
+                                                    const deposit = formData.depositPercentage ? parseFloat(formData.depositPercentage) : 0;
+                                                    const discount = formData.discountPercentage ? parseFloat(formData.discountPercentage) : 0;
+                                                    const dDays = formData.discountDays ? parseInt(formData.discountDays) : 0;
+
+                                                    // Generate Dynamic Label with Overrides included
+                                                    let label = generatePaymentTermLabel(term.code, days, deposit, formData.language, discount, dDays);
+
+                                                    // If there's a discount, append it to visual preview if not already handled by standard generator
+                                                    if (discount > 0 && !label.includes('%')) {
+                                                        label += ` (avec ${discount}% d'escompte si payé sous ${dDays} jours)`;
+                                                    }
+                                                    return label;
+                                                })()}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="h-full flex items-center justify-center text-slate-400 text-sm border border-dashed border-slate-300 rounded bg-slate-50">
+                                        Sélectionnez un terme pour voir l'aperçu
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Overrides Grid - 4 Columns */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 font-bold mb-1">Délai (Jours)</label>
+                                <input
+                                    className="w-full shadow-sm border-slate-300 rounded py-1 px-2 text-sm focus:ring-2 focus:ring-blue-500"
+                                    name="paymentDays"
+                                    type="number"
+                                    value={formData.paymentDays}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 font-bold mb-1">Acompte (%)</label>
+                                <input
+                                    className="w-full shadow-sm border-slate-300 rounded py-1 px-2 text-sm focus:ring-2 focus:ring-blue-500"
+                                    name="depositPercentage"
+                                    type="number"
+                                    step="0.01"
+                                    value={formData.depositPercentage}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 font-bold mb-1">Escompte (%)</label>
+                                <input
+                                    className="w-full shadow-sm border-slate-300 rounded py-1 px-2 text-sm focus:ring-2 focus:ring-blue-500"
+                                    name="discountPercentage"
+                                    type="number"
+                                    step="0.01"
+                                    value={formData.discountPercentage}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 font-bold mb-1">Jours Escompte</label>
+                                <input
+                                    className="w-full shadow-sm border-slate-300 rounded py-1 px-2 text-sm focus:ring-2 focus:ring-blue-500"
+                                    name="discountDays"
+                                    type="number"
+                                    value={formData.discountDays}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-xs uppercase text-slate-500 font-bold mb-1">Validité Soumission (Jours)</label>
+                                <input
+                                    className="w-full shadow-sm border-slate-300 rounded py-1 px-2 text-sm focus:ring-2 focus:ring-blue-500"
+                                    name="validityDuration"
+                                    type="number"
+                                    value={formData.validityDuration}
+                                    onChange={handleChange}
+                                    placeholder="Défaut: 30"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Custom Text Row */}
+                        <div className="mb-4">
+                            <label className="block text-xs uppercase text-slate-500 font-bold mb-1">Texte Personnalisé</label>
+                            <input
+                                className="w-full shadow-sm border-slate-300 rounded py-2 px-3 text-slate-700 bg-slate-50 focus:ring-2 focus:ring-blue-500"
+                                name="paymentCustomText"
+                                type="text"
+                                placeholder="Si requis..."
+                                value={formData.paymentCustomText || ''}
+                                onChange={handleChange}
+                            />
+                        </div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="paymentDays">
-                            Délai de paiement (Jours)
-                        </label>
-                        <input
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
-                            name="paymentDays"
-                            type="number"
-                            placeholder="ex: 30"
-                            value={formData.paymentDays}
-                            onChange={handleChange}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="depositPercentage">
-                            Acompte / Dépôt (%)
-                        </label>
-                        <input
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
-                            name="depositPercentage"
-                            type="number"
-                            step="0.01"
-                            placeholder="ex: 50"
-                            value={formData.depositPercentage}
-                            onChange={handleChange}
-                        />
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="taxScheme">
-                            Régime de Taxe
-                        </label>
-                        <select
-                            className="shadow border rounded w-full py-2 px-3 text-gray-700 bg-white leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
-                            name="taxScheme"
-                            value={formData.taxScheme}
-                            onChange={handleChange}
-                        >
-                            <option value="TPS/TVQ">TPS/TVQ</option>
-                            <option value="Exempt">Exonéré</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="creditLimit">
-                            Limite de Crédit
-                        </label>
-                        <input
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
-                            name="creditLimit"
-                            type="number"
-                            placeholder="0.00"
-                            value={formData.creditLimit}
-                            onChange={handleChange}
-                        />
-                    </div>
-                </div>
 
                 <div className="grid grid-cols-2 gap-4 mb-4">
                     <div className={!isClient ? "hidden" : ""}>
@@ -625,38 +808,139 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                     </div>
                     <div>
                         <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="incoterm">
-                            Incoterm
+                            Incoterm (Défaut)
                         </label>
                         <div className="flex gap-2">
                             <select
                                 className="shadow border rounded w-full py-2 px-3 text-gray-700 bg-white leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
-                                value={['Ex Works', 'FOB jobsite'].includes(formData.incoterm) ? formData.incoterm : 'Other'}
+                                value={formData.incotermId || ''}
                                 onChange={(e) => {
                                     const val = e.target.value;
-                                    if (val === 'Other') {
-                                        setFormData({ ...formData, incoterm: '' }); // Clear to let user type
-                                    } else {
-                                        setFormData({ ...formData, incoterm: val });
-                                    }
+                                    const obj = incoterms.find((i: any) => i.id === val);
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        incotermId: val,
+                                        incoterm: obj ? obj.name : '',
+                                        incotermCustomText: (obj?.requiresText) ? prev.incotermCustomText : ''
+                                    }));
                                 }}
                             >
-                                <option value="Ex Works">Ex Works (EXW)</option>
-                                <option value="FOB jobsite">FOB jobsite</option>
-                                <option value="Other">À déterminer / Autre</option>
+                                <option value="">-- Sélectionner --</option>
+                                {incoterms.map((i: any) => (
+                                    <option key={i.id} value={i.id}>{i.name} ({i.xmlCode})</option>
+                                ))}
                             </select>
                         </div>
                         {/* Show input if Custom/Other */}
-                        {(!['Ex Works', 'FOB jobsite'].includes(formData.incoterm) || formData.incoterm === '') && (
-                            <input
-                                className="mt-2 shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
-                                type="text"
-                                placeholder="Précisez l'incoterm..."
-                                value={formData.incoterm}
-                                onChange={(e) => setFormData({ ...formData, incoterm: e.target.value })}
-                            />
-                        )}
+                        {(() => {
+                            const selected = incoterms.find((i: any) => i.id === formData.incotermId);
+                            if (selected && selected.requiresText) {
+                                return (
+                                    <input
+                                        className="mt-2 shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
+                                        type="text"
+                                        placeholder="Précisez..."
+                                        value={formData.incotermCustomText || ''}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, incotermCustomText: e.target.value }))}
+                                    />
+                                );
+                            }
+                            return null;
+                        })()}
                     </div>
                 </div>
+
+                {/* V8 GLOBAL PARAMS OVERRIDES - CLIENTS ONLY */}
+                {formData.type === 'Client' && (
+                    <div className="mb-6 border-t border-gray-100 pt-4">
+                        <h3 className="text-gray-800 font-semibold mb-4 flex items-center">
+                            <span className="mr-2">⚡</span> Paramètres Généraux (Surcharge)
+                            <span className="ml-2 text-xs font-normal text-gray-400">Si vide, la valeur par défaut du système sera utilisée.</span>
+                        </h3>
+
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">
+                                    Taux Semi-Standard
+                                </label>
+                                <input
+                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
+                                    name="semiStandardRate"
+                                    type="number"
+                                    step="0.01"
+                                    placeholder={`Défaut: ${systemDefaults.defaultSemiStandardRate ?? '...'}`}
+                                    value={formData.semiStandardRate}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">
+                                    Devise de Vente
+                                </label>
+                                <select
+                                    className="shadow border rounded w-full py-2 px-3 text-gray-700 bg-white leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
+                                    name="salesCurrency"
+                                    value={formData.salesCurrency}
+                                    onChange={handleChange}
+                                >
+                                    <option value="">Défaut ({systemDefaults.defaultSalesCurrency ?? 'CAD'})</option>
+                                    <option value="CAD">CAD</option>
+                                    <option value="USD">USD</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">
+                                    Taux de Change (Fixe/Override)
+                                </label>
+                                <input
+                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
+                                    name="exchangeRate"
+                                    type="number"
+                                    step="0.0001"
+                                    placeholder={`Défaut: ${systemDefaults.defaultExchangeRate ?? '...'}`}
+                                    value={formData.exchangeRate}
+                                    onChange={handleChange}
+                                />
+                                <p className="text-xs text-gray-400 mt-1">Laissez vide pour utiliser le taux du système ({systemDefaults.defaultExchangeRate}).</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">
+                                    Prix Palette ($)
+                                </label>
+                                <input
+                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
+                                    name="palletPrice"
+                                    type="number"
+                                    step="0.01"
+                                    placeholder={`Défaut: ${systemDefaults.defaultPalletPrice ?? '...'}`}
+                                    value={formData.palletPrice}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">
+                                    Palette Requise ?
+                                </label>
+                                <select
+                                    className="shadow border rounded w-full py-2 px-3 text-gray-700 bg-white leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
+                                    name="palletRequired"
+                                    value={formData.palletRequired}
+                                    onChange={handleChange}
+                                >
+                                    <option value="">Défaut ({systemDefaults.defaultPalletRequired !== undefined ? (systemDefaults.defaultPalletRequired ? 'Oui' : 'Non') : '...'})</option>
+                                    <option value="true">Oui</option>
+                                    <option value="false">Non</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div className="mb-6">
                     <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="internalNotes">

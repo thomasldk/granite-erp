@@ -5,8 +5,10 @@
     "main": "dist/server.js",
     "scripts": {
         "start": "node dist/server.js",
-        "dev": "nodemon src/server.ts",
-        "build": "tsc"
+        "predev": "lsof -ti:5006 | xargs kill -9 || true",
+        "dev": "nodemon",
+        "build": "tsc",
+        "tunnel": "sh start_tunnel.sh"
     },
     "keywords": [],
     "author": "",
@@ -16,16 +18,19 @@
         "@types/multer": "^2.0.0",
         "@types/nodemailer": "^7.0.4",
         "@types/pdfkit": "^0.17.4",
+        "@types/xml2js": "^0.4.14",
         "cors": "^2.8.5",
         "dotenv": "^16.3.1",
         "exceljs": "^4.4.0",
         "express": "^4.18.2",
         "multer": "^2.0.2",
+        "node-cron": "^4.2.1",
         "nodemailer": "^7.0.11",
         "pdfkit": "^0.17.2",
         "pdfkit-table": "^0.1.99",
         "pg": "^8.11.3",
         "xlsx": "^0.18.5",
+        "xml2js": "^0.6.2",
         "xmlbuilder2": "^4.0.3"
     },
     "devDependencies": {
@@ -36,5 +41,8 @@
         "prisma": "^5.7.0",
         "ts-node": "^10.9.2",
         "typescript": "^5.3.3"
+    },
+    "prisma": {
+        "seed": "ts-node prisma/seed.ts"
     }
 }

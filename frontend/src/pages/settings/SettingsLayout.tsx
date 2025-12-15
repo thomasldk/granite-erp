@@ -5,9 +5,22 @@ const SettingsLayout: React.FC = () => {
     return (
         <div className="flex h-full">
             <aside className="w-64 bg-white border-r border-gray-200 pt-8">
-                <h3 className="px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
-                    Paramètres
-                </h3>
+                <div className="px-6 pb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    PARAMÈTRES
+                </div>
+
+                <NavLink
+                    to="/settings/system-config"
+                    className={({ isActive }) =>
+                        `flex items-center px-6 py-2 text-sm font-medium ${isActive
+                            ? 'bg-blue-50 text-blue-700 border-r-4 border-blue-700'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        }`
+                    }
+                >
+                    ⚡ Configuration Globale (V8)
+                </NavLink>
+
                 <nav className="flex-1">
                     <NavLink
                         to="/settings/representatives"
@@ -63,6 +76,17 @@ const SettingsLayout: React.FC = () => {
                         }
                     >
                         Lieux de Projets
+                    </NavLink>
+                    <NavLink
+                        to="/settings/incoterms"
+                        className={({ isActive }) =>
+                            `flex items-center px-6 py-2 text-sm font-medium ${isActive
+                                ? 'bg-blue-50 text-primary border-r-4 border-primary'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }`
+                        }
+                    >
+                        Incoterms
                     </NavLink>
                     <NavLink
                         to="/settings/production-sites"

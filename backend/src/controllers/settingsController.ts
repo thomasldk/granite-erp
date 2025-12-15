@@ -98,6 +98,16 @@ export const downloadBackup = async (req: Request, res: Response) => {
     }
 };
 
+export const triggerManualBackup = async (req: Request, res: Response) => {
+    try {
+        const filepath = await backupService.performBackupToDisk();
+        res.json({ success: true, filepath });
+    } catch (error) {
+        console.error("Manual Backup Error:", error);
+        res.status(500).json({ error: 'Failed to perform manual backup' });
+    }
+};
+
 // System Settings (Generic Key-Value)
 export const getSystemSettings = async (req: Request, res: Response) => {
     try {

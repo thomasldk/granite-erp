@@ -4,34 +4,18 @@ import api from '../../services/api';
 export const DatabaseSettings: React.FC = () => {
 
     const handleDownloadBackup = async () => {
+        if (!window.confirm("Ceci va lancer une sauvegarde immédiate dans le dossier de sauvegardes automatiques. Continuer ?")) {
+            return;
+        }
+
         try {
-            const response = await api.get('/settings/backup', {
-                responseType: 'blob'
-            });
-
-            // Create blob link to download
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-
-            // Extract filename from header or default
-            const contentDisposition = response.headers['content-disposition'];
-            let fileName = 'backup.json';
-            if (contentDisposition) {
-                const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/);
-                if (fileNameMatch && fileNameMatch.length === 2)
-                    fileName = fileNameMatch[1];
+            const response = await api.post('/settings/backup/trigger');
+            if (response.data.success) {
+                alert(`Sauvegarde réussie ! ✅\n\nFichier enregistré sous :\n${response.data.filepath}`);
             }
-
-            link.setAttribute('download', fileName);
-            document.body.appendChild(link);
-            link.click();
-            link.parentNode?.removeChild(link);
-            window.URL.revokeObjectURL(url);
-
         } catch (error) {
-            console.error('Failed to download backup', error);
-            alert('Erreur lors du téléchargement de la sauvegarde.');
+            console.error('Failed to trigger backup', error);
+            alert('Erreur lors de la sauvegarde sur le disque.');
         }
     };
 
@@ -51,14 +35,14 @@ export const DatabaseSettings: React.FC = () => {
             <div className="bg-white shadow sm:rounded-lg">
                 <div className="px-4 py-5 sm:p-6">
                     <h3 className="text-base font-semibold leading-6 text-gray-900">
-                        Sauvegarde Complète (JSON)
+                        Sauvegarde Complète (Instantanée)
                     </h3>
                     <div className="mt-2 max-w-xl text-sm text-gray-500">
                         <p>
-                            Cette action téléchargera un fichier contenant l'intégralité de vos données : Clients, Soumissions, Projets, Matériaux, Paramètres, etc.
+                            Cette action déclenche une <strong>sauvegarde immédiate</strong> de toutes vos données directement dans le dossier <code>Documents/1Granite DRC/nouvelle erp 2025/sauvegardes</code> de votre ordinateur/serveur.
                         </p>
                         <p className="mt-2 text-xs text-gray-400">
-                            Format : JSON standardisé. Conservez ce fichier en lieu sûr.
+                            Utile avant de faire des modifications importantes. Le fichier sera nommé avec la date et l'heure actuelle.
                         </p>
                     </div>
                     <div className="mt-5">

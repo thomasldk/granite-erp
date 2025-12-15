@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getThirdPartyById, addContact, updateContact, getContactTypes } from '../../services/thirdPartyService';
 import { formatPhoneNumber } from '../../utils/formatters';
+import { generatePaymentTermLabel } from '../../services/paymentTermService';
 
 const ClientDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -90,54 +91,69 @@ const ClientDetail: React.FC = () => {
 
     return (
         <div className="p-8">
-            <div className="flex justify-between items-center mb-4">
-                <button onClick={() => navigate(basePath)} className="text-gray-500 hover:text-gray-700">
-                    &larr; Retour à la liste
-                </button>
-                <div className="flex gap-2">
-                    <button
-                        onClick={async () => {
-                            const code = window.prompt("Pour confirmer la suppression, entrez le code de suppression :");
-                            if (code === "1234") {
-                                try {
-                                    const { deleteThirdParty } = await import('../../services/thirdPartyService');
-                                    await deleteThirdParty(id!);
-                                    navigate(basePath);
-                                } catch (error) {
-                                    console.error('Failed to delete', error);
-                                    alert('Erreur lors de la suppression');
-                                }
-                            } else if (code !== null) {
-                                alert("Code incorrect. Suppression annulée.");
-                            }
-                        }}
-                        className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow transition duration-200"
-                    >
-                        Supprimer
-                    </button>
-                    <button
-                        onClick={() => navigate(`${basePath}/${id}/edit`)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow transition duration-200"
-                    >
-                        Modifier le {singular}
-                    </button>
-                </div>
-            </div>
-
             <div className="bg-white shadow rounded-lg p-6 mb-8 border-l-4 border-primary">
-                <div className="flex justify-between items-start">
+                {/* Header: Back & Actions & Title Compact */}
+                <div className="flex justify-between items-start border-b pb-4 mb-6">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">{client.name}</h1>
-                        <p className="text-gray-500">{client.type} - {client.code}</p>
+                        <button onClick={() => navigate(basePath)} className="text-gray-400 hover:text-gray-600 text-sm flex items-center gap-1 mb-2">
+                            <span>&larr;</span> Retour
+                        </button>
+                        <h1 className="text-2xl font-bold text-gray-900 leading-tight">{client.name}</h1>
+                        <p className="text-gray-500 text-sm mt-1">{client.type} - {client.code}</p>
                     </div>
-                    {client.paymentTerms && (
-                        <span className={`px-2 py-1 rounded text-xs font-semibold ${client.limitReached ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
-                            {client.paymentTerms}
-                        </span>
-                    )}
+
+                    <div className="flex flex-col items-end gap-3">
+                        <div className="flex gap-2">
+                            <button
+                                onClick={async () => {
+                                    const code = window.prompt("Pour confirmer la suppression, entrez le code de suppression :");
+                                    if (code === "1234") {
+                                        try {
+                                            const { deleteThirdParty } = await import('../../services/thirdPartyService');
+                                            await deleteThirdParty(id!);
+                                            navigate(basePath);
+                                        } catch (error) {
+                                            console.error('Failed to delete', error);
+                                            alert('Erreur lors de la suppression');
+                                        }
+                                    } else if (code !== null) {
+                                        alert("Code incorrect. Suppression annulée.");
+                                    }
+                                }}
+                                className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow transition duration-200"
+                            >
+                                Supprimer
+                            </button>
+                            <button
+                                onClick={() => navigate(`${basePath}/${id}/edit`)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow transition duration-200"
+                            >
+                                Modifier
+                            </button>
+                        </div>
+                        {client.paymentTerm && (
+                            <div className={`px-4 py-2 rounded-lg text-sm border ${client.paymentTermId ? 'bg-green-50 border-green-200 text-green-800' : 'bg-gray-100 border-gray-200 text-gray-800'}`}>
+                                <div className="font-bold mb-1 flex items-center gap-2">
+                                    <span>💳 Conditions de Paiement</span>
+                                    {client.limitReached && <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded text-xs">Limite Crédit Atteinte</span>}
+                                </div>
+                                <p className="font-medium whitespace-pre-wrap">
+                                    {generatePaymentTermLabel(
+                                        client.paymentTerm.code,
+                                        client.paymentDays || client.paymentTerm.days,
+                                        client.depositPercentage || client.paymentTerm.depositPercentage,
+                                        client.language,
+                                        client.discountPercentage || 0,
+                                        client.discountDays || 0
+                                    )}
+                                    {client.paymentCustomText && <span className="block mt-1 italic text-gray-600 font-normal">{client.paymentCustomText}</span>}
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-8 mt-6">
+                <div className="grid grid-cols-2 gap-x-8 gap-y-4 mt-6">
                     <div>
                         <h3 className="font-semibold text-gray-700 border-b pb-2 mb-2">Coordonnées</h3>
                         <p><strong>Email:</strong> {client.email || '-'}</p>
@@ -151,12 +167,14 @@ const ClientDetail: React.FC = () => {
                         <p>{mainAddress.city} {mainAddress.state} {mainAddress.zipCode}</p>
                         <p>{mainAddress.country}</p>
                     </div>
-                    <div>
-                        <h3 className="font-semibold text-gray-700 border-b pb-2 mb-2">Infos Financières</h3>
-                        <p><strong>Devise:</strong> {client.defaultCurrency}</p>
-                        <p><strong>Crédit:</strong> {client.creditLimit ? `$${client.creditLimit}` : 'Non défini'}</p>
-                        <p><strong>Taxes:</strong> {client.taxScheme}</p>
-                    </div>
+                    {isClient && (
+                        <div>
+                            <h3 className="font-semibold text-gray-700 border-b pb-2 mb-2">Infos Financières</h3>
+                            <p><strong>Devise:</strong> {client.defaultCurrency}</p>
+                            <p><strong>Crédit:</strong> {client.creditLimit ? `$${client.creditLimit}` : 'Non défini'}</p>
+                            <p><strong>Taxes:</strong> {client.taxScheme}</p>
+                        </div>
+                    )}
                     <div>
                         <h3 className="font-semibold text-gray-700 border-b pb-2 mb-2">Commercial</h3>
                         {/* Show Rep for Clients */}
@@ -179,6 +197,24 @@ const ClientDetail: React.FC = () => {
                         <p><strong>Langue:</strong> {client.language === 'fr' ? 'Français' : 'Anglais'}</p>
                         <p><strong>Unité:</strong> {client.unitSystem === 'Metric' ? 'Métrique' : 'Impérial'}</p>
                     </div>
+                    {/* General Parameters & Overrides Block - 2 Columns */}
+                    {isClient && (
+                        <div>
+                            <h3 className="font-semibold text-gray-700 border-b pb-2 mb-2">Autres paramètres</h3>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                                <p><strong className="text-gray-600">Semi-Std:</strong> {client.semiStandardRate ? client.semiStandardRate : <span className="text-gray-400 italic">Défaut</span>}</p>
+                                <p><strong className="text-gray-600">Devise:</strong> {client.salesCurrency ? client.salesCurrency : <span className="text-gray-400 italic">Défaut</span>}</p>
+                                <p><strong className="text-gray-600">Change:</strong> {client.exchangeRate ? client.exchangeRate : <span className="text-gray-400 italic">Défaut</span>}</p>
+                                <p><strong className="text-gray-600">Palette:</strong> {client.palletPrice ? `$${client.palletPrice}` : <span className="text-gray-400 italic">Défaut</span>}</p>
+                                <p><strong className="text-gray-600">Pal. Req:</strong> {client.palletRequired === null ? <span className="text-gray-400 italic">Défaut</span> : (client.palletRequired ? 'Oui' : 'Non')}</p>
+
+                                <div>
+                                    <p><strong className="text-gray-600">Incoterm:</strong> {client.incoterm || '-'}</p>
+                                    {client.incotermCustomText && <p className="text-xs text-gray-500 italic mt-0.5">{client.incotermCustomText}</p>}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 

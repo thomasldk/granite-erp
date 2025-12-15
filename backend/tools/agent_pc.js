@@ -15,7 +15,7 @@ const path = require('path');
 const FormData = require('form-data');
 
 // --- CONFIGURATION ---
-const BACKEND_URL = 'https://yellow-plums-sing.loca.lt/api/sync'; // Public Tunnel
+const BACKEND_URL = 'https://granite-erp-thomas-drc.loca.lt/api/sync'; // Fixed Subdomain URL
 const EXCHANGE_FOLDER = 'C:\\Lotus\\Domino\\data\\domino\\html\\erp\\demo\\echange';
 
 // Create Axios Instance with Header to bypass LocalTunnel warning
