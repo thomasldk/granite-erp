@@ -15,19 +15,20 @@ services:
   backend:
     build: ./backend
     environment:
-      DATABASE_URL: postgres://postgres:password@postgres:5432/granite_erp
-      PORT: 3000
+      DATABASE_URL: postgresql://postgres:BmnoQJJtCKGBBeLqilPWUpigxMUFkcFB@yamanote.proxy.rlwy.net:11700/railway
+    ports:
+      - "5006:5006"
     depends_on:
       - postgres
     networks:
       - granite-network
     volumes:
-       - ./backend/uploads:/app/uploads
+      - ./backend/uploads:/app/uploads
 
   frontend:
     build: ./frontend
     ports:
-      - "8080:80"
+      - "8080:8080"
     depends_on:
       - backend
     networks:
