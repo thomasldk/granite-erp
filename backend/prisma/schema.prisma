@@ -378,9 +378,24 @@ model PartCategory {
 
 model MaintenanceRequest {
   id             String      @id @default(uuid())
-  description    String
+  reference      String      @unique @default(cuid()) // Temp default to avoid migration issues, logic will handle format
+  
+  description    String?
   status         String      @default("Open") // Open, In Progress, Done
   priority       String      @default("Medium") // Low, Medium, High
+  
+  detectionDate  DateTime    @default(now())
+  isOperational  Boolean     @default(true) // Équipement fonctionnel: Oui/Non
+  
+  authorName     String?     // Auteur
+  
+  closedAt       DateTime?   // Clôture réalisée le
+  
+  requesterName  String?     // Demandeur
+  mechanicName   String?     // Mecanicien
+  dueDate        DateTime?   // A faire pour le
+  
+  location       String?     // Localisation
   
   equipmentId    String?
   equipment      Equipment?  @relation(fields: [equipmentId], references: [id])

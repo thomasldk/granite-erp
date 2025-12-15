@@ -30,6 +30,8 @@ import PartList from './pages/maintenance/PartList';
 import PartForm from './pages/maintenance/PartForm';
 import PartCategoryList from './pages/maintenance/PartCategoryList';
 import PartCategoryForm from './pages/maintenance/PartCategoryForm';
+import RepairList from './pages/maintenance/RepairList';
+import RepairForm from './pages/maintenance/RepairForm';
 import RHDashboard from './pages/rh/RHDashboard';
 
 // Layout Component (unchanged)
@@ -140,6 +142,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             </button>
                             {isMaintenanceOpen && (
                                 <div className="ml-8 mt-2 space-y-1 text-sm border-l-2 border-gray-700 pl-4">
+                                    <Link to="/maintenance/repairs" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Réparations</Link>
                                     <Link to="/maintenance/equipment" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Équipements</Link>
                                     <Link to="/maintenance/categories" className="block text-gray-500 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200 ml-3 text-xs">Catégories</Link>
 
@@ -237,6 +240,10 @@ function App() {
                     <Route path="/maintenance/part-categories" element={<PartCategoryList />} />
                     <Route path="/maintenance/part-categories/new" element={<PartCategoryForm />} />
                     <Route path="/maintenance/part-categories/:id/edit" element={<PartCategoryForm />} />
+
+                    <Route path="/maintenance/repairs" element={<RepairList />} />
+                    <Route path="/maintenance/repairs/new" element={<RepairForm />} />
+                    <Route path="/maintenance/repairs/:id/edit" element={<RepairForm />} />
 
 
                     <Route path="/rh" element={<RHDashboard />} />

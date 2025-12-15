@@ -27,6 +27,7 @@ import equipmentRoutes from './routes/equipmentRoutes'; // Added for Maintenance
 import equipmentCategoryRoutes from './routes/equipmentCategoryRoutes'; // Added for Maintenance Categories
 import partRoutes from './routes/partRoutes'; // Added for Parts
 import partCategoryRoutes from './routes/partCategoryRoutes'; // Added for Part Categories
+import maintenanceRequestRoutes from './routes/maintenanceRequestRoutes'; // Added for Maintenance Requests
 import path from 'path'; // Added for static serving
 
 app.use('/uploads', express.static(path.join(__dirname, '../uploads'))); // Serve uploads statically
@@ -47,6 +48,7 @@ app.use('/api/maintenance/equipment', equipmentRoutes); // Added for Maintenance
 app.use('/api/maintenance/categories', equipmentCategoryRoutes); // Added for Maintenance Categories
 app.use('/api/maintenance/parts', partRoutes); // Added for Maintenance Parts
 app.use('/api/maintenance/part-categories', partCategoryRoutes); // Added for Maintenance Part Categories
+app.use('/api/maintenance/requests', maintenanceRequestRoutes); // Added for Maintenance Requests
 
 // Removed: app.use('/api/quotes', soumissionRoutes); // Using 'soumission' routes for quotes logic (based on Code Edit snippet)
 

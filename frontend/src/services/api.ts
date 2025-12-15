@@ -80,6 +80,6 @@ export const getLanguages = async () => (await api.get('/settings/languages')).d
 export const getCurrencies = async () => (await api.get('/settings/currencies')).data;
 export const getProjectLocations = async () => (await api.get('/settings/locations')).data; // Added
 export const createProjectLocation = async (data: any) => (await api.post('/settings/locations', data)).data; // Added
-export const getProductionSites = async () => (await api.get('/settings/production-sites')).data; // Added
+export const getProductionSites = async () => (await api.get('/production-sites')).data; // Fixed URL
 
 export default api;
