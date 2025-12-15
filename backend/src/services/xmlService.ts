@@ -74,9 +74,11 @@ export class XmlService {
             let meta = root.ele('meta');
 
             // Default Values (EMCOT)
+            // Excel Storage Path (Treasury Location for Automate)
             const excelTargetBase = 'F:\\nxerp';
             const safe = (s: any) => (s || '').replace(/[^a-zA-Z0-9-]/g, '_');
             const filename = `${safe(quote.reference)}_${safe(quote.client?.name)}_${safe(quote.project?.name)}_${safe(quote.material?.name)}.xlsx`;
+            // Target: F:\nxerp\ProjectName\Filename.xlsx
             const defaultFullPath = `${excelTargetBase}\\${quote.project?.name || 'Projet'}\\${filename}`;
 
             if (revisionData) {
@@ -226,16 +228,16 @@ export class XmlService {
     }
 
     async generateReintegrationXml(p: string): Promise<string> {
-        // Implementation based on User Example (v7 Reintegration)
-        // Action: Integrates the Excel file content back into XML return
+        // Validation: Ensure P points to F:\nxerp (Excel)
+        // XML is essentially a wrapper.
         const root = create({ version: '1.0', encoding: 'UTF-8' })
             .ele('generation', { type: 'Soumission' });
 
         root.ele('meta')
             .att('cible', p)
-            .att('Langue', 'en') // Matches user example
+            .att('Langue', 'en')
             .att('action', 'reintegrer')
-            .att('modele', p)
+            .att('modele', p) // Modele is the same file
             .att('appCode', '03')
             .att('journal', '')
             .att('socLangue', 'en')

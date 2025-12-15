@@ -9,8 +9,8 @@ echo "---------------------------------------------------"
 echo "✅ PLUS DE MOT DE PASSE REQUIS !"
 echo ""
 
-# Lancement de Localtunnel (Legacy)
+# Lancement de Localtunnel
 echo "Starting Localtunnel..."
 echo "--> RECHERCHEZ L'URL (https://xxxx.loca.lt) CI-DESSOUS :"
 echo ""
-lt --port $PORT --subdomain $SUBDOMAIN
+npx localtunnel --port $PORT --subdomain granite-drc-erp

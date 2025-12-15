@@ -244,7 +244,7 @@ export const pollPending = async (req: Request, res: Response) => {
         res.json({
             id: pendingQuote.id,
             reference: pendingQuote.reference,
-            type: jobType,
+            jobType: jobType, // FIXED: Agent expects 'jobType'
             xmlContent: xmlContent,
             targetFilename: targetFilename, // .xml or .rak
             // For Reimport:
