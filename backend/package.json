@@ -5,7 +5,6 @@
     "main": "dist/server.js",
     "scripts": {
         "start": "node dist/server.js",
-        "predev": "lsof -ti:5006 | xargs kill -9 || true",
         "dev": "nodemon",
         "build": "tsc",
         "tunnel": "sh start_tunnel.sh"

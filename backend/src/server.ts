@@ -64,7 +64,15 @@ app.get('/', (req: Request, res: Response) => {
 import { BackupService } from './services/BackupService';
 
 if (require.main === module) {
-    console.log('--- SERVER V3 DEBUG START ---'); // Debug 
+    process.on('uncaughtException', (error) => {
+        console.error('🔥 UNCAUGHT EXCEPTION:', error);
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+        console.error('🔥 UNHANDLED REJECTION:', reason);
+    });
+
+    console.log('--- SERVER V3 DEBUG START ---');
     const backupService = new BackupService();
 
     const server = app.listen(port, '0.0.0.0', () => {
@@ -72,8 +80,18 @@ if (require.main === module) {
         console.log(`Server running on port ${port} - API Ready (Bound to 0.0.0.0)`);
 
         // Start Backup Service
-        console.log("🚀 Triggering initial backup on startup...");
-        backupService.startAutomatedBackup();
+        console.log("🚀 Server Ready. Backup scheduling disabled for debugging.");
+        // console.log("🚀 Triggering initial backup on startup...");
+        // backupService.startAutomatedBackup();
+    });
+
+    server.on('error', (e: any) => {
+        if (e.code === 'EADDRINUSE') {
+            console.error(`❌ PORT ${port} IS BUSY. Please close the other process.`);
+            process.exit(1);
+        } else {
+            console.error('❌ SERVER ERROR:', e);
+        }
     });
 
     // Graceful Shutdown
