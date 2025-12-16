@@ -75,10 +75,11 @@ export class XmlService {
 
             // Default Values (EMCOT)
             // Excel Storage Path (Treasury Location for Automate)
-            const excelTargetBase = 'F:\\nxerp';
+            // Excel Storage Path (Treasury Location for Automate)
+            const excelTargetBase = 'f:\\nxerp';
             const safe = (s: any) => (s || '').replace(/[^a-zA-Z0-9-]/g, '_');
             const filename = `${safe(quote.reference)}_${safe(quote.client?.name)}_${safe(quote.project?.name)}_${safe(quote.material?.name)}.xlsx`;
-            // Target: F:\nxerp\ProjectName\Filename.xlsx
+            // Target: f:\nxerp\ProjectName\Filename.xlsx
             const defaultFullPath = `${excelTargetBase}\\${quote.project?.name || 'Projet'}\\${filename}`;
 
             if (revisionData) {
@@ -87,7 +88,10 @@ export class XmlService {
                     .att('Langue', quote.client?.language || 'fr')
                     .att('action', 'reviser')
                     .att('modele', revisionData.cible) // Modele = Cible for Revision
-                    .att('appCode', '03').att('journal', '').att('socLangue', quote.client?.language || 'fr').att('codeModule', '01')
+                    .att('appCode', '03')
+                    .att('journal', '')
+                    .att('socLangue', quote.client?.language || 'fr')
+                    .att('codeModule', '01')
                     .att('definition', 'C:\\Travail\\XML\\CLAUTOMATEREVISION.xml')
                     .att('ancienNom', revisionData.ancienNom)
                     .att('nouveauNom', revisionData.nouveauNom)
@@ -96,15 +100,18 @@ export class XmlService {
                     .att('ancienQualite', revisionData.ancienQualite || '')
                     .att('nouvelleQualite', revisionData.nouvelleQualite || '') // Corrected to 'nouvelle'
                     .att('codeApplication', '03'); // Ensure this matches sample
-
             } else {
                 // STANDARD MODE (EMCOT)
                 meta.att('cible', defaultFullPath)
-                    .att('Langue', quote.client?.language || 'fr')
+                    .att('Langue', quote.client?.language || 'fr') // FIXED: Submission Language -> Client Language
                     .att('action', 'emcot')
                     .att('modele', 'H:\\Modeles\\Directe\\Modele de cotation defaut.xlsx')
                     .att('definition', 'C:\\Travail\\XML\\CLAUTOMATEEMISSIONCOTATION.xml')
-                    .att('appCode', '03').att('journal', '').att('socLangue', quote.client?.language || 'fr').att('codeModule', '01').att('codeApplication', '03');
+                    .att('appCode', '03')
+                    .att('journal', '')
+                    .att('socLangue', quote.client?.language || 'fr') // FIXED: Submission Language -> Client Language
+                    .att('codeModule', '01')
+                    .att('codeApplication', '03');
             }
 
             meta.ele('resultat').att('flag', '').up();
@@ -113,7 +120,7 @@ export class XmlService {
                 .att('nom', quote.client?.name || '')
                 .att('pays', 'CA')
                 .att('ville', quote.client?.addresses?.[0]?.city || '')
-                .att('langue', 'fr')
+                .att('langue', quote.client?.language || 'fr') // FIXED: Client Language
                 .att('region', 'CA-QC')
                 .att('adresse1', quote.client?.addresses?.[0]?.line1 || '')
                 .att('codepostal', quote.client?.addresses?.[0]?.zipCode || '');
@@ -173,49 +180,50 @@ export class XmlService {
                 .att('UC', 'CAD')
                 .att('nom', quote.project?.name || 'Projet')
                 .att('Mesure', mesureCode)
-                .att('TxSemi', this.formatDecimal(quote.semiStandardRate || 0.4))
-                .att('devise', quote.salesCurrency || quote.currency || 'CAD')
+                .att('TxSemi', this.formatDecimal(quote.semiStandardRate || 0))
+                .att('devise', quote.salesCurrency || quote.currency || '')
                 .att('numero', quote.reference || '')
-                .att('CratePU', this.formatDecimal(quote.palletPrice || 50))
-                .att('Accompte', this.formatDecimal((quote.depositPercentage ?? 30) / 100)) // V8
-                .att('Escompte', this.formatDecimal((quote.discountPercentage ?? 0) / 100)) // V8
+                .att('CratePU', this.formatDecimal(quote.palletPrice || 0))
+                .att('Accompte', this.formatDecimal((quote.depositPercentage ?? 0) / 100))
+                .att('Escompte', this.formatDecimal((quote.discountPercentage ?? 0) / 100))
                 .att('Incoterm', valIncoterm)
                 .att('IncotermS', valIncotermS)
                 .att('IncotermInd', valIncotermInd)
-                .att('Paiement', (quote.paymentDays ?? 30).toString()) // V8
-                .att('delaiNbr', (quote.estimatedWeeks || '3').toString())
-                .att('emetteur', 'Thomas Leguen') // TODO: Dynamic User
+                .att('Paiement', (quote.paymentDays ?? 0).toString())
+                .att('delaiNbr', (quote.estimatedWeeks || '').toString())
+                .att('emetteur', rep ? `${rep.firstName} ${rep.lastName}` : (quote.representative?.firstName ? `${quote.representative.firstName} ${quote.representative.lastName}` : ''))
                 .att('valideur', '')
                 .att('Complexite', 'Spécifique')
-                .att('TauxChange', this.formatDecimal(quote.exchangeRate || 1)) // V8
+                .att('TauxChange', this.formatDecimal(quote.exchangeRate || 1))
                 .att('optPalette', quote.palletRequired ? '1' : '0')
-                .att('DureValidite', (quote.validityDuration ?? 30).toString())
+                .att('DureValidite', (quote.validityDuration ?? 0).toString())
                 .att('dateEmission', dateEmission)
-                .att('DelaiEscompte', (quote.discountDays ?? 0).toString()) // V8
+                .att('DelaiEscompte', (quote.discountDays ?? 0).toString())
                 .att('ConditionPaiement', ((quote.client?.language === 'en' ? quote.paymentTerm?.label_en : quote.paymentTerm?.label_fr) || this.generatePaymentTermLabel(
-                    quote.paymentTerm?.code || 1,
-                    quote.paymentDays ?? 30,
+                    quote.paymentTerm?.code || 0,
+                    quote.paymentDays ?? 0,
                     quote.depositPercentage ?? 0,
                     quote.client?.language || 'fr',
                     quote.discountPercentage ?? 0,
                     quote.discountDays ?? 0
                 )))
-                .att('ConditionPaiementInd', quote.paymentTerm?.code?.toString() || '1') // V8 Code
-                .att('ConditionPaiementSaisie', quote.paymentCustomText || ''); // V8
+                .att('ConditionPaiementInd', quote.paymentTerm?.code?.toString() || '')
+                .att('ConditionPaiementSaisie', quote.paymentCustomText || '');
 
             devis.ele('LOADING').att('nom', 'GRANITE DRC RAP').att('pays', 'CA').att('ville', 'Rivière-à-Pierre').att('region', 'CA-QC').att('adresse1', '475 Avenue Delisle').att('codepostal', 'G0A3A0').up();
             devis.ele('externe').att('devise', '').up();
 
-            const qty = quote.project?.numberOfLines || 4;
+            const qty = quote.project?.numberOfLines || 0;
+            const matUnit = (quote.material?.unit === 'sqft') ? 'pi3' : (quote.material?.unit === 'm2' ? 'm3' : (quote.material?.unit || ''));
 
             devis.ele('pierre')
                 .att('Poid', '175')
-                .att('prix', (quote.material?.purchasePrice || 750).toString())
+                .att('prix', (quote.material?.purchasePrice || 0).toString())
                 .att('perte', ',4')
-                .att('unite', quote.material?.unit || 'm3')
-                .att('devise', quote.currency || 'CAD')
-                .att('couleur', quote.material?.name || 'Ash')
-                .att('qualite', quote.material?.quality || 'S')
+                .att('unite', matUnit)
+                .att('devise', quote.currency || '')
+                .att('couleur', quote.material?.name || '')
+                .att('qualite', quote.material?.quality || '')
                 .att('quantite', qty.toString())
                 .att('unitePoid', 'lbs').up();
 
@@ -381,16 +389,56 @@ export class XmlService {
             lignes.forEach((p: any, index: number) => {
                 if (index === 0) console.log(`[XmlService] Line[0] Keys: ${Object.keys(p).join(', ')}`);
 
-                // Helper to get attribute case-insensitive (handle @ prefix or direct)
-                const getAtt = (k: string) => p[`@${k}`] || p[`@${k.toLowerCase()}`] || p[`@${k.toUpperCase()}`] || p[k] || p[k.toLowerCase()] || p[k.toUpperCase()];
+                // Robust case-insensitive attribute getter
+                const getAtt = (target: string) => {
+                    const keys = Object.keys(p);
+                    const key = keys.find(k => k.toLowerCase().replace('@', '') === target.toLowerCase());
+                    return key ? p[key] : undefined;
+                };
 
                 // Mapping based on "16:20" XML
+                // TAG: XML has TAG="001-1", Code previously missed it? Now scanning keys.
+                const rawTag = getAtt('TAG');
+                const rawNo = getAtt('No');
+                if (index === 0) console.log(`[XmlService] DEBUG TAG -> RawTAG: '${rawTag}', RawNo: '${rawNo}'`);
+
+                const tag = rawTag || rawNo || 'Ligne';
+
+                // New Fields Mapping (User Request)
+                const lineNo = getAtt('No') || getAtt('NL');
+                const refReference = getAtt('Ref') || getAtt('REF') || getAtt('Reference');
+                const product = getAtt('Item') || getAtt('PDT') || getAtt('Produit') || getAtt('step'); // 'step' seen in example
+
+                if (index === 0) {
+                    console.log(`[XmlService] DEBUG NEW FIELDS -> lineNo: '${lineNo}', ref: '${refReference}', product: '${product}'`);
+                    console.log(`[XmlService] DEBUG ALL KEYS: ${Object.keys(p).join(', ')}`);
+                }
+
+                // Description: XML has Description="A renseigner". Now scanning 'description' matches 'Description'.
+                const description = getAtt('description') || getAtt('nom') || getAtt('Nom') || getAtt('couleur') || getAtt('No') || 'Item';
+
+                // QTY
+                const qty = parseNum(getAtt('quantite') || getAtt('qte') || getAtt('QTY'));
+
+                // Unit Price
+                const unitPrice = parseNum(getAtt('prix') || getAtt('PU') || getAtt('Prix_unitaire_externe') || getAtt('Prix'));
+
+                let total = parseNum(getAtt('Prix_externe') || getAtt('total') || getAtt('Total'));
+
+                // Fallback: Compute total if missing
+                if (total === 0 && qty > 0 && unitPrice > 0) {
+                    total = qty * unitPrice;
+                }
+
                 const item = {
-                    tag: getAtt('TAG') || getAtt('tag') || getAtt('No') || 'Ligne',
-                    description: getAtt('Description') || getAtt('nom') || 'Item',
+                    tag: tag,
+                    lineNo: lineNo,           // NEW
+                    refReference: refReference, // NEW
+                    product: product,         // NEW
+                    description: description,
                     material: getAtt('GRANITE') || getAtt('couleur') || 'N/A',
-                    quantity: parseNum(getAtt('QTY') || getAtt('quantite') || 1),
-                    unit: getAtt('Unité') || getAtt('unite') || 'ea',
+                    quantity: qty,
+                    unit: (getAtt('Unité') || getAtt('unite') || getAtt('unit') || 'ea').replace('/', '').trim(),
 
                     length: parseNum(getAtt('Longeur') || getAtt('longueur')),
                     width: parseNum(getAtt('Largeur') || getAtt('largeur')),
@@ -402,8 +450,8 @@ export class XmlService {
                     totalWeight: parseNum(getAtt('Poid_Tot') || getAtt('poid')),
 
                     // Pricing
-                    unitPrice: parseNum(getAtt('Prix_unitaire_externe') || getAtt('prix')),
-                    totalPrice: parseNum(getAtt('Prix_externe') || getAtt('total')),
+                    unitPrice: unitPrice,
+                    totalPrice: total,
 
                     // Internal Pricing (from XML)
                     unitPriceInternal: parseNum(getAtt('Prix_unitaire_interne')),
@@ -411,12 +459,12 @@ export class XmlService {
 
                     stoneValue: parseNum(getAtt('valeurPierre')),
 
-                    // Manufacturing Costs
+                    // Manufacturing Costs (Using case-insensitive matching)
                     primarySawingCost: parseNum(getAtt('scPrimaire')),
                     secondarySawingCost: parseNum(getAtt('scSecondaire')),
-                    profilingCost: parseNum(getAtt('profilage')),
-                    finishingCost: parseNum(getAtt('Finition')),
-                    anchoringCost: parseNum(getAtt('Ancrage')),
+                    profilingCost: parseNum(getAtt('profilage') || getAtt('prof')),
+                    finishingCost: parseNum(getAtt('Finition') || getAtt('finition')),
+                    anchoringCost: parseNum(getAtt('Ancrage') || getAtt('ancrage')),
 
                     // Time
                     unitTime: parseNum(getAtt('tempsUnitaire')),

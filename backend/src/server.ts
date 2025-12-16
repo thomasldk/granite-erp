@@ -76,7 +76,7 @@ if (require.main === module) {
     const backupService = new BackupService();
 
     const server = app.listen(port, '0.0.0.0', () => {
-        console.log(`\n\n🚨 SERVER RESTART V2 CHECK - IF YOU SEE THIS, SERVER.TS IS UPDATED 🚨`);
+        console.log(`\n\n🚨 SERVER RESTART V3 (POLLING FIX APPLIED) - IF YOU SEE THIS, IT WORKED 🚨`);
         console.log(`Server running on port ${port} - API Ready (Bound to 0.0.0.0)`);
 
         // Start Backup Service
@@ -93,7 +93,6 @@ if (require.main === module) {
             console.error('❌ SERVER ERROR:', e);
         }
     });
-
     // Graceful Shutdown
     const shutdown = (signal: string) => {
         console.log(`Received ${signal}. Closing server...`);

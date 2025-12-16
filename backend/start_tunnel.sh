@@ -9,8 +9,8 @@ echo "---------------------------------------------------"
 echo "✅ PLUS DE MOT DE PASSE REQUIS !"
 echo ""
 
-# Lancement de Localtunnel
-echo "Starting Localtunnel..."
-echo "--> RECHERCHEZ L'URL (https://xxxx.loca.lt) CI-DESSOUS :"
+# Lancement de Cloudflare Tunnel
+echo "Starting Cloudflare Tunnel..."
+echo "--> RECHERCHEZ L'URL (https://xxxx.trycloudflare.com) CI-DESSOUS :"
 echo ""
-npx localtunnel --port $PORT --subdomain granite-drc-erp
+./bin/cloudflared tunnel --url http://localhost:$PORT

@@ -50,7 +50,7 @@ export const generateQuoteExcel = async (req: Request, res: Response) => {
 
         // Save to pending_xml
         const safeName = (str: string | undefined) => (str || '').replace(/[^a-zA-Z0-9- ]/g, '');
-        const filename = `${safeName(quoteFull.reference)}.xml`;
+        const filename = `${safeName(quoteFull.reference)}.rak`;
         const outputPath = path.join(__dirname, '../../pending_xml', filename);
 
         fs.writeFileSync(outputPath, xmlContent);
@@ -1557,5 +1557,193 @@ export const reviseQuote = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error("Revise Quote Error:", error);
         res.status(500).json({ error: 'Failed to revise quote', details: error.message });
+    }
+};
+
+// --- AGENT POLLING ---
+
+export const listPendingXmls = async (req: Request, res: Response) => {
+    try {
+        // Use process.cwd() to be safe (runs from /backend root)
+        const pendingDir = path.join(process.cwd(), 'pending_xml');
+        console.log(`[Agent-Poll] Checking dir: ${pendingDir}`);
+
+        if (!fs.existsSync(pendingDir)) {
+            console.log(`[Agent-Poll] Creating dir: ${pendingDir}`);
+            fs.mkdirSync(pendingDir, { recursive: true });
+        }
+
+        const files = fs.readdirSync(pendingDir).filter(f => f.endsWith('.xml') || f.endsWith('.rak'));
+        console.log(`[Agent-Poll] Found ${files.length} files.`);
+
+        const result = files.map(f => ({
+            filename: f
+        }));
+
+        res.json(result);
+    } catch (error: any) {
+        console.error("List Pending CRITICAL Error:", error);
+        // Do not crash, return empty list
+        res.json([]);
+    }
+};
+
+export const downloadPendingXml = async (req: Request, res: Response) => {
+    try {
+        const { filename } = req.params;
+        const pendingDir = path.join(process.cwd(), 'pending_xml');
+        const safeName = path.basename(filename);
+        const filePath = path.join(pendingDir, safeName);
+        console.log(`[Agent-Download] Serving: ${filePath}`);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        res.download(filePath);
+    } catch (error: any) {
+        console.error("Download Pending Error:", error);
+        res.status(500).json({ error: 'Failed to download file' });
+    }
+};
+
+export const ackPendingXml = async (req: Request, res: Response) => {
+    try {
+        const { filename } = req.body;
+        const pendingDir = path.join(process.cwd(), 'pending_xml');
+        const safeName = path.basename(filename);
+        const filePath = path.join(pendingDir, safeName);
+
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log(`[Agent-Flow] Ack & Deleted: ${filePath}`);
+
+            // Update Quote Status to SYNCED
+            // Filename format: Ref.rak (or .xml)
+            const reference = safeName.replace(/\.(rak|xml)$/i, '');
+            const quote = await prisma.quote.findFirst({ where: { reference } });
+
+            if (quote) {
+                await prisma.quote.update({
+                    where: { id: quote.id },
+                    data: { syncStatus: 'SYNCED_PC' }
+                });
+                console.log(`[Agent-Flow] Quote ${reference} marked as SYNCED_PC.`);
+            }
+        }
+        res.json({ success: true });
+    } catch (error) {
+        console.error("Ack Error:", error);
+        res.status(500).json({ error: 'Ack failed' });
+    }
+};
+
+export const processAgentBundle = async (req: Request, res: Response) => {
+    try {
+        console.log('[Agent-Bundle] Received return bundle');
+        const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+        const xmlFile = files['xml'] ? files['xml'][0] : null;
+        const excelFile = files['excel'] ? files['excel'][0] : null;
+
+        if (!xmlFile) {
+            return res.status(400).json({ error: 'Missing XML return file' });
+        }
+
+        // 1. Parse XML and Update Database
+        const xmlContent = fs.readFileSync(xmlFile.path, 'utf-8');
+        const items = xmlService.parseExcelReturnXml(xmlContent);
+
+        // Deduction of Reference from XML filename (Standard format: Ref.xml)
+        let reference = xmlFile.originalname.replace(/\.(xml|rak)$/i, '');
+        // Or send reference in body from Agent? Let's rely on filename for now as Agent preserves it.
+
+        console.log(`[Agent-Bundle] Processing Quote Ref: ${reference}, found ${items.length} items`);
+
+        const quote = await prisma.quote.findFirst({ where: { reference } });
+        if (quote) {
+            // Update Items
+            await prisma.$transaction(async (prisma) => {
+                await prisma.quoteItem.deleteMany({ where: { quoteId: quote.id } });
+                if (items.length > 0) {
+                    await prisma.quoteItem.createMany({
+                        data: items.map(item => ({
+                            quoteId: quote.id,
+                            tag: item.tag,
+                            lineNo: item.lineNo,
+                            refReference: item.refReference,
+                            product: item.product,
+                            description: item.description,
+                            material: item.material,
+                            quantity: item.quantity,
+                            unit: item.unit,
+                            length: item.length,
+                            width: item.width,
+                            thickness: item.thickness,
+                            netLength: item.netLength,
+                            netArea: item.netArea,
+                            netVolume: item.netVolume,
+                            totalWeight: item.totalWeight,
+                            unitPrice: item.unitPrice,
+                            totalPrice: item.totalPrice,
+                            // Internal/Dual
+                            unitPriceCad: item.unitPriceCad,
+                            unitPriceUsd: 0,
+                            totalPriceCad: item.totalPriceCad || item.totalPriceInternal || 0, // Fallback to internal if CAD missing
+                            totalPriceUsd: 0,
+                            stoneValue: item.stoneValue,
+
+                            // Manufacturing Costs (Added Fix)
+                            primarySawingCost: item.primarySawingCost,
+                            secondarySawingCost: item.secondarySawingCost,
+                            profilingCost: item.profilingCost,
+                            finishingCost: item.finishingCost,
+                            anchoringCost: item.anchoringCost,
+
+                            // Time (Added Fix)
+                            unitTime: item.unitTime,
+                            totalTime: item.totalTime,
+
+                            // Internal Prices (Added Fix)
+                            unitPriceInternal: item.unitPriceInternal,
+                            totalPriceInternal: item.totalPriceInternal,
+
+                            numHoles: 0,
+                            numSlots: 0,
+                        }))
+                    });
+                }
+                const totalAmount = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+                await prisma.quote.update({
+                    where: { id: quote.id },
+                    data: { totalAmount, syncStatus: 'Synced' }
+                });
+            });
+            console.log(`[Agent-Bundle] DB Updated for ${reference}`);
+        } else {
+            console.warn(`[Agent-Bundle] Quote not found for ref ${reference}`);
+        }
+
+
+        // 2. Save Excel to Downloads
+        if (excelFile) {
+            const userDownloadsDir = path.join('/Users/thomasleguendekergolan', 'Downloads');
+            // Hardcoded for verified user environment
+            const destPath = path.join(userDownloadsDir, excelFile.originalname);
+
+            fs.copyFileSync(excelFile.path, destPath);
+            fs.unlinkSync(excelFile.path); // cleanup temp
+            console.log(`[Agent-Bundle] Excel saved to: ${destPath}`);
+        } else {
+            console.warn(`[Agent-Bundle] No Excel file in bundle for ${reference}`);
+        }
+
+        // Cleanup XML temp
+        if (fs.existsSync(xmlFile.path)) fs.unlinkSync(xmlFile.path);
+
+        res.json({ success: true });
+
+    } catch (error: any) {
+        console.error("Agent Bundle Error:", error);
+        res.status(500).json({ error: error.message });
     }
 };

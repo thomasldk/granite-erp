@@ -43,4 +43,25 @@ router.post('/:id/emit', quoteController.emitQuote);
 
 router.get('/:id/download-result', quoteController.downloadQuoteResult);
 
+import fs from 'fs';
+import path from 'path';
+
+// --- AGENT POLLING ROUTES ---
+const agentStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(__dirname, '../../uploads/temp');
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        cb(null, `${Date.now()}-${file.originalname}`);
+    }
+});
+const agentUpload = multer({ storage: agentStorage });
+
+router.get('/agent/pending-xml', quoteController.listPendingXmls);
+router.get('/agent/pending-xml/:filename', quoteController.downloadPendingXml);
+router.post('/agent/ack-xml', quoteController.ackPendingXml);
+router.post('/agent/upload-bundle', agentUpload.fields([{ name: 'xml', maxCount: 1 }, { name: 'excel', maxCount: 1 }]), quoteController.processAgentBundle);
+
 export default router;
