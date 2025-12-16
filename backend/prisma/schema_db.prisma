@@ -1,0 +1,346 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Address {
+  id           String     @id
+  type         String
+  line1        String
+  line2        String?
+  city         String
+  state        String?
+  zipCode      String?
+  country      String
+  thirdPartyId String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime
+  ThirdParty   ThirdParty @relation(fields: [thirdPartyId], references: [id])
+}
+
+model Contact {
+  id           String     @id
+  firstName    String
+  lastName     String
+  email        String?
+  phone        String?
+  mobile       String?
+  fax          String?
+  role         String?
+  thirdPartyId String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime
+  ThirdParty   ThirdParty @relation(fields: [thirdPartyId], references: [id])
+  Quote        Quote[]
+}
+
+model ContactType {
+  id        String   @id
+  name      String
+  category  String   @default("Client")
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+
+  @@unique([name, category])
+}
+
+model Currency {
+  id        String   @id
+  code      String   @unique
+  name      String
+  symbol    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model EquipmentCategory {
+  id        String   @id
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model Incoterm {
+  id           String       @id
+  name         String
+  xmlCode      String
+  requiresText Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime
+  Quote        Quote[]
+  ThirdParty   ThirdParty[]
+}
+
+model Language {
+  id        String   @id
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model MaintenanceSite {
+  id        String   @id
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model Material {
+  id               String      @id
+  name             String
+  category         String      @default("Stone")
+  type             String
+  purchasePrice    Float       @default(0)
+  sellingPrice     Float?
+  unit             String      @default("sqft")
+  density          Float?
+  wasteFactor      Float       @default(4)
+  densityUnit      String      @default("lb/ft3")
+  quality          String      @default("S")
+  syncStatus       String      @default("DRAFT")
+  validityDuration Int?
+  sellingUnit      String      @default("sqft")
+  imageUrl         String?
+  supplierId       String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime
+  ThirdParty       ThirdParty? @relation(fields: [supplierId], references: [id])
+  Quote            Quote[]
+}
+
+model PaymentTerm {
+  id                 String       @id
+  code               Int          @unique
+  label_en           String
+  label_fr           String
+  days               Int          @default(0)
+  depositPercentage  Float        @default(0)
+  discountPercentage Float        @default(0)
+  discountDays       Int          @default(0)
+  requiresText       Boolean      @default(false)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime
+  Quote              Quote[]
+  ThirdParty         ThirdParty[]
+}
+
+model ProductionSite {
+  id        String      @id
+  name      String      @unique
+  createdAt DateTime    @default(now())
+  updatedAt DateTime
+  QuoteItem QuoteItem[]
+}
+
+model Project {
+  id              String           @id
+  name            String
+  reference       String           @unique
+  status          String
+  thirdPartyId    String?
+  locationId      String?
+  measureSystem   String           @default("Imperial")
+  estimatedWeeks  Int?
+  numberOfLines   Int?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime
+  ProjectLocation ProjectLocation? @relation(fields: [locationId], references: [id])
+  ThirdParty      ThirdParty?      @relation(fields: [thirdPartyId], references: [id])
+  Quote           Quote[]
+}
+
+model ProjectLocation {
+  id        String    @id
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime
+  Project   Project[]
+}
+
+model Quote {
+  id                 String          @id
+  reference          String          @unique
+  version            Int             @default(1)
+  currency           String          @default("CAD")
+  exchangeRate       Float?          @default(1.0)
+  incoterm           String?         @default("Ex Works")
+  incotermId         String?
+  incotermCustomText String?
+  semiStandardRate   Float?
+  salesCurrency      String?
+  palletPrice        Float?
+  palletRequired     Boolean?
+  paymentTermId      String?
+  paymentDays        Int?
+  depositPercentage  Float?
+  discountPercentage Float?
+  paymentCustomText  String?
+  status             String          @default("Draft")
+  projectId          String
+  thirdPartyId       String
+  contactId          String?
+  materialId         String?
+  dateIssued         DateTime        @default(now())
+  validUntil         DateTime?
+  totalAmount        Float           @default(0)
+  estimatedWeeks     Int?
+  excelFilePath      String?
+  syncStatus         String?
+  odooId             String?
+  odooStatus         String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime
+  discountDays       Int?
+  validityDuration   Int?
+  representativeId   String?
+  Contact            Contact?        @relation(fields: [contactId], references: [id])
+  Incoterm           Incoterm?       @relation(fields: [incotermId], references: [id])
+  Material           Material?       @relation(fields: [materialId], references: [id])
+  PaymentTerm        PaymentTerm?    @relation(fields: [paymentTermId], references: [id])
+  Project            Project         @relation(fields: [projectId], references: [id])
+  Representative     Representative? @relation(fields: [representativeId], references: [id])
+  ThirdParty         ThirdParty      @relation(fields: [thirdPartyId], references: [id])
+  QuoteItem          QuoteItem[]
+}
+
+model QuoteItem {
+  id                  String          @id
+  quoteId             String
+  tag                 String?
+  description         String
+  material            String
+  finish              String?
+  unit                String?
+  length              Float?
+  width               Float?
+  thickness           Float?
+  quantity            Float           @default(1)
+  numHoles            Int             @default(0)
+  numSlots            Int             @default(0)
+  netLength           Float           @default(0)
+  netArea             Float           @default(0)
+  netVolume           Float           @default(0)
+  totalWeight         Float           @default(0)
+  unitPrice           Float           @default(0)
+  totalPrice          Float           @default(0)
+  unitPriceInternal   Float           @default(0)
+  totalPriceInternal  Float           @default(0)
+  unitPriceCad        Float           @default(0)
+  unitPriceUsd        Float           @default(0)
+  totalPriceCad       Float           @default(0)
+  totalPriceUsd       Float           @default(0)
+  stoneValue          Float           @default(0)
+  primarySawingCost   Float           @default(0)
+  secondarySawingCost Float           @default(0)
+  profilingCost       Float           @default(0)
+  finishingCost       Float           @default(0)
+  anchoringCost       Float           @default(0)
+  unitTime            Float           @default(0)
+  totalTime           Float           @default(0)
+  productionStatus    String          @default("Pending")
+  productionSiteId    String?
+  productionNotes     String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime
+  lineNo              String?
+  product             String?
+  refReference        String?
+  ProductionSite      ProductionSite? @relation(fields: [productionSiteId], references: [id])
+  Quote               Quote           @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+}
+
+model Representative {
+  id        String   @id
+  firstName String
+  lastName  String
+  email     String?
+  phone     String?
+  mobile    String?
+  fax       String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  Quote     Quote[]
+}
+
+model Setting {
+  id          String   @id
+  key         String   @unique
+  value       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+}
+
+model SystemConfig {
+  id                        String   @id
+  key                       String   @unique @default("GLOBAL")
+  defaultSemiStandardRate   Float    @default(0.4)
+  defaultSalesCurrency      String   @default("CAD")
+  defaultPalletPrice        Float    @default(50.0)
+  defaultPalletRequired     Boolean  @default(false)
+  defaultPaymentDays        Int      @default(30)
+  defaultDepositPercentage  Float    @default(0)
+  defaultDiscountPercentage Float    @default(0)
+  defaultDiscountDays       Int      @default(10)
+  defaultExchangeRate       Float    @default(1.0)
+  defaultPaymentTermId      String?
+  taxRateTPS                Float    @default(5.0)
+  taxRateTVQ                Float    @default(9.975)
+  taxRateTVH                Float    @default(13.0)
+  taxRateTVH_Maritimes      Float    @default(15.0)
+  defaultMeasureUnit        String   @default("an")
+  defaultValidityDuration   Int      @default(30)
+  updatedAt                 DateTime
+}
+
+model ThirdParty {
+  id                 String       @id
+  name               String
+  type               String
+  code               String?      @unique
+  email              String?
+  phone              String?
+  fax                String?
+  website            String?
+  defaultCurrency    String       @default("CAD")
+  paymentTerms       String?
+  paymentTermId      String?
+  paymentDays        Int          @default(0)
+  depositPercentage  Float        @default(0)
+  discountPercentage Float        @default(0)
+  discountDays       Int          @default(0)
+  paymentCustomText  String?
+  supplierType       String?
+  taxScheme          String?
+  creditLimit        Float?
+  repName            String?
+  language           String       @default("fr")
+  unitSystem         String       @default("Imperial")
+  incoterm           String?
+  incotermId         String?
+  incotermCustomText String?
+  priceListUrl       String?
+  priceListDate      String?
+  semiStandardRate   Float?
+  salesCurrency      String?
+  palletPrice        Float?
+  palletRequired     Boolean?
+  internalNotes      String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime
+  exchangeRate       Float?
+  validityDuration   Int?
+  Address            Address[]
+  Contact            Contact[]
+  Material           Material[]
+  Project            Project[]
+  Quote              Quote[]
+  Incoterm           Incoterm?    @relation(fields: [incotermId], references: [id])
+  PaymentTerm        PaymentTerm? @relation(fields: [paymentTermId], references: [id])
+}

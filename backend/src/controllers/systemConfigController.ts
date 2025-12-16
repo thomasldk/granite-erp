@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client';
+import prisma from '../prisma';
 
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient();
 const CONFIG_KEY = 'GLOBAL';
 
 export const getSystemConfig = async (req: Request, res: Response) => {

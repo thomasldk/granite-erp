@@ -290,12 +290,18 @@ model ProductionSite {
   items     QuoteItem[]
 }
 
+
+
 model MaintenanceSite {
   id        String   @id @default(uuid())
   name      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  equipments Equipment[]
+  parts     Part[]
 }
+
+
 
 model Currency {
   id        String   @id @default(uuid())
@@ -306,7 +312,107 @@ model Currency {
   updatedAt DateTime @updatedAt
 }
 
+
+
+model EquipmentCategory {
+  id        String      @id @default(uuid())
+  name      String      @unique
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  equipments Equipment[]
+}
+
+model Equipment {
+  id              String            @id @default(uuid())
+  name            String
+  internalId      String?           @unique // no.systeme (EQ-XXXX)
+  serialNumber    String?           // no.equipement
+  accountingCode  String?           // no.comptable
+  brand           String?
+  model           String?
+  status          String            @default("Active")
+  
+  categoryId      String?
+  category        EquipmentCategory? @relation(fields: [categoryId], references: [id])
+  
+  siteId          String?
+  site            MaintenanceSite?   @relation(fields: [siteId], references: [id])
+  
+  supplier        String?           // Keeping as string for now based on data "fournisseur" column
+  
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  repairs         RepairRequest[]
+}
+
+
+
+
+model PartCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  parts     Part[]
+}
+
+model Part {
+  id              String            @id @default(uuid())
+  name            String
+  reference       String?
+  description     String?
+  note            String?
+  supplier        String?
+  
+  stockQuantity   Float             @default(0)
+  minQuantity     Float             @default(0)
+  reqQuantity     Float             @default(0)
+  orderedQuantity Float             @default(0) // Qté. Com.
+  
+  categoryId      String?
+  category        PartCategory?     @relation(fields: [categoryId], references: [id])
+  
+  siteId          String?
+  site            MaintenanceSite?  @relation(fields: [siteId], references: [id])
+  
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+
+
+
+model RepairRequest {
+  id           String     @id @default(uuid())
+  reference    String?    @unique // Numéro de demande (ex: R-1024)
+  equipmentId  String?
+  equipment    Equipment? @relation(fields: [equipmentId], references: [id])
+  
+  title        String?
+  description  String
+  priority     String     @default("Normal")
+  status       String     @default("Open")
+  requester    String?
+  mechanic     String?    // Mécanicien
+  
+  isMachineDown Boolean   @default(false) // Équipement fonctionnel (Non = true for isMachineDown, or false for isFunctional) 
+  // Let's use isMachineDown for clarity: "Équipement à l'arrêt?" or stick to UI "isFunctional"
+  // UI says "Équipement fonctionnel: Non / Oui". So isFunctional makes sense.
+  isFunctional Boolean    @default(true)
+  
+  detectionDate DateTime? @default(now())
+  dueDate      DateTime?  // A faire pour le
+  closedAt     DateTime?  // Clôture réalisée le
+  
+  type         String     @default("Repair") // Repair, Maintenance
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+
 model Incoterm {
+
   id           String       @id @default(uuid())
   name         String
   xmlCode      String

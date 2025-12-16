@@ -2,9 +2,10 @@ import * as cron from 'node-cron';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client';
+import prisma from '../prisma';
 
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient();
 
 export class BackupService {
 
