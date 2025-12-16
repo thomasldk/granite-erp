@@ -152,6 +152,7 @@ export default function QuoteForm() {
     };
 
 
+    // Existing fetch effects
     useEffect(() => {
         fetchClients();
         fetchProjects();
@@ -177,6 +178,22 @@ export default function QuoteForm() {
             }
         }
     }, [id]);
+
+    // NEW: Auto-Polling for "Live" updates (Every 5 seconds)
+    useEffect(() => {
+        if (isNew) return; // Don't poll if creating
+
+        const interval = setInterval(() => {
+            // Only poll if tab is visible to save resources
+            if (!document.hidden) {
+                // Determine if we should poll (e.g., if statusSync is not Synced yet, or just always for safety)
+                // Here we poll always to catch "Synced" status transition automatically.
+                fetchQuote();
+            }
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [isNew, id]); // Re-run if ID changes
 
     // NEW: Auto-Populate Items based on Project Number of Lines (If New Quote)
     useEffect(() => {
@@ -449,54 +466,67 @@ export default function QuoteForm() {
                                 onClick={async () => {
                                     try {
                                         setActiveAction('GENERATE');
-                                        // 1. Trigger
+                                        // 1. Trigger Generation
                                         await api.get(`/quotes/${id}/download-excel`);
 
-                                        // 2. Poll
+                                        // 2. Poll for Completion
                                         const pollInterval = setInterval(async () => {
                                             try {
                                                 const pollRes = await api.get(`/quotes/${id}?t=${Date.now()}`);
                                                 const status = pollRes.data.syncStatus;
-                                                if (status === 'Calculated (Agent)') {
+
+                                                if (status === 'Calculated (Agent)' || status === 'Synced') {
                                                     clearInterval(pollInterval);
                                                     fetchQuote();
-                                                    setTimeout(async () => {
-                                                        try {
-                                                            const response = await api.get(`/quotes/${id}/download-result?t=${Date.now()}`, { responseType: 'blob' });
-                                                            const url = window.URL.createObjectURL(new Blob([response.data]));
-                                                            const link = document.createElement('a');
-                                                            link.href = url;
-                                                            // Filename extraction
-                                                            const disposition = response.headers['content-disposition'];
-                                                            console.log("Download Header:", disposition);
-                                                            let fileName = 'soumission.xlsx';
-                                                            if (disposition && disposition.indexOf('attachment') !== -1) {
-                                                                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
-                                                                const matches = filenameRegex.exec(disposition);
-                                                                if (matches != null && matches[1]) {
-                                                                    fileName = matches[1].replace(/['"]/g, '');
-                                                                }
-                                                            }
-                                                            link.setAttribute('download', fileName);
-                                                            document.body.appendChild(link);
-                                                            link.click();
-                                                            link.remove();
-                                                            setActiveAction(null);
-                                                        } catch (e) { setActiveAction(null); }
-                                                    }, 1000);
+
+                                                    // Optional: Trigger download if needed, but ensure only ONCE.
+                                                    // Assuming user wants automatic download upon completion.
+                                                    try {
+                                                        const response = await api.get(`/quotes/${id}/download-result?t=${Date.now()}`, { responseType: 'blob' });
+                                                        const url = window.URL.createObjectURL(new Blob([response.data]));
+                                                        const link = document.createElement('a');
+                                                        link.href = url;
+                                                        const disposition = response.headers['content-disposition'];
+                                                        let fileName = 'soumission.xlsx';
+                                                        if (disposition && disposition.indexOf('attachment') !== -1) {
+                                                            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                                                            const matches = filenameRegex.exec(disposition);
+                                                            if (matches != null && matches[1]) fileName = matches[1].replace(/['"]/g, '');
+                                                        }
+                                                        link.setAttribute('download', fileName);
+                                                        document.body.appendChild(link);
+                                                        link.click();
+                                                        link.remove();
+                                                    } catch (err) {
+                                                        console.error("Auto-download failed", err);
+                                                    } finally {
+                                                        setActiveAction(null);
+                                                    }
+
                                                 } else if (status === 'ERROR_AGENT') {
                                                     clearInterval(pollInterval);
                                                     setActiveAction(null);
-                                                    alert("Erreur Agent");
+                                                    alert("Erreur lors de la génération par l'agent.");
                                                 }
-                                            } catch (e) { }
+                                            } catch (e) {
+                                                // Polling error (ignore transient)
+                                            }
                                         }, 2000);
 
-                                        // Timeout
-                                        setTimeout(() => { if (activeAction === 'GENERATE') { clearInterval(pollInterval); setActiveAction(null); } }, 120000);
+                                        // Safety Timeout (2 min)
+                                        setTimeout(() => {
+                                            if (activeAction === 'GENERATE') {
+                                                clearInterval(pollInterval);
+                                                setActiveAction(null);
+                                            }
+                                        }, 120000);
 
-                                    } catch (e) { setActiveAction(null); alert("Erreur génération"); }
+                                    } catch (e) {
+                                        setActiveAction(null);
+                                        alert("Erreur lors du lancement de la génération.");
+                                    }
                                 }}
+
                                 className={`inline-flex items-center rounded px-2 py-1 text-sm font-semibold text-white shadow-sm ${activeAction === 'GENERATE' ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-500'}`}
                                 disabled={!!activeAction}
                             >
@@ -1133,325 +1163,295 @@ export default function QuoteForm() {
                 </div>
 
                 {/* Show items table only if editing (id exists) or items exist */}
-                {(id || (formData.items && formData.items.length > 0)) && (
-                    <div className="md:col-span-2 border-t pt-4 mt-2">
-                        <h3 className="text-md font-medium text-gray-900 mb-3">Lignes de la Soumission ({formData.items?.length || 0})</h3>
+                {
+                    (id || (formData.items && formData.items.length > 0)) && (
+                        <div className="md:col-span-2 border-t pt-4 mt-2">
+                            <h3 className="text-md font-medium text-gray-900 mb-3">Lignes de la Soumission ({formData.items?.length || 0})</h3>
 
-                        {formData.items && formData.items.length > 0 ? (
-                            <div className="overflow-x-auto border rounded-md shadow-sm">
-                                <table className="min-w-[1500px] divide-y divide-gray-200 text-xs text-nowrap">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th scope="col" className="px-2 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">#</th>
-                                            <th scope="col" className="px-2 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                            <th scope="col" className="px-2 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Qté</th>
-                                            <th scope="col" className="px-2 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Unité</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Long.</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Larg.</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Epais.</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Long. Net</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Surf. Net</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Vol. Tot</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Poids Tot</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Val. Pierre</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Sc. Prim</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Sc. Sec</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Prof.</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Fin.</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Ancr.</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Tps U.</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Tps Tot.</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider bg-yellow-50">Prix_Unit Int</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider bg-yellow-50">TT Prix_Unit Int</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-bold text-gray-900 uppercase tracking-wider bg-green-50">Prix_Unit_externe</th>
-                                            <th scope="col" className="px-2 py-3 text-right font-bold text-gray-900 uppercase tracking-wider bg-green-50">TT Prix_Unit_externe</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {formData.items.map((item, index) => (
-                                            <tr key={item.id || index}>
-                                                <td className="px-2 py-2 whitespace-nowrap text-gray-500">
-                                                    {item.tag || (index + 1)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-gray-900">
-                                                    <div className="font-medium truncate max-w-xs" title={item.material}>{item.material}</div>
-                                                    <div className="text-gray-500 truncate max-w-xs" title={item.description}>{item.description}</div>
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-gray-500">
-                                                    {item.quantity}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-gray-500">
-                                                    {item.unit || 'ea'}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">
-                                                    {item.length?.toFixed(2)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">
-                                                    {item.width?.toFixed(2)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">
-                                                    {item.thickness?.toFixed(2)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">
-                                                    {item.netLength?.toFixed(2)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">
-                                                    {item.netArea?.toFixed(2)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">
-                                                    {item.netVolume?.toFixed(2)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">
-                                                    {item.totalWeight?.toFixed(2)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">
-                                                    {new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD' }).format(item.stoneValue || 0)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-400">
-                                                    {(item as any).primarySawingCost?.toFixed(2)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-400">
-                                                    {(item as any).secondarySawingCost?.toFixed(2)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-400">
-                                                    {(item as any).profilingCost?.toFixed(2)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-400">
-                                                    {(item as any).finishingCost?.toFixed(2)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-400">
-                                                    {(item as any).anchoringCost?.toFixed(2)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-400">
-                                                    {(item as any).unitTime?.toFixed(2)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-400">
-                                                    {(item as any).totalTime?.toFixed(2)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-600 bg-yellow-50">
-                                                    {new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD' }).format(item.unitPriceCad || 0)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right text-gray-600 bg-yellow-50">
-                                                    {new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD' }).format(item.totalPriceCad || 0)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right font-medium text-gray-900 bg-green-50">
-                                                    {new Intl.NumberFormat('fr-CA', { style: 'currency', currency: formData.currency || 'CAD' }).format(item.unitPrice || 0)}
-                                                </td>
-                                                <td className="px-2 py-2 whitespace-nowrap text-right font-medium text-gray-900 bg-green-50">
-                                                    {new Intl.NumberFormat('fr-CA', { style: 'currency', currency: formData.currency || 'CAD' }).format(item.totalPrice || 0)}
-                                                </td>
+                            {formData.items && formData.items.length > 0 ? (
+                                <div className="overflow-x-auto border rounded-md shadow-sm">
+                                    <table className="min-w-[1500px] divide-y divide-gray-200 text-xs text-nowrap">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th scope="col" className="px-2 py-3 text-left font-bold text-gray-900 uppercase tracking-wider">NL</th>
+                                                <th scope="col" className="px-2 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                                <th scope="col" className="px-2 py-3 text-left font-bold text-gray-900 uppercase tracking-wider">RÉF</th>
+                                                <th scope="col" className="px-2 py-3 text-left font-bold text-gray-900 uppercase tracking-wider">TAG</th>
+                                                <th scope="col" className="px-2 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">QTÉ</th>
+                                                <th scope="col" className="px-2 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">PDT</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">LONG.</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">LARG.</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">EPAIS.</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">TT LN.</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">TT SN.</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">TT VOLN.</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">TT PDS.N</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-900 uppercase tracking-wider bg-yellow-50">PX UNIT INT.</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-bold text-gray-900 uppercase tracking-wider bg-green-50">PX UNIT EXT.</th>
+                                                <th scope="col" className="px-2 py-3 text-left font-medium text-gray-500 uppercase tracking-wider">UN.VT</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-900 uppercase tracking-wider bg-yellow-50">PX TT LG INT</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-bold text-gray-900 uppercase tracking-wider bg-green-50">PX TT LG EXT</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">PX P Unit</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">ScPrim.</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Sc Sec.</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Ct Prof</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Ct Fin</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Ct Anc</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">TT UN</th>
+                                                <th scope="col" className="px-2 py-3 text-right font-medium text-gray-500 uppercase tracking-wider">Tp TT</th>
                                             </tr>
-                                        ))}
-                                        <tr className="bg-gray-100 font-bold">
-                                            <td colSpan={10} className="px-2 py-2 text-right text-gray-900">Total Interne</td>
-                                            <td className="px-2 py-2 text-right text-gray-900 bg-yellow-100">
-                                                {new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD' }).format(formData.items.reduce((sum, i) => sum + (i.totalPriceCad || 0), 0))}
-                                            </td>
-                                            <td className="px-2 py-2 text-right text-gray-900 bg-green-100">Total Vente</td>
-                                            <td className="px-2 py-2 text-right text-gray-900 bg-green-100">
-                                                {new Intl.NumberFormat('fr-CA', { style: 'currency', currency: formData.currency || 'CAD' }).format(formData.items.reduce((sum, i) => sum + (i.totalPrice || 0), 0))}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        ) : (
-                            <p className="text-gray-500 italic">Aucune ligne importée via Excel/XML.</p>
-                        )}
-                    </div>
-                )}
-
-
-                {id && (
-                    <div className="flex flex-col mt-8 border-t pt-4">
-                        <div className="flex justify-center w-full px-4">
-                            <button
-                                type="button"
-                                onClick={async () => {
-                                    if (!id) return;
-                                    try {
-                                        const response = await api.get(`/quotes/${id}/download-result?t=${Date.now()}`, {
-                                            responseType: 'blob',
-                                        });
-                                        const url = window.URL.createObjectURL(new Blob([response.data]));
-                                        const link = document.createElement('a');
-                                        link.href = url;
-                                        const disposition = response.headers['content-disposition'];
-                                        let fileName = 'soumission.xlsx';
-                                        if (disposition && disposition.indexOf('attachment') !== -1) {
-                                            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
-                                            const matches = filenameRegex.exec(disposition);
-                                            if (matches != null && matches[1]) {
-                                                fileName = matches[1].replace(/['"]/g, '');
-                                            }
-                                        }
-                                        link.setAttribute('download', fileName);
-                                        document.body.appendChild(link);
-                                        link.click();
-                                        link.remove();
-                                    } catch (error: any) {
-                                        console.error("Download Error", error);
-                                        if (error.response?.data instanceof Blob) {
-                                            const text = await error.response.data.text();
-                                            try {
-                                                const json = JSON.parse(text);
-                                                alert(`Erreur : ${json.details || json.error || "Fichier introuvable"}`);
-                                            } catch (e) {
-                                                alert("Erreur inconnue lors du téléchargement.");
-                                            }
-                                        } else {
-                                            alert("Erreur lors du téléchargement. Vérifiez que le fichier existe sur le réseau.");
-                                        }
-                                    }
-                                }}
-                                className="text-blue-600 hover:text-blue-800 underline flex items-center gap-2 cursor-pointer text-sm font-semibold"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                                </svg>
-                                {getExcelFilename()}
-                            </button>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            {formData.items.map((item, index) => (
+                                                <tr key={item.id || index}>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-gray-900 font-bold">{(item as any).lineNo || ''}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-gray-900">
+                                                        <div className="font-medium truncate max-w-xs text-xs" title={item.material}>{item.material}</div>
+                                                        <div className="text-gray-500 truncate max-w-xs text-xs" title={item.description}>{item.description}</div>
+                                                    </td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-gray-900">{(item as any).refReference || ''}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-gray-900 font-bold">{item.tag || ''}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-gray-500">{item.quantity}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-gray-500">{(item as any).product || ''}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">{item.length}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">{item.width}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">{item.thickness}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">{item.netLength}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">{item.netArea}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">{item.netVolume}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">{item.totalWeight}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-900 bg-yellow-50">{(item as any).unitPriceInternal ? new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD' }).format((item as any).unitPriceInternal) : '0.00 $'}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right font-bold text-gray-900 bg-green-50">{item.unitPrice ? new Intl.NumberFormat('fr-CA', { style: 'currency', currency: formData.currency || 'CAD' }).format(item.unitPrice) : '0.00 $'}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-gray-500">{item.unit || 'ea'}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-900 bg-yellow-50">{(item as any).totalPriceInternal ? new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD' }).format((item as any).totalPriceInternal) : '0.00 $'}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right font-bold text-gray-900 bg-green-50">{item.totalPrice ? new Intl.NumberFormat('fr-CA', { style: 'currency', currency: formData.currency || 'CAD' }).format(item.totalPrice) : '0.00 $'}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">{(item as any).stoneValue?.toFixed(2)}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">{(item as any).primarySawingCost?.toFixed(2)}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">{(item as any).secondarySawingCost?.toFixed(2)}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">{(item as any).profilingCost?.toFixed(2)}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">{(item as any).finishingCost?.toFixed(2)}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">{(item as any).anchoringCost?.toFixed(2)}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-500">{(item as any).unitTime?.toFixed(2)}</td>
+                                                    <td className="px-2 py-2 whitespace-nowrap text-right text-gray-400">{(item as any).totalTime?.toFixed(2)}</td>
+                                                </tr>
+                                            ))}
+                                            <tr className="bg-gray-100 font-bold">
+                                                <td colSpan={16} className="px-2 py-2 text-right text-gray-900">Total Interne</td>
+                                                <td className="px-2 py-2 text-right text-gray-900 bg-yellow-100">
+                                                    {new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD' }).format(formData.items.reduce((sum, i) => sum + (i.totalPriceInternal || 0), 0))}
+                                                </td>
+                                                <td className="px-2 py-2 text-right text-gray-900 bg-green-100">
+                                                    {new Intl.NumberFormat('fr-CA', { style: 'currency', currency: formData.currency || 'CAD' }).format(formData.items.reduce((sum, i) => sum + (i.totalPrice || 0), 0))}
+                                                </td>
+                                                <td colSpan={8} className="px-2 py-2 text-left text-gray-900">Total Vente</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <p className="text-gray-500 italic">Aucune ligne importée via Excel/XML.</p>
+                            )}
                         </div>
-                    </div >
-                )}
-                {/* DUPLICATE MODAL */}
-                {showDuplicateModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-                        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-                            <h3 className="text-lg font-bold text-gray-900 mb-4">Dupliquer la Soumission</h3>
+                    )
+                }
 
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Nouveau Client</label>
-                                    <select
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                        value={duplicateClientId}
-                                        onChange={e => {
-                                            setDuplicateClientId(e.target.value);
-                                            setDuplicateContactId(''); // Reset contact
-                                        }}
-                                    >
-                                        <option value="">-- Sélectionner --</option>
-                                        {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
-                                </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Contact <span className="text-red-500">*</span></label>
-                                    <select
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                        value={duplicateContactId}
-                                        onChange={e => setDuplicateContactId(e.target.value)}
-                                        disabled={!duplicateClientId}
-                                    >
-                                        <option value="">-- Sélectionner --</option>
-                                        {(clients.find(c => c.id === duplicateClientId)?.contacts || []).map((c: any) => (
-                                            <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {activeAction === 'DUPLICATE_WAIT' && (
-                                    <div className="p-4 bg-yellow-50 text-yellow-800 rounded text-sm animate-pulse">
-                                        ⏳ Génération en cours par le PC Agent...<br />
-                                        Veuillez patienter (Fichier Excel + XML en transit).
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="mt-6 flex justify-end gap-3">
+                {
+                    id && (
+                        <div className="flex flex-col mt-8 border-t pt-4">
+                            <div className="flex justify-center w-full px-4">
                                 <button
                                     type="button"
-                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
-                                    onClick={() => setShowDuplicateModal(false)}
-                                    disabled={activeAction === 'DUPLICATE_WAIT'}
-                                >
-                                    Annuler
-                                </button>
-                                <button
-                                    type="button"
-                                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:bg-indigo-400"
-                                    disabled={!duplicateClientId || !duplicateContactId || activeAction === 'DUPLICATE_WAIT'}
                                     onClick={async () => {
+                                        if (!id) return;
                                         try {
-                                            setActiveAction('DUPLICATE_WAIT');
-                                            // 1. Trigger Duplicate
-                                            const res = await api.post(`/quotes/${id}/duplicate`, {
-                                                newClientId: duplicateClientId,
-                                                newContactId: duplicateContactId
+                                            const response = await api.get(`/quotes/${id}/download-result?t=${Date.now()}`, {
+                                                responseType: 'blob',
                                             });
-                                            const newQuoteId = res.data.id;
-
-                                            // 2. Poll for Completion (Draft Status)
-                                            const poll = setInterval(async () => {
-                                                try {
-                                                    const check = await api.get(`/quotes/${newQuoteId}`);
-                                                    // Status Draft or Calculated(Agent) means success
-                                                    if (check.data.status === 'Draft' || check.data.syncStatus === 'Calculated (Agent)') {
-                                                        clearInterval(poll);
-
-                                                        // 3. Trigger Download
-                                                        // We use a temporary link to force download
-                                                        const downloadUrl = `${api.defaults.baseURL}/quotes/${newQuoteId}/download-result`;
-                                                        const link = document.createElement('a');
-                                                        link.href = downloadUrl;
-                                                        link.setAttribute('download', ''); // Force download
-                                                        document.body.appendChild(link);
-                                                        link.click();
-                                                        document.body.removeChild(link);
-
-                                                        // 4. Navigate to new Quote
-                                                        setTimeout(() => {
-                                                            navigate(`/quotes/${newQuoteId}`);
-                                                            setShowDuplicateModal(false);
-                                                        }, 1000);
-                                                    }
-                                                } catch (err) { console.error("Poll Error", err); }
-                                            }, 2000); // Check every 2s
-
-                                            // Safety timeout (e.g. 2 mins)
-                                            setTimeout(() => {
-                                                if (activeAction === 'DUPLICATE_WAIT') {
-                                                    clearInterval(poll);
-                                                    alert("Délai d'attente dépassé. La soumission a peut-être été créée en arrière-plan.");
-                                                    navigate(`/quotes/${newQuoteId}`);
+                                            const url = window.URL.createObjectURL(new Blob([response.data]));
+                                            const link = document.createElement('a');
+                                            link.href = url;
+                                            const disposition = response.headers['content-disposition'];
+                                            let fileName = 'soumission.xlsx';
+                                            if (disposition && disposition.indexOf('attachment') !== -1) {
+                                                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                                                const matches = filenameRegex.exec(disposition);
+                                                if (matches != null && matches[1]) {
+                                                    fileName = matches[1].replace(/['"]/g, '');
                                                 }
-                                            }, 120000);
-
-                                        } catch (e) {
-                                            console.error(e);
-                                            alert("Erreur lors de la duplication");
-                                            setActiveAction(null);
+                                            }
+                                            link.setAttribute('download', fileName);
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            link.remove();
+                                        } catch (error: any) {
+                                            console.error("Download Error", error);
+                                            if (error.response?.data instanceof Blob) {
+                                                const text = await error.response.data.text();
+                                                try {
+                                                    const json = JSON.parse(text);
+                                                    alert(`Erreur : ${json.details || json.error || "Fichier introuvable"}`);
+                                                } catch (e) {
+                                                    alert("Erreur inconnue lors du téléchargement.");
+                                                }
+                                            } else {
+                                                alert("Erreur lors du téléchargement. Vérifiez que le fichier existe sur le réseau.");
+                                            }
                                         }
                                     }}
+                                    className="text-blue-600 hover:text-blue-800 underline flex items-center gap-2 cursor-pointer text-sm font-semibold"
                                 >
-                                    {activeAction === 'DUPLICATE_WAIT' ? 'Patientez...' : 'Confirmer'}
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                    </svg>
+                                    {getExcelFilename()}
                                 </button>
                             </div>
+                        </div >
+                    )
+                }
+                {/* DUPLICATE MODAL */}
+                {
+                    showDuplicateModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+                            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                                <h3 className="text-lg font-bold text-gray-900 mb-4">Dupliquer la Soumission</h3>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">Nouveau Client</label>
+                                        <select
+                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                            value={duplicateClientId}
+                                            onChange={e => {
+                                                setDuplicateClientId(e.target.value);
+                                                setDuplicateContactId(''); // Reset contact
+                                            }}
+                                        >
+                                            <option value="">-- Sélectionner --</option>
+                                            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">Contact <span className="text-red-500">*</span></label>
+                                        <select
+                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                            value={duplicateContactId}
+                                            onChange={e => setDuplicateContactId(e.target.value)}
+                                            disabled={!duplicateClientId}
+                                        >
+                                            <option value="">-- Sélectionner --</option>
+                                            {(clients.find(c => c.id === duplicateClientId)?.contacts || []).map((c: any) => (
+                                                <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {activeAction === 'DUPLICATE_WAIT' && (
+                                        <div className="p-4 bg-yellow-50 text-yellow-800 rounded text-sm animate-pulse">
+                                            ⏳ Génération en cours par le PC Agent...<br />
+                                            Veuillez patienter (Fichier Excel + XML en transit).
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="mt-6 flex justify-end gap-3">
+                                    <button
+                                        type="button"
+                                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+                                        onClick={() => setShowDuplicateModal(false)}
+                                        disabled={activeAction === 'DUPLICATE_WAIT'}
+                                    >
+                                        Annuler
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:bg-indigo-400"
+                                        disabled={!duplicateClientId || !duplicateContactId || activeAction === 'DUPLICATE_WAIT'}
+                                        onClick={async () => {
+                                            try {
+                                                setActiveAction('DUPLICATE_WAIT');
+                                                // 1. Trigger Duplicate
+                                                const res = await api.post(`/quotes/${id}/duplicate`, {
+                                                    newClientId: duplicateClientId,
+                                                    newContactId: duplicateContactId
+                                                });
+                                                const newQuoteId = res.data.id;
+
+                                                // 2. Poll for Completion (Draft Status)
+                                                const poll = setInterval(async () => {
+                                                    try {
+                                                        const check = await api.get(`/quotes/${newQuoteId}`);
+                                                        // Status Draft or Calculated(Agent) means success
+                                                        if (check.data.status === 'Draft' || check.data.syncStatus === 'Calculated (Agent)') {
+                                                            clearInterval(poll);
+
+                                                            // 3. Trigger Download
+                                                            // We use a temporary link to force download
+                                                            const downloadUrl = `${api.defaults.baseURL}/quotes/${newQuoteId}/download-result`;
+                                                            const link = document.createElement('a');
+                                                            link.href = downloadUrl;
+                                                            link.setAttribute('download', ''); // Force download
+                                                            document.body.appendChild(link);
+                                                            link.click();
+                                                            document.body.removeChild(link);
+
+                                                            // 4. Navigate to new Quote
+                                                            setTimeout(() => {
+                                                                navigate(`/quotes/${newQuoteId}`);
+                                                                setShowDuplicateModal(false);
+                                                            }, 1000);
+                                                        }
+                                                    } catch (err) { console.error("Poll Error", err); }
+                                                }, 2000); // Check every 2s
+
+                                                // Safety timeout (e.g. 2 mins)
+                                                setTimeout(() => {
+                                                    if (activeAction === 'DUPLICATE_WAIT') {
+                                                        clearInterval(poll);
+                                                        alert("Délai d'attente dépassé. La soumission a peut-être été créée en arrière-plan.");
+                                                        navigate(`/quotes/${newQuoteId}`);
+                                                    }
+                                                }, 120000);
+
+                                            } catch (e) {
+                                                console.error(e);
+                                                alert("Erreur lors de la duplication");
+                                                setActiveAction(null);
+                                            }
+                                        }}
+                                    >
+                                        {activeAction === 'DUPLICATE_WAIT' ? 'Patientez...' : 'Confirmer'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )
+                }
                 {/* Modal de Révision */}
-                {showRevisionModal && (
-                    <RevisionModal
-                        isOpen={showRevisionModal}
-                        onClose={() => setShowRevisionModal(false)}
-                        onConfirm={handleRevisionConfirm}
-                        originalQuote={{
-                            ...formData,
-                            material: materials.find(m => m.id === formData.materialId),
-                            incotermRef: incoterms.find(i => i.id === formData.incotermId),
-                            paymentTerm: paymentTerms.find(p => p.id === formData.paymentTermId)
-                        }}
-                        materials={materials}
-                        incoterms={incoterms}
-                        paymentTerms={paymentTerms}
-                        currencies={currencies}
-                    />
-                )}
+                {
+                    showRevisionModal && (
+                        <RevisionModal
+                            isOpen={showRevisionModal}
+                            onClose={() => setShowRevisionModal(false)}
+                            onConfirm={handleRevisionConfirm}
+                            originalQuote={{
+                                ...formData,
+                                material: materials.find(m => m.id === formData.materialId),
+                                incotermRef: incoterms.find(i => i.id === formData.incotermId),
+                                paymentTerm: paymentTerms.find(p => p.id === formData.paymentTermId)
+                            }}
+                            materials={materials}
+                            incoterms={incoterms}
+                            paymentTerms={paymentTerms}
+                            currencies={currencies}
+                        />
+                    )
+                }
 
             </form >
-        </div>
+        </div >
     );
 }
 

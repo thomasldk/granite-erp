@@ -199,6 +199,9 @@ model QuoteItem {
   id                  String          @id @default(uuid())
   quoteId             String
   tag                 String?
+  lineNo              String?         // Added for XML "No" (NL)
+  refReference        String?         // Added for XML "Ref" (REF)
+  product             String?         // Added for XML "Item" (PDT)
   description         String
   material            String
   finish              String?

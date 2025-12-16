@@ -1,9 +1,0 @@
-<?xml version='1.0'?>
-<!--Génération par DRC le 14-12-2025 07:28-->
-<generation type='Soumission'>
-<meta cible='F:\nxerp\essai2\DRC25-0001-C3R0_Vermont Stone Art_essai2_Caledonia.xlsx' Langue='en' action='recopier' modele='F:\nxerp\essai2\DRC25-0001-C3R0_Vermont Stone Art_essai2_Caledonia.xlsx' appCode='03' journal='' ancienNom='DRC25-0001-C2R0' socLangue='en' codeModule='01' definition='C:\Travail\XML\CLAUTOMATERECOPIER.xml' nouveauNom='DRC25-0001-C3R0' ancienCouleur='Caledonia' ancienQualite='A' nouveauCouleur='Caledonia' codeApplication='03' nouvelleQualite='A'><resultat flag=''/></meta>
-<client nom='Vermont Stone Art' pays='ÉT' ville='Waterbury' langue='en' region='VT' adresse1='One Stowe Street, suite 3' codepostal='05676' abbreviation=''><contacts><contact cel='' fax='' nom='Quirrion' tel='+1 (802) 505-2517' mail='rquirion@vermontstoneart.com' prenom='Roger'/></contacts></client>
-<representant cel='+1_(514)_651-4296' fax='+1' nom='Ares' tel='+1_514-651-4296' mail='sares@granitedrc.com' prenom='Sophie'/>
-<devis UC='CAD' Mesure='an' devise='USD' Accompte=',3' Escompte=',03' Incoterm='Entry' Paiement='30' delaiNbr='3' emetteur='Thomas Leguen' IncotermS='FOB Harwich, MA' TauxChange='1' IncotermInd='3' DureValidite='30' dateEmission='14-12-2025' DelaiEscompte='15' ConditionPaiement='net X days and % discount if payment received before 30 days from date of invoice' ConditionPaiementInd='4' ConditionPaiementSaisie=''><LOADING nom='GRANITE DRC RAP' pays='CA' ville='Rivière-à-Pierre' region='CA-QC' adresse1='475 Avenue Delisle' regiondsp='Quebec' codepostal='G0A3A0' paysTraduit='Canada' abbreviation=''/><pierre Poid='0' prix='1500' perte='0' unite='m3' couleur='Caledonia' qualite='A' quantite='2' unitePoid='lbs'/><externe devise=''/></devis>
-<Fournisseurs/>
-</generation>

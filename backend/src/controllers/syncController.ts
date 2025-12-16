@@ -20,11 +20,13 @@ export const pollPending = async (req: Request, res: Response) => {
             orderBy: { updatedAt: 'asc' },
             include: {
                 client: { include: { addresses: true, contacts: true, paymentTerm: true } },
-                project: { include: { location: true } },
+                project: { include: { location: true } }, // Need project for path
+                contact: true,
                 material: true,
                 items: true,
-                incotermRef: true,
-                paymentTerm: true
+                representative: true, // rep info
+                paymentTerm: true, // payment conditions
+                incotermRef: true
             }
         });
 
@@ -240,18 +242,24 @@ export const pollPending = async (req: Request, res: Response) => {
 
         console.log(`[Sync] Quote ${pendingQuote.reference} picked up by Agent (${jobType}).`);
 
-        // 4. Return the job
+        // Construct targetPath for Agent (Mirroring xmlService logic)
+        const safe = (s: any) => (s || '').replace(/[^a-zA-Z0-9-]/g, '_');
+        const filename = `${safe(pendingQuote.reference)}_${safe(pendingQuote.client?.name)}_${safe(pendingQuote.project?.name)}_${safe(pendingQuote.material?.name)}.xlsx`;
+        const defaultFullPath = `F:\\nxerp\\${pendingQuote.project?.name || 'Projet'}\\${filename}`;
+
         res.json({
             id: pendingQuote.id,
             reference: pendingQuote.reference,
-            jobType: jobType, // FIXED: Agent expects 'jobType'
+            jobType: jobType,
             xmlContent: xmlContent,
-            targetFilename: targetFilename, // .xml or .rak
+            targetFilename: `${pendingQuote.reference}.rak`,
             // For Reimport:
-            excelUrl: excelUrl,
-            ...fileParams,
-            fileParams: fileParams,
-            files: fileParams
+            reimportPath: null,
+            // Files:
+            fileParams: {
+                targetPath: defaultFullPath // FIXED: Agent needs this to know where to look/write
+            },
+            files: {}
         });
 
     } catch (error: any) {
