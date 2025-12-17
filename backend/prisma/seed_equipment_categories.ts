@@ -31,7 +31,7 @@ const categories = [
     "Soudeuse"
 ];
 
-async function main() {
+export async function seedEquipmentCategories() {
     console.log('🌱 Seeding Equipment Categories...');
 
     for (const category of categories) {
@@ -44,12 +44,3 @@ async function main() {
 
     console.log('✅ Equipment Categories seeded successfully.');
 }
-
-main()
-    .catch((e) => {
-        console.error(e);
-        process.exit(1);
-    })
-    .finally(async () => {
-        await prisma.$disconnect();
-    });

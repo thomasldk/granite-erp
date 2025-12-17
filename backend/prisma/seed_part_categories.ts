@@ -21,7 +21,7 @@ const categories = [
     "Roulement"
 ];
 
-async function main() {
+export async function seedPartCategories() {
     console.log('Seeding Part Categories...');
     for (const name of categories) {
         await prisma.partCategory.upsert({
@@ -32,12 +32,3 @@ async function main() {
     }
     console.log('Part Categories seeded successfully.');
 }
-
-main()
-    .catch((e) => {
-        console.error(e);
-        process.exit(1);
-    })
-    .finally(async () => {
-        await prisma.$disconnect();
-    });
