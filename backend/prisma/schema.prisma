@@ -377,6 +377,7 @@ model Part {
   
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+  repairParts     RepairPart[]
 }
 
 
@@ -405,9 +406,26 @@ model RepairRequest {
   closedAt     DateTime?  // Clôture réalisée le
   
   type         String     @default("Repair") // Repair, Maintenance
+  recurrenceFreq String?  // Oneoff, Weekly, Monthly
+  recurrenceDay  String?  // Monday, Tuesday... or 1st, 15th...
 
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+  parts        RepairPart[] // Relation to RepairPart
+}
+
+model RepairPart {
+  id              String        @id @default(uuid())
+  repairRequestId String
+  partId          String
+  quantity        Float         @default(1)
+  action          String        @default("USE") // USE, ORDER
+  
+  repairRequest   RepairRequest @relation(fields: [repairRequestId], references: [id], onDelete: Cascade)
+  part            Part          @relation(fields: [partId], references: [id])
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 }
 
 

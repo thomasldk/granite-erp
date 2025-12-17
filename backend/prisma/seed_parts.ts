@@ -208,7 +208,7 @@ const rawCsv = `id_piece,piece,reference,categorie piece,lieu de maintenance,Qt�
 203,,,,,,,,,,Fournisseur habituel : Géné
 204,X30210 Tapered Roller Bearings,N.R.,Roulement,Bureau,,2,0,0,This is the most basic and most widely used type of tapered roller bearing. It consists of two main separable parts: the cone (inner ring) assembly and the cup (outer ring). It is typically mounted in opposing pairs on a shaft.`;
 
-async function main() {
+export async function seedParts() {
     console.log('Seeding parts...');
 
     const rows = rawCsv.split('\n');
@@ -218,35 +218,14 @@ async function main() {
         const row = rows[i].trim();
         if (!row) continue;
 
-        // Use a regex to split by comma but respect quotes if any (though user data seems simple)
-        // Actually, user data MIGHT have commas in textual fields, but checking the input:
-        // "AutomationDirect compact limit switch,N.R.,Capteur..."
-        // The description doesn't use quotes. It seems free of commas except separators.
-        // However, row 4: "AutomationDirect compact limit switch|..."
-        // It seems they used pipes to avoid commas?
-        // I will use simple split.
         const cols = row.split(',');
-
-        // id_piece, piece, reference, categorie, lieu, min, dispo, req, com, description, note, fournisseur
-        // 0         1      2          3          4     5    6      7    8    9            10    11
-
-        // Check if continuation
-        // If cols[1] (piece/name) is empty, it's likely continuation.
-        // BUT notice cols array length might vary if trailing empty cols are dropped.
-        // "Spreadsheet" exports usually keep commas.
-        // Row 35: `,,,,,,,,,,,APPLIED INSDUSTRIAL TECHNOLOGIES` -> 11 empty fields, then text.
-        // So cols[0] is empty, cols[1] is empty...
-
-        // Logic:
         const name = cols[1]?.trim();
 
         if (name) {
-            // New Part
-            // Process fields
-            const idStr = cols[0]; // Not used for DB ID, but for ref if needed
+            const idStr = cols[0];
             const reference = cols[2]?.trim();
-            const categoryName = cols[3]?.trim(); // "categorie piece"
-            const siteName = cols[4]?.trim(); // "lieu de maintenance"
+            const categoryName = cols[3]?.trim();
+            const siteName = cols[4]?.trim();
 
             const minQty = parseFloat(cols[5]) || 0;
             const stockQty = parseFloat(cols[6]) || 0;
@@ -257,7 +236,6 @@ async function main() {
             const note = cols[10]?.trim();
             const supplier = cols[11]?.trim();
 
-            // Upsert Category
             let categoryId = null;
             if (categoryName) {
                 const cat = await prisma.partCategory.upsert({
@@ -268,7 +246,6 @@ async function main() {
                 categoryId = cat.id;
             }
 
-            // Upsert Site
             let siteId = null;
             if (siteName) {
                 const site = await prisma.maintenanceSite.upsert({
@@ -279,25 +256,6 @@ async function main() {
                 siteId = site.id;
             }
 
-            // Create Part
-            // I use Upsert on name? Or something unique?
-            // CSV has 'id_piece' (1, 2, ...).
-            // If I want to avoid duplicates on re-run, I should use a unique field.
-            // 'name' might not be unique? "Filtre a huile" appears twice? (Row 48, 49).
-            // Row 48: "Filtre a huile", B161-S
-            // Row 49: "Filtre a huile", BT310
-            // So Name is NOT unique.
-            // Reference? "N.R." appears multiple times.
-            // I should store 'id_piece' as an external ID if I want to upsert cleanly?
-            // Or just create. `prisma.part.create`.
-            // But if I re-run, I get duplicates.
-            // I can verify if part exists by (name + reference)?
-
-            // Let's check schema. I didn't add `internalId` or `legacyId`.
-            // I'll assume for now `create` is fine for a one-off seed.
-            // Users usually want to re-run.
-            // I'll add a check "findFirst".
-
             const existing = await prisma.part.findFirst({
                 where: {
                     name: name,
@@ -307,13 +265,11 @@ async function main() {
 
             if (existing) {
                 currentPart = existing;
-                // Update?
                 await prisma.part.update({
                     where: { id: existing.id },
                     data: {
                         stockQuantity: stockQty,
-                        description: description,
-                        // etc.
+                        description: description
                     }
                 });
             } else {
@@ -335,14 +291,6 @@ async function main() {
             }
 
         } else {
-            // Continuation line
-            // Check which column has data.
-            // Usually Description (9), Note (10), Supplier (11).
-            // Row 35: `,,,,,,,,,,,APPLIED...` -> Col 11.
-            // Row 54: `,,,,,,,,,,Fleetguard: AF919` -> Col 10?
-            // Let's count commas in `,,,,,,,,,,Fleetguard: AF919`
-            // 10 commas -> 11th column? (Index 10). Yes.
-
             if (currentPart) {
                 let updateData: any = {};
 
@@ -361,12 +309,3 @@ async function main() {
     }
     console.log('Finished seeding parts.');
 }
-
-main()
-    .catch((e) => {
-        console.error(e);
-        process.exit(1);
-    })
-    .finally(async () => {
-        await prisma.$disconnect();
-    });

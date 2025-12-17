@@ -32,4 +32,34 @@ router.post('/', async (req, res) => {
     }
 });
 
+// Update category
+router.put('/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name } = req.body;
+        const category = await prisma.equipmentCategory.update({
+            where: { id },
+            data: { name }
+        });
+        res.json(category);
+    } catch (error) {
+        console.error('Error updating category:', error);
+        res.status(500).json({ error: 'Failed to update category' });
+    }
+});
+
+// Delete category
+router.delete('/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await prisma.equipmentCategory.delete({
+            where: { id }
+        });
+        res.json({ message: 'Category deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting category:', error);
+        res.status(500).json({ error: 'Failed to delete category' });
+    }
+});
+
 export default router;

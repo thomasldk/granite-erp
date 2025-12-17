@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { SystemConfigPage } from './pages/settings/SystemConfigPage';
-import { UsersIcon, ChevronDownIcon, ChevronRightIcon, WrenchIcon } from '@heroicons/react/24/outline';
+import { UsersIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import ClientList from './pages/clients/ClientList';
 import ClientForm from './pages/clients/ClientForm';
 import ClientDetail from './pages/clients/ClientDetail';
@@ -34,7 +34,8 @@ import PartCategoryList from './pages/maintenance/PartCategoryList'; // Added
 import RepairList from './pages/maintenance/RepairList';
 import RepairForm from './pages/maintenance/RepairForm';
 import MechanicPlanning from './pages/maintenance/MechanicPlanning'; // Added
-import EquipmentPlanning from './pages/maintenance/EquipmentPlanning'; // Added
+import EquipmentPlanning from './pages/maintenance/EquipmentPlanning';
+import RepairPrintView from './pages/maintenance/RepairPrintView'; // Added
 
 // Layout Component (unchanged)
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -45,7 +46,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [isPlanningSubOpen, setIsPlanningSubOpen] = useState(true); // Added
     const [isEquipmentsSubOpen, setIsEquipmentsSubOpen] = useState(true);
     const [isPartsSubOpen, setIsPartsSubOpen] = useState(true);
-    const [isRepairsSubOpen, setIsRepairsSubOpen] = useState(true);
+
 
 
 
@@ -207,24 +208,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                                         </div>
                                     )}
 
-                                    {/* Repairs Sub-Menu */}
-                                    <button
-                                        onClick={() => setIsRepairsSubOpen(!isRepairsSubOpen)}
-                                        className="flex items-center justify-between w-full text-left text-gray-400 hover:text-white py-2 transition-colors"
+                                    {/* Repairs Direct Link */}
+                                    <Link
+                                        to="/maintenance/repairs"
+                                        className="flex items-center justify-between w-full text-left text-gray-400 hover:text-white py-2 transition-colors mt-2"
                                     >
-                                        <div className="flex items-center">
-                                            <WrenchIcon className="h-5 w-5 mr-3" />
-                                            <span>Réparations et entretiens</span>
-                                        </div>
-                                        {isRepairsSubOpen ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
-                                    </button>
-
-                                    {isRepairsSubOpen && (
-                                        <div className="ml-8 mt-1 space-y-1 mb-2">
-                                            <Link to="/maintenance/repairs" className="block text-gray-500 hover:text-white py-1 transition-colors">Liste des demandes</Link>
-                                            <Link to="/maintenance/repairs/new" className="block text-gray-500 hover:text-white py-1 transition-colors">Nouvelle demande</Link>
-                                        </div>
-                                    )}
+                                        <span>Entretiens et réparations</span>
+                                    </Link>
 
                                 </div>
                             )}
@@ -311,6 +301,7 @@ function App() {
                     <Route path="/maintenance/repairs" element={<RepairList />} />
                     <Route path="/maintenance/repairs/new" element={<RepairForm />} />
                     <Route path="/maintenance/repairs/edit/:id" element={<RepairForm />} />
+                    <Route path="/maintenance/repairs/print/:id" element={<RepairPrintView />} /> {/* Added */}
                     <Route path="/maintenance/planning/mechanic" element={<MechanicPlanning />} />
                     <Route path="/maintenance/planning/equipment" element={<EquipmentPlanning />} />
 

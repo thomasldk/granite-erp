@@ -111,7 +111,7 @@ const rawData = [
     { id: 106, name: "TEREX TL 260", internalId: "EQ-0118", serialNumber: "", category: "Chargeur", site: "GRANITE DRC STD", accountingCode: "", supplier: "" }
 ];
 
-async function main() {
+export async function seedEquipment() {
     console.log('Start seeding equipment...');
 
     for (const item of rawData) {
@@ -141,19 +141,9 @@ async function main() {
         }
 
         // 3. Upsert Equipment
-        // Checking if it exists first? User said "only if you don't find [them] in the database"
-        // Using upsert on internalId ensures we update if exists, or create if not.
-        // If the requirement is STRICTLY "do not touch if exists", I should use check first.
-        // But upsert is safer for "ensure this data is there". I'll use upsert.
-
         await prisma.equipment.upsert({
             where: { internalId: item.internalId },
-            update: {
-                // If it exists, update fields or leave as is?
-                // User provided a snapshot. Usually implies "sync to this".
-                // But "only if you don't find" implies "INSERT IGNORE".
-                // So I will pass empty object to update, effectively doing nothing if exists.
-            },
+            update: {},
             create: {
                 name: item.name,
                 internalId: item.internalId,
@@ -165,17 +155,7 @@ async function main() {
                 status: 'Active'
             }
         });
-        // console.log(`Processed: ${item.name} (${item.internalId})`);
     }
 
     console.log('Seeding finished.');
 }
-
-main()
-    .catch((e) => {
-        console.error(e);
-        process.exit(1);
-    })
-    .finally(async () => {
-        await prisma.$disconnect();
-    });

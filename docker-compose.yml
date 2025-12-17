@@ -15,7 +15,7 @@ services:
   backend:
     build: ./backend
     environment:
-      DATABASE_URL: postgresql://postgres:BmnoQJJtCKGBBeLqilPWUpigxMUFkcFB@yamanote.proxy.rlwy.net:11700/railway
+      DATABASE_URL: postgresql://postgres:nKmmmKfPcZuNsjpZWvAbspjcuEpQeIjb@maglev.proxy.rlwy.net:47374/railway
     ports:
       - "5006:5006"
     depends_on:

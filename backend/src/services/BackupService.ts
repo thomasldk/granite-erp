@@ -79,7 +79,15 @@ export class BackupService {
             contactTypes,
             languages,
             productionSites,
-            currencies
+            currencies,
+            equipmentCategories,
+            equipments,
+            partCategories,
+            parts,
+            repairRequests,
+            repairParts,
+            incoterms,
+            maintenanceSites
         ] = await Promise.all([
             prisma.material.findMany(),
             prisma.thirdParty.findMany({ include: { contacts: true, addresses: true } }), // Deep dump for context if needed, but separate tables are safer for pure restore
@@ -96,6 +104,14 @@ export class BackupService {
             prisma.language.findMany(),
             prisma.productionSite.findMany(),
             prisma.currency.findMany(),
+            prisma.equipmentCategory.findMany(),
+            prisma.equipment.findMany(),
+            prisma.partCategory.findMany(),
+            prisma.part.findMany(),
+            prisma.repairRequest.findMany({ include: { parts: true } }),
+            prisma.repairPart.findMany(),
+            prisma.incoterm.findMany(),
+            prisma.maintenanceSite.findMany()
         ]);
 
         return {
@@ -119,7 +135,15 @@ export class BackupService {
                 contactTypes,
                 languages,
                 productionSites,
-                currencies
+                currencies,
+                equipmentCategories,
+                equipments,
+                partCategories,
+                parts,
+                repairRequests,
+                repairParts,
+                incoterms,
+                maintenanceSites
             }
         };
     }

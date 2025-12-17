@@ -1,13 +1,15 @@
 import { PrismaClient } from '@prisma/client';
+import { seedEquipmentCategories } from './seed_equipment_categories';
+import { seedPartCategories } from './seed_part_categories';
+import { seedEquipment } from './seed_equipment_data';
+import { seedParts } from './seed_parts';
 
 const prisma = new PrismaClient();
 
 async function main() {
     console.log('🌱 Seeding database...');
 
-    // 1. Materials (Replacing StoneType logic)
-    // Category: Stone, Type: Granite/Quartz/etc.
-    // Category: Stone, Type: Granite/Quartz/etc.
+    // 1. Materials
     const materials: any[] = [
         { name: 'Granite Noir St-Henry', category: 'Stone', type: 'Granite', purchasePrice: 25.00, sellingPrice: 45.00, unit: 'sqft', density: 168, wasteFactor: 1.25, densityUnit: 'lb/ft3', quality: 'A' },
         { name: 'Quartz Blanc Pur', category: 'Stone', type: 'Quartz', purchasePrice: 35.00, sellingPrice: 65.00, unit: 'sqft', density: 150, wasteFactor: 1.15, densityUnit: 'lb/ft3', quality: 'A' },
@@ -15,7 +17,6 @@ async function main() {
     ];
 
     for (const mat of materials) {
-        // Simple check if exists by name
         const exists = await prisma.material.findFirst({ where: { name: mat.name } });
         if (!exists) {
             await prisma.material.create({
@@ -62,7 +63,7 @@ async function main() {
     const paymentTerms = [
         { code: 1, label_fr: "Paiement à la commande", label_en: "Payment upon confirmation of order" },
         { code: 2, label_fr: "50% à la commande, le solde avant expédition", label_en: "50% deposit on confirmation of order, balance before delivery", depositPercentage: 50 },
-        { code: 3, label_fr: "30 days net", label_en: "30 days net", days: 30 } // Simplified
+        { code: 3, label_fr: "30 days net", label_en: "30 days net", days: 30 }
     ];
 
     for (const term of paymentTerms) {
@@ -73,7 +74,6 @@ async function main() {
         });
     }
     console.log('✅ Payment Terms created');
-
 
     // 5. Sample Client
     const existingClient = await prisma.thirdParty.findFirst({ where: { code: 'C-EXEMPLE' } });
@@ -169,6 +169,14 @@ async function main() {
         });
     }
     console.log('✅ Currencies created');
+
+    // Restore Equipment and Parts
+    console.log('⚙️ Restoring Equipment and Parts...');
+    await seedEquipmentCategories();
+    await seedPartCategories();
+    await seedEquipment();
+    await seedParts();
+    console.log('⚙️ Equipment and Parts restored.');
 
     console.log('🏁 Seeding finished.');
 }
