@@ -3,6 +3,11 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
+    if (process.env.FORCE_RESET !== 'true') {
+        console.error('❌ SAFETY CHECK FAILED: This script deletes all non-maintenance data.');
+        console.error('To run this script, you must set the environment variable FORCE_RESET=true');
+        process.exit(1);
+    }
     console.log('🧹 Starting cleanup of non-maintenance data...');
 
     // Delete dependent tables first (Child -> Parent)
