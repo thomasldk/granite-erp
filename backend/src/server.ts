@@ -31,6 +31,11 @@ import productionRoutes from './routes/productionRoutes'; // Added
 import productionSiteRoutes from './routes/productionSiteRoutes'; // Added
 import maintenanceSiteRoutes from './routes/maintenanceSiteRoutes'; // Added
 import incotermRoutes from './routes/incotermRoutes'; // Added
+import equipmentCategoryRoutes from './routes/equipmentCategoryRoutes'; // Added
+import equipmentRoutes from './routes/equipmentRoutes'; // Added
+import partRoutes from './routes/partRoutes'; // Added
+import repairRoutes from './routes/repairRoutes'; // Added
+import partCategoryRoutes from './routes/partCategoryRoutes'; // Added
 import systemConfigRoutes from './routes/systemConfigRoutes'; // Added V8
 import path from 'path'; // Added for static serving
 
@@ -50,7 +55,16 @@ app.use('/api/production', productionRoutes); // Added production route
 app.use('/api/production-sites', productionSiteRoutes); // Added production sites route
 app.use('/api/maintenance-sites', maintenanceSiteRoutes); // Added maintenance sites route
 app.use('/api/incoterms', incotermRoutes); // Added
+app.use('/api/equipment-categories', equipmentCategoryRoutes); // Added
+app.use('/api/equipments', equipmentRoutes); // Added
+app.use('/api/parts', partRoutes); // Added
+app.use('/api/repairs', repairRoutes); // Added
+app.use('/api/part-categories', partCategoryRoutes); // Added
 app.use('/api/system-config', systemConfigRoutes); // Added V8
+
+
+
+
 
 app.use('/api/sync', syncRoutes); // Added Sync Agent Routes
 

@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client';
 import { XmlService } from '../services/xmlService';
 
-const prisma = new PrismaClient();
+import prisma from '../prisma';
+// const prisma = new PrismaClient();
 const xmlService = new XmlService();
 
 export const pollPending = async (req: Request, res: Response) => {

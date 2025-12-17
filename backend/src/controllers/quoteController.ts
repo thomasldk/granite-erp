@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -9,7 +9,8 @@ import { PdfService } from '../services/pdfService';
 import { XmlService } from '../services/xmlService';
 import { CalculationService } from '../services/calculationService';
 
-const prisma = new PrismaClient();
+import prisma from '../prisma';
+// const prisma = new PrismaClient();
 const excelService = new ExcelService();
 const xmlService = new XmlService();
 const calculationService = new CalculationService();

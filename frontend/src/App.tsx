@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { SystemConfigPage } from './pages/settings/SystemConfigPage';
-import { UsersIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { UsersIcon, ChevronDownIcon, ChevronRightIcon, WrenchIcon } from '@heroicons/react/24/outline';
 import ClientList from './pages/clients/ClientList';
 import ClientForm from './pages/clients/ClientForm';
 import ClientDetail from './pages/clients/ClientDetail';
@@ -28,14 +28,26 @@ import ProductionDashboard from './pages/production/ProductionDashboard';
 import MaintenanceDashboard from './pages/maintenance/MaintenanceDashboard';
 import RHDashboard from './pages/rh/RHDashboard';
 import EquipmentList from './pages/maintenance/EquipmentList';
+import CategoryList from './pages/maintenance/CategoryList';
 import PartList from './pages/maintenance/PartList';
+import PartCategoryList from './pages/maintenance/PartCategoryList'; // Added
+import RepairList from './pages/maintenance/RepairList';
+import RepairForm from './pages/maintenance/RepairForm';
+import MechanicPlanning from './pages/maintenance/MechanicPlanning'; // Added
+import EquipmentPlanning from './pages/maintenance/EquipmentPlanning'; // Added
 
 // Layout Component (unchanged)
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [isTiersOpen, setIsTiersOpen] = useState(true);
     const [isCatalogueOpen, setIsCatalogueOpen] = useState(true);
-    const [isProductionOpen, setIsProductionOpen] = useState(true); // Added for Production Accordion
-    const [isMaintenanceOpen, setIsMaintenanceOpen] = useState(true); // Added for Maintenance Accordion
+    const [isProductionOpen, setIsProductionOpen] = useState(true);
+    const [isMaintenanceOpen, setIsMaintenanceOpen] = useState(true);
+    const [isPlanningSubOpen, setIsPlanningSubOpen] = useState(true); // Added
+    const [isEquipmentsSubOpen, setIsEquipmentsSubOpen] = useState(true);
+    const [isPartsSubOpen, setIsPartsSubOpen] = useState(true);
+    const [isRepairsSubOpen, setIsRepairsSubOpen] = useState(true);
+
+
 
     return (
         <div className="min-h-screen bg-gray-50 flex">
@@ -137,8 +149,83 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             </button>
                             {isMaintenanceOpen && (
                                 <div className="ml-8 mt-2 space-y-1 text-sm border-l-2 border-gray-700 pl-4">
-                                    <Link to="/maintenance/equipment" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Équipements</Link>
-                                    <Link to="/maintenance/parts" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Pièces</Link>
+                                    {/* Planning Sub-Menu (Added) */}
+                                    <button
+                                        onClick={() => setIsPlanningSubOpen(!isPlanningSubOpen)}
+                                        className="flex items-center justify-between w-full text-gray-400 hover:text-white py-1 group focus:outline-none transition-colors mb-2"
+                                    >
+                                        <span>Planning</span>
+                                        {isPlanningSubOpen ? (
+                                            <ChevronDownIcon className="w-3 h-3 text-gray-500 group-hover:text-white" />
+                                        ) : (
+                                            <ChevronRightIcon className="w-3 h-3 text-gray-500 group-hover:text-white" />
+                                        )}
+                                    </button>
+                                    {isPlanningSubOpen && (
+                                        <div className="ml-4 space-y-1 border-l border-gray-600 pl-3 mb-2">
+                                            <Link to="/maintenance/planning/mechanic" className="block text-gray-500 hover:text-white py-1 transition-colors">Planning par mécanicien</Link>
+                                            <Link to="/maintenance/planning/equipment" className="block text-gray-500 hover:text-white py-1 transition-colors">Planning par équipement</Link>
+                                        </div>
+                                    )}
+
+                                    {/* Equipments Sub-Menu */}
+                                    <button
+                                        onClick={() => setIsEquipmentsSubOpen(!isEquipmentsSubOpen)}
+                                        className="flex items-center justify-between w-full text-gray-400 hover:text-white py-1 group focus:outline-none transition-colors"
+                                    >
+                                        <span>Équipements</span>
+                                        {isEquipmentsSubOpen ? (
+                                            <ChevronDownIcon className="w-3 h-3 text-gray-500 group-hover:text-white" />
+                                        ) : (
+                                            <ChevronRightIcon className="w-3 h-3 text-gray-500 group-hover:text-white" />
+                                        )}
+                                    </button>
+                                    {isEquipmentsSubOpen && (
+                                        <div className="ml-4 space-y-1 border-l border-gray-600 pl-3">
+                                            <Link to="/maintenance/equipment" className="block text-gray-500 hover:text-white py-1 transition-colors">Liste</Link>
+                                            <Link to="/maintenance/categories" className="block text-gray-500 hover:text-white py-1 transition-colors">Catégories</Link>
+                                        </div>
+                                    )}
+
+                                    {/* Parts Sub-Menu */}
+
+                                    <button
+                                        onClick={() => setIsPartsSubOpen(!isPartsSubOpen)}
+                                        className="flex items-center justify-between w-full text-gray-400 hover:text-white py-1 group focus:outline-none transition-colors mt-2"
+                                    >
+                                        <span>Pièces</span>
+                                        {isPartsSubOpen ? (
+                                            <ChevronDownIcon className="w-3 h-3 text-gray-500 group-hover:text-white" />
+                                        ) : (
+                                            <ChevronRightIcon className="w-3 h-3 text-gray-500 group-hover:text-white" />
+                                        )}
+                                    </button>
+                                    {isPartsSubOpen && (
+                                        <div className="ml-4 space-y-1 border-l border-gray-600 pl-3">
+                                            <Link to="/maintenance/parts" className="block text-gray-500 hover:text-white py-1 transition-colors">Liste</Link>
+                                            <Link to="/maintenance/part-categories" className="block text-gray-500 hover:text-white py-1 transition-colors">Catégories</Link>
+                                        </div>
+                                    )}
+
+                                    {/* Repairs Sub-Menu */}
+                                    <button
+                                        onClick={() => setIsRepairsSubOpen(!isRepairsSubOpen)}
+                                        className="flex items-center justify-between w-full text-left text-gray-400 hover:text-white py-2 transition-colors"
+                                    >
+                                        <div className="flex items-center">
+                                            <WrenchIcon className="h-5 w-5 mr-3" />
+                                            <span>Réparations et entretiens</span>
+                                        </div>
+                                        {isRepairsSubOpen ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
+                                    </button>
+
+                                    {isRepairsSubOpen && (
+                                        <div className="ml-8 mt-1 space-y-1 mb-2">
+                                            <Link to="/maintenance/repairs" className="block text-gray-500 hover:text-white py-1 transition-colors">Liste des demandes</Link>
+                                            <Link to="/maintenance/repairs/new" className="block text-gray-500 hover:text-white py-1 transition-colors">Nouvelle demande</Link>
+                                        </div>
+                                    )}
+
                                 </div>
                             )}
                         </li>
@@ -216,8 +303,19 @@ function App() {
                     <Route path="/production" element={<ProductionDashboard />} />
 
                     <Route path="/maintenance" element={<MaintenanceDashboard />} />
+                    <Route path="/maintenance" element={<MaintenanceDashboard />} />
                     <Route path="/maintenance/equipment" element={<EquipmentList />} />
+                    <Route path="/maintenance/categories" element={<CategoryList />} />
                     <Route path="/maintenance/parts" element={<PartList />} />
+                    <Route path="/maintenance/part-categories" element={<PartCategoryList />} />
+                    <Route path="/maintenance/repairs" element={<RepairList />} />
+                    <Route path="/maintenance/repairs/new" element={<RepairForm />} />
+                    <Route path="/maintenance/repairs/edit/:id" element={<RepairForm />} />
+                    <Route path="/maintenance/planning/mechanic" element={<MechanicPlanning />} />
+                    <Route path="/maintenance/planning/equipment" element={<EquipmentPlanning />} />
+
+
+                    {/* Added */}
 
                     <Route path="/rh" element={<RHDashboard />} />
 
