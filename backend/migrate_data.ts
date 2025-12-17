@@ -20,6 +20,11 @@ function query(sql: string): Promise<any[]> {
 }
 
 async function migrate() {
+    if (process.env.FORCE_RESET !== 'true') {
+        console.error('❌ SAFETY CHECK FAILED: This script deletes target data before migration.');
+        console.error('To run this script, you must set the environment variable FORCE_RESET=true');
+        process.exit(1);
+    }
     console.log(`Starting Data Migration...`);
     console.log(`Source: ${DB_PATH}`);
     console.log(`Target: PostgreSQL (Railway)`);
