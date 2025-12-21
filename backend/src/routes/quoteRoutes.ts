@@ -55,7 +55,7 @@ router.get('/:id/download-source-excel', quoteController.downloadSourceExcel); /
 // --- AGENT POLLING ROUTES ---
 const agentStorage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, '../../uploads/temp');
+        const uploadDir = path.join(process.cwd(), 'uploads', 'temp');
         if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
         cb(null, uploadDir);
     },

@@ -57,7 +57,7 @@ export const generateQuoteExcel = async (req: Request, res: Response) => {
         // Save to pending_xml
         const safeName = (str: string | undefined) => (str || '').replace(/[^a-zA-Z0-9- ]/g, '');
         const filename = `${safeName(quoteFull.reference)}.rak`;
-        const outputPath = path.join(__dirname, '../../pending_xml', filename);
+        const outputPath = path.join(process.cwd(), 'pending_xml', filename);
 
         fs.writeFileSync(outputPath, xmlContent);
         console.log(`[Agent-Flow] XML saved to ${outputPath}`);
@@ -115,7 +115,7 @@ export const generatePdf = async (req: Request, res: Response) => {
         // We use .rak extension, same naming convention as main file but maybe distinct?
         // Agent processes .rak files.
         const rakFilename = `${safe(quote.reference)}_PDF.rak`; // Add _PDF suffix to avoid collision/confusion
-        const outputPath = path.join(__dirname, '../../pending_xml', rakFilename);
+        const outputPath = path.join(process.cwd(), 'pending_xml', rakFilename);
 
         fs.writeFileSync(outputPath, xmlContent);
         console.log(`[PDF] RAK saved to ${outputPath}`);
@@ -223,7 +223,7 @@ export const downloadSourceExcel = async (req: Request, res: Response) => {
             // resolve relative paths like 'uploads/...' or absolute paths if any
             // Our system usually stores relative to project root or 'uploads'
             // Let's assume relative to backend root or uploads logic
-            const filePath = path.join(__dirname, '../../', quote.excelFilePath);
+            const filePath = path.join(process.cwd(), quote.excelFilePath);
             if (fs.existsSync(filePath)) {
                 return res.download(filePath);
             }
@@ -233,7 +233,7 @@ export const downloadSourceExcel = async (req: Request, res: Response) => {
         // If the specific file is missing, the Agent needs a base file to work with.
         console.warn(`[Download-Source] Excel not found for ${id}. Serving Default Template as fallback.`);
         // Found in uploads/Modele de cotation defaut.xlsx
-        const defaultTemplatePath = path.join(__dirname, '../../uploads/Modele de cotation defaut.xlsx');
+        const defaultTemplatePath = path.join(process.cwd(), 'uploads', 'Modele de cotation defaut.xlsx');
 
         if (fs.existsSync(defaultTemplatePath)) {
             const filename = quote ? `${quote.reference}.xlsx` : 'Modele_Defaut.xlsx';
@@ -852,7 +852,7 @@ export const duplicateQuote = async (req: Request, res: Response) => {
         // FIX: The Agent polls the API, which reads from 'pending_xml' in the backend folder.
         // We must write to this local folder, NOT C:\Lotus... directly (unless mapped).
         // Since Agent is local and polling API, API needs the file in pending_xml.
-        const exchangeDir = path.join(__dirname, '../../pending_xml');
+        const exchangeDir = path.join(process.cwd(), 'pending_xml');
         const rakPath = path.join(exchangeDir, rakFilename);
 
         if (isSourceAvailable) {
@@ -1607,7 +1607,7 @@ export const downloadQuoteResult = async (req: Request, res: Response) => {
             // OR Handle Local Uploads (Tunnel Mode)
             if (servePath && (servePath.startsWith('uploads/') || servePath.startsWith('uploads\\'))) {
                 // Local Upload Mode
-                servePath = path.join(__dirname, '../../', servePath);
+                servePath = path.join(process.cwd(), servePath);
                 console.log(`[DEBUG] Serving Local Upload: ${servePath}`);
             } else if (servePath && (servePath.startsWith('F:') || servePath.startsWith('f:'))) {
                 // Windows Path Mode (Local Network)

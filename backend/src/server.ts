@@ -44,7 +44,7 @@ import path from 'path'; // Added for static serving
 import * as authController from './controllers/authController'; // Authentication
 import { authenticate } from './middleware/authMiddleware';
 
-app.use('/uploads', express.static(path.join(__dirname, '../uploads'))); // Serve uploads statically
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'))); // Serve uploads statically
 
 // --- AUTHENTICATION ROUTES (PUBLIC) ---
 app.post('/api/auth/login', authController.login);

@@ -19,7 +19,7 @@ export class ExcelService {
 
         // Use a temp file for output
         const fileName = `${quote.reference || 'Soumission'}.xlsx`;
-        const outputDir = path.join(__dirname, '../../temp');
+        const outputDir = path.join(process.cwd(), 'temp');
         const outputPath = path.join(outputDir, fileName);
 
         // Ensure temp dir exists
