@@ -1946,14 +1946,21 @@ export const reviseQuote = async (req: Request, res: Response) => {
             const safeRef = (str: string | undefined) => (str || '').replace(/[^a-zA-Z0-9- ]/g, '');
             const rakFilename = `${safeRef(newQuote.reference)}.rak`;
             const pendingDir = path.join(process.cwd(), 'pending_xml');
-            if (!fs.existsSync(pendingDir)) {
-                fs.mkdirSync(pendingDir, { recursive: true });
+
+            let outputPath = '';
+            try {
+                if (!fs.existsSync(pendingDir)) {
+                    console.log(`[Revise] Creating dir: ${pendingDir}`);
+                    fs.mkdirSync(pendingDir, { recursive: true });
+                }
+                outputPath = path.join(pendingDir, rakFilename);
+                fs.writeFileSync(outputPath, xmlContent);
+                console.log(`[Revise] RAK saved to ${outputPath}`);
+            } catch (fsError: any) {
+                console.error("[Revise] FS Error:", fsError);
+                res.header("Access-Control-Allow-Origin", "*"); // FORCE CORS
+                return res.status(500).json({ error: 'File System Error', details: `FS_FAIL: ${fsError.message} (Path: ${pendingDir})` });
             }
-            const outputPath = path.join(pendingDir, rakFilename);
-
-            fs.writeFileSync(outputPath, xmlContent);
-            console.log(`[Revise] RAK saved to ${outputPath}`);
-
 
             console.log(`[Revise] Quote ${newQuote.reference} created. Status: PENDING_REVISION. Waiting for Agent.`);
 
@@ -1965,13 +1972,12 @@ export const reviseQuote = async (req: Request, res: Response) => {
                 }
             });
 
-
-
             res.json(newQuote);
         }
     } catch (error: any) {
         console.error("Revise Quote Error:", error);
-        res.status(500).json({ error: 'Failed to revise quote', details: error.message });
+        res.header("Access-Control-Allow-Origin", "*"); // FORCE CORS
+        res.status(500).json({ error: 'Failed to revise quote', details: `CRITICAL: ${error.message}` });
     }
 };
 
