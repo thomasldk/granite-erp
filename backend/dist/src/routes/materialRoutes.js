@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const materialController_1 = require("../controllers/materialController");
+const router = (0, express_1.Router)();
+router.get('/', materialController_1.getAllMaterials);
+router.get('/:id', materialController_1.getMaterialById);
+router.post('/', materialController_1.createMaterial);
+router.put('/:id', materialController_1.updateMaterial);
+router.delete('/:id', materialController_1.deleteMaterial);
+exports.default = router;

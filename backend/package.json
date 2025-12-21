@@ -4,10 +4,9 @@
     "description": "Backend for Granite DRC ERP",
     "main": "dist/server.js",
     "scripts": {
-        "postinstall": "npm run build",
         "start": "node dist/server.js",
         "dev": "nodemon",
-        "build": "tsc || true",
+        "build:local": "tsc",
         "tunnel": "sh start_tunnel.sh"
     },
     "keywords": [],
