@@ -1709,20 +1709,15 @@ L'équipe de Production.`;
                                     <button
                                         type="button"
                                         className="text-sm text-blue-600 hover:text-blue-800 underline"
-                                        onClick={(e) => {
+                                        onClick={async (e) => {
                                             e.preventDefault();
-                                            // Trigger generation if not exists, or open directly
-                                            // Ideally, we re-use the "Créer PDF" logic or just open download link
-                                            if (pdfAvailable) {
-                                                const baseUrl = api.defaults.baseURL || import.meta.env.VITE_API_URL;
-                                                window.open(`${baseUrl}/quotes/${id}/download-pdf`, '_blank');
-                                            } else {
-                                                // If not available, maybe trigger generation?
-                                                // For now, let's just try to open it (backend fallback might trigger 404 or gen)
-                                                // But user asked for "show it", so better to have it reliable.
-                                                // Simple approach: Same URL as the main button
-                                                const baseUrl = api.defaults.baseURL || import.meta.env.VITE_API_URL;
-                                                window.open(`${baseUrl}/quotes/${id}/download-pdf`, '_blank');
+                                            try {
+                                                const response = await api.get(`/quotes/${id}/download-pdf`, { responseType: 'blob' });
+                                                const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+                                                window.open(url, '_blank');
+                                            } catch (err) {
+                                                console.error("PDF Preview Error (Modal)", err);
+                                                alert("Erreur: Impossible de prévisualiser le PDF (Non trouvé ou Auth).");
                                             }
                                         }}
                                     >
