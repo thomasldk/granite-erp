@@ -6,6 +6,7 @@
     "scripts": {
         "start": "node dist/server.js",
         "dev": "nodemon",
+        "build": "echo 'Skipping build on Railway'",
         "build:local": "tsc",
         "tunnel": "sh start_tunnel.sh"
     },
