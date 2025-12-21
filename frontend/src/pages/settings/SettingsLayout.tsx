@@ -64,7 +64,7 @@ const SettingsLayout: React.FC = () => {
                             }`
                         }
                     >
-                        Devises
+                        Devises et Tx de Change
                     </NavLink>
                     <NavLink
                         to="/settings/locations"

@@ -23,7 +23,11 @@ const ProjectDetail: React.FC = () => {
     };
 
     const handleDeleteQuote = async (quoteId: string) => {
-        if (!window.confirm("Voulez-vous vraiment supprimer cette soumission ?")) return;
+        const code = window.prompt("Code de sécurité requis pour supprimer cette soumission :");
+        if (code !== '1234') {
+            if (code !== null) alert("Code incorrect.");
+            return;
+        }
         try {
             await api.delete(`/quotes/${quoteId}`);
             setProject((prev: any) => ({
@@ -76,52 +80,61 @@ const ProjectDetail: React.FC = () => {
                 <div className="grid gap-4">
                     {project.quotes && project.quotes.length > 0 ? (
                         project.quotes.map((quote: any) => (
-                            <div key={quote.id} className="border rounded p-4 flex justify-between items-center hover:bg-gray-50">
-                                <div>
-                                    <p
-                                        className="font-bold text-lg text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
-                                        onClick={() => navigate(`/quotes/${quote.id}`)}
-                                    >
+                            <div key={quote.id} className="border rounded p-4 flex items-center justify-between hover:bg-gray-50 cursor-pointer transition-colors" onClick={(e) => {
+                                // Prevent nav if clicking buttons
+                                if ((e.target as HTMLElement).tagName === 'BUTTON') return;
+                                navigate(`/quotes/${quote.id}`);
+                            }}>
+                                {/* 1. Client & Ref */}
+                                <div className="w-1/4 min-w-[200px]">
+                                    <p className="font-bold text-lg text-blue-600 hover:text-blue-800 hover:underline truncate">
                                         {quote.client?.name || 'Client Inconnu'}
                                     </p>
-                                    <p
-                                        className="text-sm font-mono text-blue-600 hover:text-blue-800 hover:underline cursor-pointer mt-1"
-                                        onClick={() => navigate(`/quotes/${quote.id}`)}
-                                    >
+                                    <p className="text-xs font-mono text-gray-500 mt-1">
                                         Réf: {quote.reference}
                                     </p>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <div className="text-right">
-                                        <p className="font-mono font-bold">{quote.totalAmount || 0} {quote.currency}</p>
-                                        <span className={`text-xs px-2 py-1 rounded-full ${quote.status === 'Accepted' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                                            }`}>
-                                            {quote.status}
-                                        </span>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => navigate(`/quotes/${quote.id}`)}
-                                            className="text-indigo-600 hover:text-indigo-900 font-medium text-sm border border-indigo-200 hover:bg-indigo-50 rounded px-3 py-1 transition-colors"
-                                        >
-                                            Modifier
-                                        </button>
-                                        <button
-                                            onClick={async () => {
-                                                if (confirm(`Réviser la soumission ${quote.reference} (Créer R${(parseInt(quote.reference.split('R').pop() || '0')) + 1}) ?`)) {
-                                                    try {
-                                                        const res = await api.post(`/quotes/${quote.id}/revise`);
-                                                        window.location.href = `/quotes/${res.data.id}`; // Hard refresh/nav to new quote
-                                                    } catch (e) {
-                                                        console.error(e);
-                                                        alert("Erreur lors de la révision");
-                                                    }
-                                                }
-                                            }}
-                                            className="text-green-600 hover:text-green-900 font-medium text-sm border border-green-200 hover:bg-green-50 rounded px-3 py-1 transition-colors"
-                                        >
-                                            Réviser
-                                        </button>
+
+                                {/* 2. Material (Pierre) - CENTERED */}
+                                <div className="flex-1 text-center">
+                                    {quote.material ? (
+                                        <p className="text-gray-700 font-medium text-sm">
+                                            {quote.material.name}
+                                        </p>
+                                    ) : (
+                                        <span className="text-gray-300 text-sm">-</span>
+                                    )}
+                                </div>
+
+                                {/* 3. Status - CENTERED */}
+                                <div className="flex-1 text-center">
+                                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${quote.status === 'Accepted' ? 'bg-green-100 text-green-800 border border-green-200' :
+                                        quote.status === 'Sent' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                                            'bg-gray-100 text-gray-600 border border-gray-200'
+                                        }`}>
+                                        {quote.status}
+                                    </span>
+                                </div>
+
+                                {/* 4. Amount & Actions */}
+                                <div className="flex items-center gap-6 justify-end w-auto">
+                                    <p className="font-mono font-bold text-gray-900 text-lg whitespace-nowrap min-w-[100px] text-right">
+                                        {quote.totalAmount ? Number(quote.totalAmount).toFixed(2) : '0.00'} {(() => {
+                                            // User Request: If Client US -> Mark USD, else CAD
+                                            // Logic: Check Address Country (Case Insensitive, French support)
+                                            const client = quote.client || {};
+                                            const addresses = client.addresses || [];
+
+                                            const hasUSAddress = addresses.some((a: any) => {
+                                                if (!a.country) return false;
+                                                const c = a.country.toLowerCase().trim();
+                                                return ['usa', 'us', 'united states', 'united states of america', 'états-unis', 'etats-unis', 'etats unis'].some(v => c.includes(v));
+                                            });
+
+                                            return hasUSAddress ? 'USD' : 'CAD';
+                                        })()}
+                                    </p>
+                                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                                         <button
                                             onClick={() => handleDeleteQuote(quote.id)}
                                             className="text-red-600 hover:text-red-900 font-medium text-sm border border-red-200 hover:bg-red-50 rounded px-3 py-1 transition-colors"

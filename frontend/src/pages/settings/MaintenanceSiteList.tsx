@@ -40,12 +40,18 @@ export default function MaintenanceSiteList() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Supprimer ce site de maintenance ?')) return;
+        const code = window.prompt("Code de sécurité requis pour supprimer :");
+        if (code !== '1234') {
+            if (code !== null) alert("Code incorrect.");
+            return;
+        }
+
         try {
             await api.delete(`/maintenance-sites/${id}`);
             fetchSites();
-        } catch (e) {
-            console.error("Failed to delete maintenance site", e);
+        } catch (error) {
+            console.error('Failed to delete site', error);
+            alert('Erreur lors de la suppression');
         }
     };
 

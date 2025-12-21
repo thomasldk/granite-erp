@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
-import { TrashIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, PlusIcon, PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 export default function ProjectLocationList() {
     const [locations, setLocations] = useState<any[]>([]);
@@ -34,9 +34,39 @@ export default function ProjectLocationList() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Supprimer ce lieu ?')) return;
+        const code = window.prompt("Code de sécurité requis pour supprimer :");
+        if (code !== '1234') {
+            if (code !== null) alert("Code incorrect.");
+            return;
+        }
+
         try {
             await api.delete(`/project-locations/${id}`);
+            fetchLocations();
+        } catch (error) {
+            console.error('Failed to delete location', error);
+            alert('Erreur lors de la suppression');
+        }
+    };
+
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editingName, setEditingName] = useState('');
+
+    const startEditing = (loc: any) => {
+        setEditingId(loc.id);
+        setEditingName(loc.name);
+    };
+
+    const cancelEditing = () => {
+        setEditingId(null);
+        setEditingName('');
+    };
+
+    const saveEditing = async () => {
+        if (!editingName.trim() || !editingId) return;
+        try {
+            await api.put(`/project-locations/${editingId}`, { name: editingName });
+            setEditingId(null);
             fetchLocations();
         } catch (e) { console.error(e); }
     };
@@ -61,10 +91,34 @@ export default function ProjectLocationList() {
             <ul className="bg-white shadow rounded-md max-w-md divide-y">
                 {locations.map(loc => (
                     <li key={loc.id} className="p-4 flex justify-between items-center group">
-                        <span>{loc.name}</span>
-                        <button onClick={() => handleDelete(loc.id)} className="text-red-500 opacity-0 group-hover:opacity-100 transition">
-                            <TrashIcon className="h-5 w-5" />
-                        </button>
+                        {editingId === loc.id ? (
+                            <div className="flex items-center gap-2 flex-1">
+                                <input
+                                    type="text"
+                                    value={editingName}
+                                    onChange={e => setEditingName(e.target.value)}
+                                    className="flex-1 rounded-md border-gray-300 shadow-sm text-sm"
+                                />
+                                <button onClick={saveEditing} className="text-green-600 hover:text-green-800">
+                                    <CheckIcon className="h-5 w-5" />
+                                </button>
+                                <button onClick={cancelEditing} className="text-gray-500 hover:text-gray-700">
+                                    <XMarkIcon className="h-5 w-5" />
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <span>{loc.name}</span>
+                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                                    <button onClick={() => startEditing(loc)} className="text-blue-500 hover:text-blue-700">
+                                        <PencilIcon className="h-5 w-5" />
+                                    </button>
+                                    <button onClick={() => handleDelete(loc.id)} className="text-red-500 hover:text-red-700">
+                                        <TrashIcon className="h-5 w-5" />
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </li>
                 ))}
             </ul>

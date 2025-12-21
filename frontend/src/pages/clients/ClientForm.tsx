@@ -609,6 +609,9 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                                                     const discount = formData.discountPercentage ? parseFloat(formData.discountPercentage) : 0;
                                                     const dDays = formData.discountDays ? parseInt(formData.discountDays) : 0;
 
+                                                    // Custom Text Priority (Mode 7 Saisie)
+                                                    if (formData.paymentCustomText) return formData.paymentCustomText;
+
                                                     // Generate Dynamic Label with Overrides included
                                                     let label = generatePaymentTermLabel(term.code, days, deposit, formData.language, discount, dDays);
 

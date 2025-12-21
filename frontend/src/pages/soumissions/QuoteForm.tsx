@@ -42,7 +42,10 @@ export default function QuoteForm() {
         semiStandardRate: '' as any,
         salesCurrency: 'CAD',
         palletPrice: '' as any,
-        palletRequired: false
+        palletRequired: false,
+        pdfPath: '',
+        syncStatus: '', // For tracking agent status
+        project: null as any // Fix: Allow access to nested project fields
     });
 
     // Status Logic: Active (Draft) -> Emise (Sent)
@@ -60,6 +63,12 @@ export default function QuoteForm() {
     const [loading, setLoading] = useState(!isNew);
     const [activeAction, setActiveAction] = useState<string | null>(null);
 
+    // Emit Modal State
+    const [showEmitModal, setShowEmitModal] = useState(false);
+    const [emailBody, setEmailBody] = useState('');
+    const [emailSubject, setEmailSubject] = useState(''); // NEW: Subject State
+    const [emailDetails, setEmailDetails] = useState({ to: '', cc: '' });
+
     // Duplicate Modal State
     const [showDuplicateModal, setShowDuplicateModal] = useState(false);
     const [duplicateClientId, setDuplicateClientId] = useState('');
@@ -67,69 +76,133 @@ export default function QuoteForm() {
 
     // Revision Modal State
     const [showRevisionModal, setShowRevisionModal] = useState(false);
-    const location = useLocation();
+    const [isPdfGenerating, setIsPdfGenerating] = useState(false);
+    const [pdfAvailable, setPdfAvailable] = useState(false);
+    const [isDirty, setIsDirty] = useState(false); // Track unsaved changes
 
-    // Auto-Poll Effect for Revision/Duplicate Redirection
+    // Helper to update form data and mark as dirty
+    const updateFormData = (patch: Partial<typeof formData> | ((prev: typeof formData) => typeof formData)) => {
+        setFormData(patch as any);
+        setIsDirty(true);
+    };
+
+    // NEW: Check PDF Availability on Load
     useEffect(() => {
-        if (location.state && location.state.pollingFor === 'REVISION' && id) {
-            // Start Polling for the new Quote
-            setActiveAction('REVISION_POLL');
+        if (id) {
+            checkPdfAvailability();
+        }
+    }, [id]);
+
+    const checkPdfAvailability = async () => {
+        if (!id) return;
+        try {
+            // We use the download endpoint directly to check existence
+            // HEAD request might be blocked by CORS if not configured, but let's try GET or HEAD via API proxy?
+            // Actually, simply HEADing the URL via api instance (which adds auth headers if needed) is best.
+            await api.head(`/quotes/${id}/download-pdf`);
+            setPdfAvailable(true);
+        } catch (e) {
+            setPdfAvailable(false);
+        }
+    };
+
+    const handlePdfGeneration = async () => {
+        if (!id) return;
+        setIsPdfGenerating(true);
+        try {
+            await api.post(`/quotes/${id}/generate-pdf`);
+            // console.log("PDF request sent");
+
+            // 2. Poll for Completion
             const pollInterval = setInterval(async () => {
                 try {
                     const pollRes = await api.get(`/quotes/${id}?t=${Date.now()}`);
-                    const status = pollRes.data.syncStatus;
-                    if (status === 'Calculated (Agent)') {
+                    const updatedPdfPath = pollRes.data.pdfFilePath;
+
+                    if (updatedPdfPath && updatedPdfPath.length > 5) {
                         clearInterval(pollInterval);
-                        fetchQuote(); // Refresh UI
+                        setIsPdfGenerating(false);
+                        setFormData(prev => ({ ...prev, pdfPath: updatedPdfPath }));
+                        setPdfAvailable(true);
+                    }
+                } catch (e) {
+                    console.error("Polling Error", e);
+                }
+            }, 3000);
 
-                        // Retry Download (Wait for Agent to upload Excel)
-                        let attempts = 0;
-                        const maxAttempts = 10;
-                        const downloadPoll = setInterval(async () => {
-                            attempts++;
-                            try {
-                                const downloadUrl = `${api.defaults.baseURL}/quotes/${id}/download-result`;
-                                // Check availability first (HEAD request) or just retry GET
-                                const fileCheck = await api.get(downloadUrl, { responseType: 'blob' });
+            // Timeout after 5 mins
+            setTimeout(() => {
+                if (isPdfGenerating) {
+                    clearInterval(pollInterval);
+                    setIsPdfGenerating(false);
+                }
+            }, 300000);
 
-                                if (fileCheck.status === 200 && fileCheck.data.size > 0) {
-                                    clearInterval(downloadPoll);
-                                    setActiveAction(null);
-                                    // Trigger actual download
-                                    const href = window.URL.createObjectURL(fileCheck.data);
-                                    const link = document.createElement('a');
-                                    link.href = href;
-                                    // Try to extract filename from content-disposition if possible, else default
-                                    const disposition = fileCheck.headers['content-disposition'];
-                                    let filename = `Revision_${formData.reference || 'Quote'}.xlsx`;
-                                    if (disposition && disposition.indexOf('filename=') !== -1) {
-                                        const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disposition);
-                                        if (matches != null && matches[1]) {
-                                            filename = matches[1].replace(/['"]/g, '');
-                                        }
-                                    }
-                                    link.setAttribute('download', filename);
-                                    document.body.appendChild(link);
-                                    link.click();
-                                    document.body.removeChild(link);
+        } catch (error) {
+            console.error("PDF Gen Error", error);
+            setIsPdfGenerating(false);
+            alert("Erreur lors de la demande PDF.");
+        }
+    };
+    const location = useLocation();
+
+    // Poll for Revision Completion
+    useEffect(() => {
+        if (location.state?.pollingFor === 'REVISION') {
+            setActiveAction('REVISION_POLL');
+            const pollInterval = setInterval(async () => {
+                try {
+                    const res = await api.get(`/quotes/${id}`);
+                    const status = res.data.syncStatus;
+                    const fullQuote = res.data;
+
+                    // If Agent returned 'Calculated (Agent)' OR 'Synced', we are good.
+                    if (status === 'Calculated (Agent)' || status === 'Synced' || status === 'SYNCED_PC') {
+                        clearInterval(pollInterval);
+
+                        // 1. Unblock UI immediately
+                        setActiveAction(null);
+
+                        // 2. Refresh Data
+                        fetchQuote();
+
+                        // 3. Clear location state to stop re-polling on refresh
+                        window.history.replaceState({}, document.title);
+
+                        // 4. Auto-Download the Result (Same as Generate)
+                        try {
+                            const response = await api.get(`/quotes/${id}/download-result?t=${Date.now()}`, { responseType: 'blob' });
+                            const url = window.URL.createObjectURL(new Blob([response.data]));
+                            const link = document.createElement('a');
+                            link.href = url;
+
+                            // Detect Filename from Header
+                            const disposition = response.headers['content-disposition'];
+                            let fileName = `revision_${id}.xlsx`;
+                            if (disposition && disposition.indexOf('attachment') !== -1) {
+                                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                                const matches = filenameRegex.exec(disposition);
+                                if (matches != null && matches[1]) {
+                                    fileName = matches[1].replace(/['"]/g, '');
                                 }
-                            } catch (e) {
-                                console.log(`[QuoteForm] Download attempt ${attempts} failed. Waiting...`);
                             }
 
-                            if (attempts >= maxAttempts) {
-                                clearInterval(downloadPoll);
-                                setActiveAction(null);
-                                alert("Le fichier Excel n'a pas pu être téléchargé automatiquement (Timeout). Veuillez réessayer manuellement.");
-                            }
-                        }, 2000); // Try every 2s
-
+                            link.setAttribute('download', fileName);
+                            document.body.appendChild(link);
+                            link.click();
+                            link.remove();
+                        } catch (err) {
+                            console.error("Auto-download for revision failed", err);
+                            // Non-blocking error, user can still manually download if needed
+                        }
                     } else if (status === 'ERROR_AGENT') {
                         clearInterval(pollInterval);
                         setActiveAction(null);
                         alert("Erreur Agent lors de la révision.");
                     }
-                } catch (e) { }
+                } catch (e) {
+                    // console.error(e);
+                }
             }, 2000);
             return () => clearInterval(pollInterval);
         }
@@ -180,20 +253,28 @@ export default function QuoteForm() {
     }, [id]);
 
     // NEW: Auto-Polling for "Live" updates (Every 5 seconds)
+    // NEW: Auto-Polling for "Live" updates (Every 5 seconds) - SMART POLLING
     useEffect(() => {
         if (isNew) return; // Don't poll if creating
 
-        const interval = setInterval(() => {
+        const interval = setInterval(async () => {
             // Only poll if tab is visible to save resources
             if (!document.hidden) {
-                // Determine if we should poll (e.g., if statusSync is not Synced yet, or just always for safety)
-                // Here we poll always to catch "Synced" status transition automatically.
-                fetchQuote();
+                try {
+                    // Smart Poll: Only fetch status first to avoid overwriting user input
+                    const res = await api.get(`/quotes/${id}?fields=syncStatus`);
+                    // If status changed (e.g. from Sent -> Synced), THEN refresh full data
+                    // Or if we are in a "waiting" state like REVISION_POLL
+                    if (res.data.syncStatus !== formData.syncStatus) {
+                        console.log("Status changed, refreshing quote...");
+                        fetchQuote();
+                    }
+                } catch (e) { console.error("Poll Error", e); }
             }
         }, 5000);
 
         return () => clearInterval(interval);
-    }, [isNew, id]); // Re-run if ID changes
+    }, [isNew, id, formData.syncStatus]); // Re-run if ID or status changes
 
     // NEW: Auto-Populate Items based on Project Number of Lines (If New Quote)
     useEffect(() => {
@@ -222,7 +303,11 @@ export default function QuoteForm() {
                         });
                     }
                 }
-                setFormData(prev => ({ ...prev, items: newItems }));
+                setFormData(prev => ({
+                    ...prev,
+                    items: newItems,
+                    projectNumberOfLines: project.numberOfLines // Pre-fill the input field
+                }));
             }
         }
     }, [isNew, formData.projectId, projects, materials, formData.materialId]); // Added materials dependency to fill names if possible
@@ -296,9 +381,11 @@ export default function QuoteForm() {
                 },
                 projectNumberOfLines: data.project?.numberOfLines || 0, // NEW: Bind to top level for editing
                 representativeId: data.representativeId || '',
+                pdfPath: data.pdfFilePath || '', // Map DB field to frontend state
                 // Ensure estimatedWeeks gets loaded
                 estimatedWeeks: data.estimatedWeeks || data.project?.estimatedWeeks || ''
             });
+            setIsDirty(false); // Reset dirty flag on load
             // setItems(res.data.items || []); // Removed
         } catch (error) {
             console.error('Error fetching quote:', error);
@@ -339,6 +426,9 @@ export default function QuoteForm() {
                 palletPrice: (formData as any).palletPrice ? parseFloat((formData as any).palletPrice) : null,
                 salesCurrency: (formData as any).salesCurrency || 'CAD',
                 palletRequired: !!(formData as any).palletRequired,
+                // Ensure proper number types for critical fields
+                estimatedWeeks: (formData as any).estimatedWeeks ? parseInt((formData as any).estimatedWeeks) : null,
+                validityDuration: (formData as any).validityDuration ? parseInt((formData as any).validityDuration) : null,
             };
 
             // Ensure reference exists if new
@@ -380,7 +470,14 @@ export default function QuoteForm() {
                         numberOfLines: (formData as any).projectNumberOfLines
                     });
                 }
+                // Update Project Number Of Lines if changed
+                if (formData.projectId) {
+                    await api.put(`/soumissions/${formData.projectId}`, {
+                        numberOfLines: (formData as any).projectNumberOfLines
+                    });
+                }
             }
+            setIsDirty(false); // Reset dirty flag on save
         } catch (error: any) {
             console.error(error);
             const msg = error.response?.data?.error || error.response?.data?.details || error.message;
@@ -422,121 +519,116 @@ export default function QuoteForm() {
     const selectedContact = contacts.find((c: any) => c.id === (formData as any).contactId);
     const selectedRepresentative = representatives.find(r => r.id === (formData as any).representativeId);
 
+
+    // Helper to determine if Locked Down (Sent)
+    const isSent = formData.status === 'Sent';
+
     return (
         <div className="max-w-[1920px] mx-auto p-2 bg-slate-50 relative min-h-screen">
             {/* Loading Overlay */}
-            {(activeAction === 'REVISING' || activeAction === 'SYNCING') && (
+            {/* Loading Overlay */}
+            {(activeAction === 'REVISING' || activeAction === 'SYNCING' || activeAction === 'REVISION_POLL' || activeAction === 'EMIT' || activeAction === 'EMIT_SUCCESS') && (
                 <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-[100] flex flex-col items-center justify-center">
-                    <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-white mb-4"></div>
+                    {activeAction === 'EMIT_SUCCESS' ? (
+                        <div className="text-4xl text-green-500 mb-4">✓</div>
+                    ) : (
+                        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-white mb-4"></div>
+                    )}
                     <div className="text-2xl font-bold text-white shadow-sm">
-                        {activeAction === 'REVISING' ? 'Création de la révision en cours...' : 'Synchronisation...'}
+                        {activeAction === 'REVISING' ? 'Création de la révision en cours...' :
+                            activeAction === 'REVISION_POLL' ? 'L\'Agent finalise la révision (Excel)...' :
+                                activeAction === 'EMIT' ? 'Envoi du courriel en cours...' :
+                                    activeAction === 'EMIT_SUCCESS' ? 'Courriel envoyé avec succès !' :
+                                        'Synchronisation...'}
                     </div>
                 </div>
             )}
 
             <form onSubmit={handleSubmit} className="px-4 py-4 sm:px-6 lg:px-8 bg-white shadow sm:rounded-lg">
-                <div className="flex items-center justify-between mb-6 border-b pb-4">
-                    <div className="flex items-center">
-                        <button type="button" onClick={() => formData.projectId ? navigate(`/soumissions/${formData.projectId}`) : navigate('/quotes')} className="mr-4 text-gray-500 hover:text-gray-700">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b pb-4">
+                    <div className="flex items-center min-w-0 pr-2">
+                        <button type="button" onClick={() => formData.projectId ? navigate(`/soumissions/${formData.projectId}`) : navigate('/quotes')} className="mr-2 text-gray-500 hover:text-gray-700">
                             <ArrowLeftIcon className="h-5 w-5" />
                         </button>
-                        <h1 className="text-2xl font-bold text-gray-900">
+                        <h1 className="text-lg font-bold text-gray-900 truncate">
                             {isNew ? 'Nouvelle Soumission' : `Soumission ${formData.reference}`}
                         </h1>
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                        {/* 1. SAUVEGARDER (BLUE) */}
-                        {!isReadOnly && (
+
+                    <div className="flex items-center gap-2 flex-nowrap">
+                        {/* 1. SAUVEGARDER (BLUE) - HIDDEN IF SENT */}
+                        {(!id || (!isReadOnly && !isSent)) && (
                             <button
                                 type="button"
                                 onClick={handleSubmit}
-                                className={`inline-flex items-center rounded px-2 py-1 text-sm font-semibold text-white shadow-sm ${activeAction === 'SAVE' || !formData.thirdPartyId ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'}`}
+                                className={`inline-flex items-center rounded px-3 py-2 text-sm font-semibold text-white shadow-sm ${activeAction === 'SAVE' || !formData.thirdPartyId ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-500'}`}
                                 disabled={!!activeAction || !formData.thirdPartyId}
                             >
-                                {activeAction === 'SAVE' ? '...' : (id ? 'Enregistrer' : 'Créer')}
+                                {activeAction === 'SAVE' ? '...' : (id ? 'Enr.' : 'Créer')}
                             </button>
                         )}
 
-
-
-                        {/* 2. GENERER EXCEL (GREEN) */}
-                        {!isReadOnly && id && (
+                        {/* 2. GENERER EXCEL (GREEN) - HIDDEN IF SENT */}
+                        {!isReadOnly && !isSent && id && (
                             <button
                                 type="button"
                                 onClick={async () => {
+                                    if (isDirty) {
+                                        alert("Vous avez des modifications non enregistrées. Veuillez enregistrer (bouton bleu 'Enr.') avant de générer.");
+                                        return;
+                                    }
                                     try {
                                         setActiveAction('GENERATE');
-                                        // 1. Trigger Generation
                                         await api.get(`/quotes/${id}/download-excel`);
-
-                                        // 2. Poll for Completion
                                         const pollInterval = setInterval(async () => {
                                             try {
                                                 const pollRes = await api.get(`/quotes/${id}?t=${Date.now()}`);
                                                 const status = pollRes.data.syncStatus;
-
                                                 if (status === 'Calculated (Agent)' || status === 'Synced') {
                                                     clearInterval(pollInterval);
                                                     fetchQuote();
-
-                                                    // Optional: Trigger download if needed, but ensure only ONCE.
-                                                    // Assuming user wants automatic download upon completion.
                                                     try {
                                                         const response = await api.get(`/quotes/${id}/download-result?t=${Date.now()}`, { responseType: 'blob' });
                                                         const url = window.URL.createObjectURL(new Blob([response.data]));
                                                         const link = document.createElement('a');
                                                         link.href = url;
+
+                                                        // Detect Filename from Header
                                                         const disposition = response.headers['content-disposition'];
-                                                        let fileName = 'soumission.xlsx';
+                                                        let fileName = `soumission_${id}.xlsx`;
                                                         if (disposition && disposition.indexOf('attachment') !== -1) {
                                                             const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
                                                             const matches = filenameRegex.exec(disposition);
-                                                            if (matches != null && matches[1]) fileName = matches[1].replace(/['"]/g, '');
+                                                            if (matches != null && matches[1]) {
+                                                                fileName = matches[1].replace(/['"]/g, '');
+                                                            }
                                                         }
+
                                                         link.setAttribute('download', fileName);
                                                         document.body.appendChild(link);
                                                         link.click();
                                                         link.remove();
-                                                    } catch (err) {
-                                                        console.error("Auto-download failed", err);
-                                                    } finally {
-                                                        setActiveAction(null);
-                                                    }
-
+                                                    } catch (err) { console.error("Auto-download failed", err); } finally { setActiveAction(null); }
                                                 } else if (status === 'ERROR_AGENT') {
                                                     clearInterval(pollInterval);
                                                     setActiveAction(null);
                                                     alert("Erreur lors de la génération par l'agent.");
                                                 }
-                                            } catch (e) {
-                                                // Polling error (ignore transient)
-                                            }
+                                            } catch (e) { }
                                         }, 2000);
-
-                                        // Safety Timeout (2 min)
-                                        setTimeout(() => {
-                                            if (activeAction === 'GENERATE') {
-                                                clearInterval(pollInterval);
-                                                setActiveAction(null);
-                                            }
-                                        }, 120000);
-
-                                    } catch (e) {
-                                        setActiveAction(null);
-                                        alert("Erreur lors du lancement de la génération.");
-                                    }
+                                        setTimeout(() => { if (activeAction === 'GENERATE') { clearInterval(pollInterval); setActiveAction(null); } }, 120000);
+                                    } catch (e) { setActiveAction(null); alert("Erreur lors du lancement de la génération."); }
                                 }}
-
-                                className={`inline-flex items-center rounded px-2 py-1 text-sm font-semibold text-white shadow-sm ${activeAction === 'GENERATE' ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-500'}`}
+                                className={`inline-flex items-center rounded px-3 py-2 text-sm font-semibold text-white shadow-sm ${activeAction === 'GENERATE' ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-500'}`}
                                 disabled={!!activeAction}
                             >
-                                {activeAction === 'GENERATE' ? 'Génération...' : 'Générer Excel'}
+                                {activeAction === 'GENERATE' ? 'Génération...' : 'Générer'}
                             </button>
                         )}
 
-                        {/* 3. REINTEGRER EXCEL (PURPLE) */}
-                        {!isNew && (
-                            <label className={`inline-flex items-center rounded px-2 py-1 text-sm font-semibold text-white shadow-sm ${activeAction === 'REINTEGRATE' ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500 cursor-pointer'}`}>
+                        {/* 3. REINTEGRER EXCEL (PURPLE) - HIDDEN IF SENT */}
+                        {!isNew && !isReadOnly && !isSent && (
+                            <label className={`inline-flex items-center rounded px-3 py-2 text-sm font-semibold text-white shadow-sm ${activeAction === 'REINTEGRATE' ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-500 cursor-pointer'}`}>
                                 {activeAction === 'REINTEGRATE' ? 'Réintégration...' : 'Réintégrer'}
                                 <input
                                     type="file"
@@ -546,37 +638,24 @@ export default function QuoteForm() {
                                     onChange={async (e) => {
                                         if (e.target.files && e.target.files[0]) {
                                             const file = e.target.files[0];
-                                            // NO CONFIRM ALERT
                                             setActiveAction('REINTEGRATE');
                                             try {
                                                 const fd = new FormData();
                                                 fd.append('file', file);
                                                 await api.post(`/quotes/${id}/reintegrate-excel`, fd);
-
-                                                // Poll
                                                 const pollInterval = setInterval(async () => {
-                                                    try {
-                                                        const res = await api.get(`/quotes/${id}?t=${Date.now()}`);
-                                                        if (res.data.syncStatus === 'Calculated (Agent)') {
-                                                            clearInterval(pollInterval);
-                                                            fetchQuote();
-                                                            setActiveAction(null);
-                                                            // alert("Réintégration terminée !"); // Removed as requested
-                                                        } else if (res.data.syncStatus === 'ERROR_AGENT') {
-                                                            clearInterval(pollInterval);
-                                                            setActiveAction(null);
-                                                            alert("Erreur Agent");
-                                                        }
-                                                    } catch (err) { }
+                                                    const res = await api.get(`/quotes/${id}`);
+                                                    if (res.data.syncStatus === 'Synced') {
+                                                        clearInterval(pollInterval);
+                                                        setActiveAction(null);
+                                                        fetchQuote();
+                                                        alert("Réintégration réussie !");
+                                                    }
                                                 }, 2000);
-                                                setTimeout(() => { if (activeAction === 'REINTEGRATE') { clearInterval(pollInterval); setActiveAction(null); } }, 120000);
-
-                                            } catch (err) {
-                                                console.error(err);
+                                            } catch (error) {
+                                                console.error(error);
                                                 setActiveAction(null);
-                                                alert("Erreur envoi");
-                                            } finally {
-                                                e.target.value = '';
+                                                alert("Erreur upload");
                                             }
                                         }
                                     }}
@@ -584,55 +663,138 @@ export default function QuoteForm() {
                             </label>
                         )}
 
-                        {/* REVISER (Yellow) */}
+                        {/* 4. COPIER (ORANGE) - VISIBLE ALWAYS (except New) */}
+                        {!isNew && (
+                            <button
+                                type="button"
+                                onClick={() => setShowDuplicateModal(true)}
+                                className="inline-flex items-center rounded px-3 py-2 text-sm font-semibold text-white shadow-sm bg-orange-600 hover:bg-orange-500"
+                                disabled={!!activeAction}
+                            >
+                                Copier
+                            </button>
+                        )}
+
+                        {/* 5. REVISER (YELLOW) - VISIBLE IF NOT NEW (Even if ReadOnly/Sent) */}
                         {!isNew && (
                             <button
                                 type="button"
                                 onClick={() => setShowRevisionModal(true)}
-                                className="inline-flex items-center rounded px-2 py-1 text-sm font-semibold text-white shadow-sm bg-yellow-500 hover:bg-yellow-400"
+                                className="inline-flex items-center rounded px-3 py-2 text-sm font-semibold text-black shadow-sm bg-yellow-400 hover:bg-yellow-300 ring-1 ring-yellow-500"
                                 disabled={!!activeAction}
                             >
                                 Réviser
                             </button>
                         )}
 
-                        {/* 4. DUPLIQUER (ORANGE) - Opens Modal */}
-                        {!isNew && (
-                            <button
-                                type="button"
-                                onClick={() => setShowDuplicateModal(true)}
-                                className="inline-flex items-center rounded px-2 py-1 text-sm font-semibold text-white shadow-sm bg-orange-600 hover:bg-orange-500"
-                                disabled={!!activeAction}
-                            >
-                                Dupliquer
-                            </button>
+                        {/* 6. PDF (RED) - HIDDEN IF SENT */}
+                        {!isNew && !isSent && (
+                            <div className="relative flex flex-col items-center">
+                                <button
+                                    type="button"
+                                    onClick={handlePdfGeneration}
+                                    disabled={isPdfGenerating || !!activeAction}
+                                    className={`inline-flex items-center justify-center rounded px-3 py-2 text-sm font-semibold text-white shadow-sm min-w-[110px] ${isPdfGenerating ? 'bg-gray-400 cursor-wait' : 'bg-red-600 hover:bg-red-500'}`}
+                                >
+                                    {isPdfGenerating ? '...' : 'Créer PDF'}
+                                </button>
+                                {pdfAvailable && (
+                                    <a
+                                        href="#"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            const baseUrl = api.defaults.baseURL || import.meta.env.VITE_API_URL;
+                                            window.open(`${baseUrl}/quotes/${id}/download-pdf`, '_blank');
+                                        }}
+                                        className="absolute top-full mt-1 text-[10px] text-blue-600 hover:text-blue-800 underline leading-none whitespace-nowrap"
+                                    >
+                                        lien pdf
+                                    </a>
+                                )}
+                            </div>
                         )}
 
-
-
-                        {/* SPACER */}
-                        <div className="flex-grow"></div>
-
-                        {/* 6. EMETTRE (RIGHT - RED/DARK) */}
+                        {/* 6. EMETTRE (RED DARK) - MOVED BEFORE PDF */}
                         {!isNew && formData.status !== 'Accepted' && (
                             <button
                                 type="button"
                                 onClick={async () => {
-                                    if (confirm("Émettre la soumission ?")) {
-                                        try {
-                                            setActiveAction('EMIT');
-                                            await api.post(`/quotes/${id}/emit`);
-                                            fetchQuote();
-                                        } catch (e) { alert("Erreur émission"); }
-                                        finally { setActiveAction(null); }
+                                    // 1. Prepare Template
+                                    // 1. Prepare Template
+                                    const contactName = contacts.find((c: any) => c.id === (formData as any).contactId)?.firstName || 'Client';
+
+                                    // Robust Project Lookup
+                                    let projectName = '';
+                                    if (formData.project && formData.project.name) {
+                                        projectName = formData.project.name;
+                                    } else {
+                                        const p = projects.find(p => p.id === formData.projectId);
+                                        projectName = p ? p.name : '(Projet Inconnu)';
                                     }
+
+                                    const client = clients.find(c => c.id === formData.thirdPartyId);
+
+                                    const rep = representatives.find(r => r.id === (formData as any).representativeId) ||
+                                        (client?.representativeId ? representatives.find(r => r.id === client.representativeId) : null);
+
+                                    const repName = rep ? `${rep.firstName} ${rep.lastName}` : (client?.language === 'en' ? 'Your Representative' : 'Votre Représentant');
+                                    const repCell = rep?.mobile || rep?.phone || ''; // FIXED: Use 'mobile' (or phone fallback) from DB schema
+                                    const repEmail = rep?.email || '';
+
+                                    // Build contact details string cleanly to avoid double spaces
+                                    const contactParts = [];
+                                    const isEn = client?.language === 'en' || client?.language === 'EN';
+
+                                    if (repCell) contactParts.push(isEn ? `at ${repCell}` : `au ${repCell}`);
+                                    if (repEmail) contactParts.push(isEn ? `or by email at ${repEmail}` : `ou par email à ${repEmail}`);
+                                    const contactDetails = contactParts.join(' ');
+
+                                    let template = '';
+                                    let subject = '';
+
+                                    if (isEn) {
+                                        subject = `Quote ${formData.reference} - ${projectName}`;
+                                        template = `Hello ${contactName},
+
+Please find attached your quote ${formData.reference} regarding project ${projectName}.
+
+If you have any questions, please contact ${repName}${contactDetails ? ' ' + contactDetails : ''}.
+
+Thank you for your trust.
+
+Production Team.`;
+                                    } else {
+                                        subject = `Soumission ${formData.reference} - ${projectName}`;
+                                        template = `Bonjour ${contactName},
+
+Veuillez trouver ci-joint votre soumission ${formData.reference} concernant le projet ${projectName}.
+
+Si vous avez des questions, contactez ${repName}${contactDetails ? ' ' + contactDetails : ''}.
+
+Merci pour votre confiance.
+
+L'équipe de Production.`;
+                                    }
+
+                                    const contactEmail = (contacts.find((c: any) => c.id === (formData as any).contactId)?.email) || 'N/A';
+                                    setEmailDetails({
+                                        to: contactEmail,
+                                        cc: repEmail || 'N/A'
+                                    });
+
+                                    setEmailBody(template);
+                                    setEmailSubject(subject);
+                                    setShowEmitModal(true);
                                 }}
-                                className="inline-flex items-center rounded px-2 py-1 text-sm font-bold text-white shadow-sm bg-red-600 hover:bg-red-500"
+
+                                className="inline-flex items-center rounded px-3 py-2 text-sm font-semibold text-white shadow-sm bg-red-900 hover:bg-red-800"
                                 disabled={!!activeAction}
                             >
                                 Émettre
                             </button>
                         )}
+
+
                     </div>
                 </div>
 
@@ -672,6 +834,7 @@ export default function QuoteForm() {
                                     palletRequired: !!selectedClient?.palletRequired,
                                     salesCurrency: selectedClient?.salesCurrency || 'CAD',
                                     exchangeRate: selectedClient?.exchangeRate ?? 1.0, // Also pull preferred exchange rate if set?
+                                    validityDuration: selectedClient?.validityDuration ?? '',
 
                                     // Payment: Use Client's saved values (which already reflect term + manual overrides)
                                     paymentTermId: selectedClient?.paymentTermId || '',
@@ -681,7 +844,7 @@ export default function QuoteForm() {
                                     discountDays: selectedClient?.discountDays ?? 0,
                                     paymentCustomText: selectedClient?.paymentCustomText || ''
                                 };
-                                setFormData(prev => ({
+                                updateFormData(prev => ({
                                     ...prev,
                                     ...updates
                                 }));
@@ -699,7 +862,7 @@ export default function QuoteForm() {
                         <select
                             className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2 px-3 bg-white"
                             value={(formData as any).contactId || ''}
-                            onChange={(e) => setFormData({ ...formData, contactId: e.target.value } as any)}
+                            onChange={(e) => updateFormData({ ...formData, contactId: e.target.value } as any)}
                             disabled={!formData.thirdPartyId || isReadOnly}
                         >
                             <option value="">-- Sélectionner --</option>
@@ -711,22 +874,11 @@ export default function QuoteForm() {
                         </select>
                     </div>
 
-                    {/* Projet & Estimated Weeks (Split Row) */}
-                    <div className="flex gap-4">
-                        <div className="flex-1">
-                            <label className="block text-sm font-bold text-gray-700 mb-1">Projet</label>
-                            <div className="block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm sm:text-sm truncate">
-                                {projects.find(p => p.id === formData.projectId)?.name || 'Chargement...'}
-                            </div>
-                        </div>
-                        <div className="w-1/3">
-                            <label className="block text-sm font-bold text-gray-700 mb-1">Sem. Est.</label>
-                            <input
-                                type="text"
-                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2 px-3"
-                                value={formData.estimatedWeeks || ''}
-                                onChange={(e) => setFormData({ ...formData, estimatedWeeks: e.target.value } as any)}
-                            />
+                    {/* Projet */}
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-1">Projet</label>
+                        <div className="block w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-gray-900 shadow-sm sm:text-sm truncate">
+                            {projects.find(p => p.id === formData.projectId)?.name || 'Chargement...'}
                         </div>
                     </div>
                 </div>
@@ -805,7 +957,7 @@ export default function QuoteForm() {
                                 <select
                                     className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2 px-3 mb-2"
                                     value={(formData as any).representativeId || ''}
-                                    onChange={e => setFormData({ ...formData, representativeId: e.target.value })}
+                                    onChange={e => updateFormData({ ...formData, representativeId: e.target.value })}
                                 >
                                     <option value="">-- Sélectionner --</option>
                                     {representatives.map(r => <option key={r.id} value={r.id}>{r.firstName} {r.lastName}</option>)}
@@ -854,13 +1006,13 @@ export default function QuoteForm() {
                                         })()}
                                         onChange={(e) => {
                                             const name = e.target.value;
-                                            if (!name) { setFormData(prev => ({ ...prev, materialId: '', tempMaterialName: '' } as any)); return; }
+                                            if (!name) { updateFormData(prev => ({ ...prev, materialId: '', tempMaterialName: '' } as any)); return; }
                                             const variants = materials.filter(m => m.name === name);
                                             // Auto-select if simple material
                                             if (variants.length === 1 && variants[0].category !== 'Stone') {
-                                                setFormData(prev => ({ ...prev, materialId: variants[0].id, tempMaterialName: name } as any));
+                                                updateFormData(prev => ({ ...prev, materialId: variants[0].id, tempMaterialName: name } as any));
                                             } else {
-                                                setFormData(prev => ({ ...prev, materialId: '', tempMaterialName: name } as any));
+                                                updateFormData(prev => ({ ...prev, materialId: '', tempMaterialName: name } as any));
                                             }
                                         }}
                                     >
@@ -885,7 +1037,7 @@ export default function QuoteForm() {
                                                     onChange={(e) => {
                                                         const qual = e.target.value;
                                                         const correctMaterial = possibleVariants.find(m => m.quality === qual);
-                                                        if (correctMaterial) setFormData(prev => ({ ...prev, materialId: correctMaterial.id } as any));
+                                                        if (correctMaterial) updateFormData(prev => ({ ...prev, materialId: correctMaterial.id } as any));
                                                     }}
                                                 >
                                                     <option value="">-- Qualité / Prix --</option>
@@ -917,7 +1069,7 @@ export default function QuoteForm() {
                                     type="number" step="0.01"
                                     className="block w-full rounded-md border-gray-300 bg-blue-50/50 text-blue-800 font-bold shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2 px-3"
                                     value={formData.exchangeRate}
-                                    onChange={e => setFormData({ ...formData, exchangeRate: parseFloat(e.target.value) })}
+                                    onChange={e => updateFormData({ ...formData, exchangeRate: parseFloat(e.target.value) })}
                                 />
                             </div>
                             <div>
@@ -926,7 +1078,7 @@ export default function QuoteForm() {
                                     type="number"
                                     className="block w-full rounded-md border-gray-300 bg-white text-blue-800 font-bold shadow-sm focus:border-indigo-500 focus:border-blue-500 focus:ring-indigo-500 sm:text-sm py-2 px-3"
                                     value={formData.projectNumberOfLines || 0}
-                                    onChange={(e) => setFormData({ ...formData, projectNumberOfLines: parseInt(e.target.value) } as any)}
+                                    onChange={(e) => updateFormData({ ...formData, projectNumberOfLines: parseInt(e.target.value) } as any)}
                                 />
                             </div>
                         </div>
@@ -942,7 +1094,7 @@ export default function QuoteForm() {
                                     onChange={(e) => {
                                         const val = e.target.value;
                                         const found = incoterms.find(i => i.id === val);
-                                        setFormData({
+                                        updateFormData({
                                             ...formData,
                                             incotermId: val,
                                             incoterm: found ? found.name : 'Ex Works',
@@ -953,26 +1105,52 @@ export default function QuoteForm() {
                                 >
                                     <option value="">-- Sélectionner --</option>
                                     {incoterms.map(i => (
-                                        <option key={i.id} value={i.id}>{i.name} ({i.xmlCode})</option>
+                                        <option key={i.id} value={i.id}>{i.xmlCode} - {i.name}</option>
                                     ))}
                                 </select>
+
                                 {/* Custom Text input if selected incoterm requires text */}
                                 {(() => {
                                     const selected = incoterms.find(i => i.id === formData.incotermId);
-                                    if (selected && selected.requiresText) {
+                                    if ((selected && selected.requiresText) || formData.incotermCustomText) {
                                         return (
                                             <input
                                                 type="text"
                                                 placeholder="Précisez..."
                                                 className="mt-2 block w-full rounded-md border-gray-300 text-sm py-2 px-3 focus:ring-indigo-500 focus:border-indigo-500"
                                                 value={formData.incotermCustomText || ''}
-                                                onChange={(e) => setFormData({ ...formData, incotermCustomText: e.target.value })}
+                                                onChange={(e) => updateFormData({ ...formData, incotermCustomText: e.target.value })}
                                                 disabled={isReadOnly}
                                             />
                                         )
                                     }
                                     return null;
                                 })()}
+
+                                {/* Incoterm RAK Preview */}
+                                <div className="mt-2 p-2 bg-gray-100 rounded text-xs text-gray-600 border border-gray-200">
+                                    <h6 className="font-bold text-gray-700 mb-1">Aperçu RAK :</h6>
+                                    {(() => {
+                                        const sel = incoterms.find(i => i.id === formData.incotermId);
+                                        const name = sel ? sel.name : (formData.incoterm || 'Ex-Works');
+                                        const code = sel ? sel.xmlCode : '1';
+
+                                        let valIncotermS = ' ';
+                                        if (code === '3' || name.toLowerCase().includes('saisie')) {
+                                            valIncotermS = formData.incotermCustomText || '';
+                                        } else if (code === '1' || code === '2') {
+                                            valIncotermS = name;
+                                        }
+
+                                        return (
+                                            <ul className="list-disc list-inside">
+                                                <li>Incoterm: <span className="font-mono font-bold text-black">{name}</span></li>
+                                                <li>IncotermInd: <span className="font-mono font-bold text-black">{code}</span></li>
+                                                <li>IncotermS: <span className="font-mono font-bold text-black">{valIncotermS || ' '}</span></li>
+                                            </ul>
+                                        );
+                                    })()}
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-gray-700 mb-1">Validité (Jours)</label>
@@ -980,8 +1158,18 @@ export default function QuoteForm() {
                                     type="number"
                                     className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2 px-3 font-bold"
                                     value={formData.validityDuration}
-                                    onChange={e => setFormData({ ...formData, validityDuration: parseInt(e.target.value) })}
+                                    onChange={e => updateFormData({ ...formData, validityDuration: parseInt(e.target.value) })}
                                     placeholder="30"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Production (Semaines)</label>
+                                <input
+                                    type="number"
+                                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2 px-3 font-bold"
+                                    value={formData.estimatedWeeks || ''}
+                                    onChange={e => updateFormData({ ...formData, estimatedWeeks: parseInt(e.target.value) || 0 })}
+                                    placeholder={formData.project?.estimatedWeeks ? `Défaut: ${formData.project.estimatedWeeks}` : "ex: 4"}
                                 />
                             </div>
                         </div>
@@ -999,7 +1187,7 @@ export default function QuoteForm() {
                                         type="number" step="0.1"
                                         className="block w-full rounded-md border-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm py-1.5 px-3"
                                         value={formData.semiStandardRate}
-                                        onChange={e => setFormData({ ...formData, semiStandardRate: parseFloat(e.target.value) })}
+                                        onChange={e => updateFormData({ ...formData, semiStandardRate: parseFloat(e.target.value) })}
                                     />
                                 </div>
                                 <div>
@@ -1007,7 +1195,7 @@ export default function QuoteForm() {
                                     <select
                                         className="block w-full rounded-md border-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm py-1.5 px-3 bg-white"
                                         value={formData.salesCurrency}
-                                        onChange={e => setFormData({ ...formData, salesCurrency: e.target.value })}
+                                        onChange={e => updateFormData({ ...formData, salesCurrency: e.target.value })}
                                     >
                                         <option value="CAD">CAD</option>
                                         <option value="USD">USD</option>
@@ -1022,7 +1210,7 @@ export default function QuoteForm() {
                                         type="number"
                                         className="block w-full rounded-md border-white shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm py-1.5 px-3"
                                         value={formData.palletPrice}
-                                        onChange={e => setFormData({ ...formData, palletPrice: parseFloat(e.target.value) })}
+                                        onChange={e => updateFormData({ ...formData, palletPrice: parseFloat(e.target.value) })}
                                     />
                                 </div>
                                 <div className="flex items-center mb-2">
@@ -1031,7 +1219,7 @@ export default function QuoteForm() {
                                         type="checkbox"
                                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                         checked={formData.palletRequired}
-                                        onChange={e => setFormData({ ...formData, palletRequired: e.target.checked })}
+                                        onChange={e => updateFormData({ ...formData, palletRequired: e.target.checked })}
                                     />
                                     <label htmlFor="palletRequired" className="ml-2 block text-sm font-bold text-blue-900">
                                         Palette Requise
@@ -1040,7 +1228,6 @@ export default function QuoteForm() {
                             </div>
                         </div>
 
-                        {/* CONDITIONS DE PAIEMENT WIDGET */}
                         <div className="bg-white rounded-lg border-2 border-orange-200 p-4 shadow-sm">
                             <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-4 flex items-center gap-2">
                                 💳 CONDITIONS DE PAIEMENT
@@ -1058,7 +1245,7 @@ export default function QuoteForm() {
                                             onChange={(e) => {
                                                 const val = e.target.value;
                                                 const term = paymentTerms.find(t => t.id === val);
-                                                setFormData(prev => ({
+                                                updateFormData(prev => ({
                                                     ...prev,
                                                     paymentTermId: val,
                                                     paymentDays: term ? term.days : prev.paymentDays,
@@ -1081,7 +1268,7 @@ export default function QuoteForm() {
                                                 type="number"
                                                 className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-1.5 px-3"
                                                 value={(formData as any).paymentDays || 0}
-                                                onChange={e => setFormData({ ...formData, paymentDays: parseInt(e.target.value) } as any)}
+                                                onChange={e => updateFormData({ ...formData, paymentDays: parseInt(e.target.value) } as any)}
                                             />
                                         </div>
                                         <div>
@@ -1090,7 +1277,7 @@ export default function QuoteForm() {
                                                 type="number"
                                                 className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-1.5 px-3"
                                                 value={(formData as any).depositPercentage || 0}
-                                                onChange={e => setFormData({ ...formData, depositPercentage: parseFloat(e.target.value) } as any)}
+                                                onChange={e => updateFormData({ ...formData, depositPercentage: parseFloat(e.target.value) } as any)}
                                             />
                                         </div>
                                     </div>
@@ -1102,7 +1289,7 @@ export default function QuoteForm() {
                                                 type="number"
                                                 className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-1.5 px-3"
                                                 value={(formData as any).discountPercentage || 0}
-                                                onChange={e => setFormData({ ...formData, discountPercentage: parseFloat(e.target.value) } as any)}
+                                                onChange={e => updateFormData({ ...formData, discountPercentage: parseFloat(e.target.value) } as any)}
                                             />
                                         </div>
                                         <div>
@@ -1111,7 +1298,7 @@ export default function QuoteForm() {
                                                 type="number"
                                                 className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-1.5 px-3"
                                                 value={(formData as any).discountDays || 0}
-                                                onChange={e => setFormData({ ...formData, discountDays: parseInt(e.target.value) } as any)}
+                                                onChange={e => updateFormData({ ...formData, discountDays: parseInt(e.target.value) } as any)}
                                             />
                                         </div>
                                     </div>
@@ -1123,7 +1310,7 @@ export default function QuoteForm() {
                                             className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-1.5 px-3"
                                             placeholder="Ex: Sur réception..."
                                             value={formData.paymentCustomText || ''}
-                                            onChange={e => setFormData({ ...formData, paymentCustomText: e.target.value })}
+                                            onChange={e => updateFormData({ ...formData, paymentCustomText: e.target.value })}
                                         />
                                     </div>
                                 </div>
@@ -1159,8 +1346,8 @@ export default function QuoteForm() {
 
                         </div>
 
-                    </div>
-                </div>
+                    </div >
+                </div >
 
                 {/* Show items table only if editing (id exists) or items exist */}
                 {
@@ -1383,25 +1570,42 @@ export default function QuoteForm() {
                                                 const poll = setInterval(async () => {
                                                     try {
                                                         const check = await api.get(`/quotes/${newQuoteId}`);
-                                                        // Status Draft or Calculated(Agent) means success
-                                                        if (check.data.status === 'Draft' || check.data.syncStatus === 'Calculated (Agent)') {
+                                                        // Status Draft or Calculated(Agent) or Synced means success
+                                                        if (check.data.status === 'Draft' || check.data.syncStatus === 'Calculated (Agent)' || check.data.syncStatus === 'Synced') {
                                                             clearInterval(poll);
 
-                                                            // 3. Trigger Download
-                                                            // We use a temporary link to force download
-                                                            const downloadUrl = `${api.defaults.baseURL}/quotes/${newQuoteId}/download-result`;
-                                                            const link = document.createElement('a');
-                                                            link.href = downloadUrl;
-                                                            link.setAttribute('download', ''); // Force download
-                                                            document.body.appendChild(link);
-                                                            link.click();
-                                                            document.body.removeChild(link);
+                                                            // 3. Trigger Download (Restored)
+                                                            try {
+                                                                const response = await api.get(`/quotes/${newQuoteId}/download-result?t=${Date.now()}`, {
+                                                                    responseType: 'blob',
+                                                                });
+                                                                const url = window.URL.createObjectURL(new Blob([response.data]));
+                                                                const link = document.createElement('a');
+                                                                link.href = url;
+                                                                const disposition = response.headers['content-disposition'];
+                                                                let fileName = 'soumission.xlsx';
+                                                                if (disposition && disposition.indexOf('attachment') !== -1) {
+                                                                    const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                                                                    const matches = filenameRegex.exec(disposition);
+                                                                    if (matches != null && matches[1]) {
+                                                                        fileName = matches[1].replace(/['"]/g, '');
+                                                                    }
+                                                                }
+                                                                link.setAttribute('download', fileName);
+                                                                document.body.appendChild(link);
+                                                                link.click();
+                                                                link.remove();
+                                                            } catch (dlErr) {
+                                                                console.error("Auto-Download failed", dlErr);
+                                                            }
 
                                                             // 4. Navigate to new Quote
                                                             setTimeout(() => {
-                                                                navigate(`/quotes/${newQuoteId}`);
+                                                                setActiveAction(null); // FIX: Enable buttons on new page
                                                                 setShowDuplicateModal(false);
+                                                                navigate(`/quotes/${newQuoteId}`);
                                                             }, 1000);
+
                                                         }
                                                     } catch (err) { console.error("Poll Error", err); }
                                                 }, 2000); // Check every 2s
@@ -1411,6 +1615,7 @@ export default function QuoteForm() {
                                                     if (activeAction === 'DUPLICATE_WAIT') {
                                                         clearInterval(poll);
                                                         alert("Délai d'attente dépassé. La soumission a peut-être été créée en arrière-plan.");
+                                                        setActiveAction(null); // FIX: Enable buttons even on timeout
                                                         navigate(`/quotes/${newQuoteId}`);
                                                     }
                                                 }, 120000);
@@ -1446,9 +1651,109 @@ export default function QuoteForm() {
                             incoterms={incoterms}
                             paymentTerms={paymentTerms}
                             currencies={currencies}
+                            isSubmitting={activeAction === 'REVISING'}
                         />
                     )
                 }
+
+
+                {/* 
+                  ------------------------------------
+                   MODAL : CONFIRM EMISSION (EMAIL)
+                  ------------------------------------
+                */}
+                {showEmitModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+                        <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl">
+                            <h3 className="text-lg font-bold text-gray-900 mb-4">Confirmer l'envoi du courriel</h3>
+
+                            <div className="mb-4 bg-gray-50 p-3 rounded text-sm text-gray-700">
+                                <p><span className="font-semibold">À : </span> {emailDetails.to}</p>
+                                <p><span className="font-semibold">CC : </span> {emailDetails.cc}</p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <p className="text-sm text-gray-500">
+                                    Vous pouvez modifier le sujet et le message ci-dessous avant de l'envoyer au client.
+                                </p>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Objet</label>
+                                    <input
+                                        type="text"
+                                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 font-bold"
+                                        value={emailSubject}
+                                        onChange={(e) => setEmailSubject(e.target.value)}
+                                    />
+                                </div>
+
+                                <textarea
+                                    className="w-full h-64 p-3 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                                    value={emailBody}
+                                    onChange={(e) => setEmailBody(e.target.value)}
+                                />
+
+                                {/* Link to open PDF */}
+                                <div className="text-right">
+                                    <button
+                                        type="button"
+                                        className="text-sm text-blue-600 hover:text-blue-800 underline"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            // Trigger generation if not exists, or open directly
+                                            // Ideally, we re-use the "Créer PDF" logic or just open download link
+                                            if (pdfAvailable) {
+                                                const baseUrl = api.defaults.baseURL || import.meta.env.VITE_API_URL;
+                                                window.open(`${baseUrl}/quotes/${id}/download-pdf`, '_blank');
+                                            } else {
+                                                // If not available, maybe trigger generation?
+                                                // For now, let's just try to open it (backend fallback might trigger 404 or gen)
+                                                // But user asked for "show it", so better to have it reliable.
+                                                // Simple approach: Same URL as the main button
+                                                const baseUrl = api.defaults.baseURL || import.meta.env.VITE_API_URL;
+                                                window.open(`${baseUrl}/quotes/${id}/download-pdf`, '_blank');
+                                            }
+                                        }}
+                                    >
+                                        Voir le PDF joint à ce courriel
+                                    </button>
+                                </div>
+
+                                <div className="flex justify-end gap-3 mt-4">
+                                    <button
+                                        type="button"
+                                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+                                        onClick={() => setShowEmitModal(false)}
+                                    >
+                                        Annuler
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md"
+                                        onClick={async () => {
+                                            setShowEmitModal(false);
+                                            setActiveAction('EMIT');
+                                            try {
+                                                await api.post(`/quotes/${id}/emit`, { message: emailBody, subject: emailSubject });
+                                                setActiveAction('EMIT_SUCCESS'); // Show success message
+                                                fetchQuote();
+                                                setTimeout(() => setActiveAction(null), 1500); // Auto-dismiss after 1.5s
+                                            } catch (error: any) {
+                                                setActiveAction(null); // UNBLOCK UI BEFORE ALERT
+                                                console.error("Emit Error", error);
+                                                // Show detailed error from backend
+                                                const detail = error.response?.data?.details || error.response?.data?.error || error.message;
+                                                alert("Erreur lors de l'envoi: " + (typeof detail === 'object' ? JSON.stringify(detail) : detail));
+                                            }
+                                        }}
+                                    >
+                                        Envoyer
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
             </form >
         </div >

@@ -38,26 +38,30 @@ import EquipmentPlanning from './pages/maintenance/EquipmentPlanning';
 import RepairPrintView from './pages/maintenance/RepairPrintView'; // Added
 
 // Layout Component (unchanged)
-const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+import { AuthProvider, useAuth } from './context/AuthContext';
+import LoginPage from './pages/auth/LoginPage';
+import { Outlet } from 'react-router-dom';
+
+// Layout Component using Outlet and Logout Button
+const Layout: React.FC = () => {
     const [isTiersOpen, setIsTiersOpen] = useState(true);
     const [isCatalogueOpen, setIsCatalogueOpen] = useState(true);
     const [isProductionOpen, setIsProductionOpen] = useState(true);
     const [isMaintenanceOpen, setIsMaintenanceOpen] = useState(true);
-    const [isPlanningSubOpen, setIsPlanningSubOpen] = useState(true); // Added
+    const [isPlanningSubOpen, setIsPlanningSubOpen] = useState(true);
     const [isEquipmentsSubOpen, setIsEquipmentsSubOpen] = useState(true);
     const [isPartsSubOpen, setIsPartsSubOpen] = useState(true);
-
-
-
+    const { logout, user } = useAuth(); // Access Logout
 
     return (
         <div className="min-h-screen bg-gray-50 flex">
             {/* Sidebar */}
             <aside className="w-64 bg-dark text-white flex flex-col">
-                <div className="h-40 flex items-center justify-center border-b border-gray-700 bg-gray-900 pr-4">
-                    <img src="/logo.jpg" alt="Logo" className="h-32 w-auto rounded" />
+                <div className="h-40 flex items-center justify-center border-b border-gray-700 bg-gray-900 pr-4 flex-col gap-2">
+                    <img src="/logo.jpg" alt="Logo" className="h-24 w-auto rounded" />
+                    <div className="text-xs text-gray-400">Connecté: {user?.firstName}</div>
                 </div>
-                <nav className="flex-1 py-6">
+                <nav className="flex-1 py-6 overflow-y-auto">
                     <ul>
                         <li className="px-6 py-2 hover:bg-gray-700 cursor-pointer text-gray-300 hover:text-white transition-colors border-l-4 border-transparent hover:border-blue-500">
                             <Link to="/" className="block">Tableau de Bord</Link>
@@ -231,12 +235,17 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             </Link>
                         </li>
                     </ul>
+                    <div className="px-6 pt-6 mt-4 border-t border-gray-700">
+                        <button onClick={logout} className="flex items-center text-red-400 hover:text-red-300">
+                            <span className="mr-2">🚪</span> Déconnexion
+                        </button>
+                    </div>
                 </nav>
             </aside>
 
             {/* Main Content */}
             <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
-                {children}
+                <Outlet />
             </main>
         </div>
     );
@@ -245,91 +254,97 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 function App() {
     return (
         <Router>
-            <Layout>
+            <AuthProvider>
                 <Routes>
-                    <Route path="/" element={
-                        <div className="p-8">
-                            <h2 className="text-2xl font-bold mb-4">Bienvenue sur Granite ERP</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                                    <h3 className="text-lg font-semibold text-gray-700">Soumissions en cours</h3>
-                                    <p className="text-3xl font-bold text-primary mt-2">12</p>
-                                </div>
-                                <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                                    <h3 className="text-lg font-semibold text-gray-700">Clients Actifs</h3>
-                                    <p className="text-3xl font-bold text-secondary mt-2">45</p>
-                                </div>
-                                <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                                    <h3 className="text-lg font-semibold text-gray-700">Commandes à livrer</h3>
-                                    <p className="text-3xl font-bold text-green-600 mt-2">8</p>
+                    {/* Public Route */}
+                    <Route path="/login" element={<LoginPage />} />
+
+                    {/* Protected Routes inside Layout */}
+                    <Route element={<Layout />}>
+                        <Route path="/" element={
+                            <div className="p-8">
+                                <h2 className="text-2xl font-bold mb-4">Bienvenue sur Granite ERP</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                                        <h3 className="text-lg font-semibold text-gray-700">Soumissions en cours</h3>
+                                        <p className="text-3xl font-bold text-primary mt-2">12</p>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                                        <h3 className="text-lg font-semibold text-gray-700">Clients Actifs</h3>
+                                        <p className="text-3xl font-bold text-secondary mt-2">45</p>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                                        <h3 className="text-lg font-semibold text-gray-700">Commandes à livrer</h3>
+                                        <p className="text-3xl font-bold text-green-600 mt-2">8</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    } />
+                        } />
 
-                    <Route path="/clients" element={<ClientList type="Client" />} />
-                    <Route path="/clients/new" element={<ClientForm defaultType="Client" />} />
-                    <Route path="/clients/:id" element={<ClientDetail />} />
-                    <Route path="/clients/:id/edit" element={<ClientForm defaultType="Client" />} />
+                        <Route path="/clients" element={<ClientList type="Client" />} />
+                        <Route path="/clients/new" element={<ClientForm defaultType="Client" />} />
+                        <Route path="/clients/:id" element={<ClientDetail />} />
+                        <Route path="/clients/:id/edit" element={<ClientForm defaultType="Client" />} />
 
-                    <Route path="/suppliers" element={<ClientList type="Supplier" />} />
-                    <Route path="/suppliers/new" element={<ClientForm defaultType="Supplier" />} />
-                    <Route path="/suppliers/:id" element={<ClientDetail />} />
-                    <Route path="/suppliers/:id/edit" element={<ClientForm defaultType="Supplier" />} />
+                        <Route path="/suppliers" element={<ClientList type="Supplier" />} />
+                        <Route path="/suppliers/new" element={<ClientForm defaultType="Supplier" />} />
+                        <Route path="/suppliers/:id" element={<ClientDetail />} />
+                        <Route path="/suppliers/:id/edit" element={<ClientForm defaultType="Supplier" />} />
 
-                    <Route path="/catalogue" element={<CatalogueList />} />
-                    <Route path="/catalogue/stone" element={<CatalogueList category="Stone" />} />
-                    <Route path="/catalogue/standard" element={<CatalogueList category="Standard" />} />
-                    <Route path="/catalogue/new" element={<StoneForm />} />
-                    <Route path="/catalogue/stone/new" element={<StoneForm defaultCategory="Stone" />} />
-                    <Route path="/catalogue/standard/new" element={<StoneForm defaultCategory="Standard" />} />
-                    <Route path="/catalogue/edit/:id" element={<StoneForm />} />
-                    <Route path="/soumissions" element={<SoumissionList />} />
-                    <Route path="/soumissions/new-project" element={<ProjectForm />} />
-                    <Route path="/soumissions/projects/:id/edit" element={<ProjectForm />} /> {/* Added */}
-                    <Route path="/soumissions/:id" element={<ProjectDetail />} />
-                    <Route path="/soumissions/:projectId/new-quote" element={<QuoteForm />} />
+                        <Route path="/catalogue" element={<CatalogueList />} />
+                        <Route path="/catalogue/stone" element={<CatalogueList category="Stone" />} />
+                        <Route path="/catalogue/standard" element={<CatalogueList category="Standard" />} />
+                        <Route path="/catalogue/new" element={<StoneForm />} />
+                        <Route path="/catalogue/stone/new" element={<StoneForm defaultCategory="Stone" />} />
+                        <Route path="/catalogue/standard/new" element={<StoneForm defaultCategory="Standard" />} />
+                        <Route path="/catalogue/edit/:id" element={<StoneForm />} />
+                        <Route path="/soumissions" element={<SoumissionList />} />
+                        <Route path="/soumissions/new-project" element={<ProjectForm />} />
+                        <Route path="/soumissions/projects/:id/edit" element={<ProjectForm />} /> {/* Added */}
+                        <Route path="/soumissions/:id" element={<ProjectDetail />} />
+                        <Route path="/soumissions/:projectId/new-quote" element={<QuoteForm />} />
 
-                    <Route path="/production" element={<ProductionDashboard />} />
+                        <Route path="/production" element={<ProductionDashboard />} />
 
-                    <Route path="/maintenance" element={<MaintenanceDashboard />} />
-                    <Route path="/maintenance" element={<MaintenanceDashboard />} />
-                    <Route path="/maintenance/equipment" element={<EquipmentList />} />
-                    <Route path="/maintenance/categories" element={<CategoryList />} />
-                    <Route path="/maintenance/parts" element={<PartList />} />
-                    <Route path="/maintenance/part-categories" element={<PartCategoryList />} />
-                    <Route path="/maintenance/repairs" element={<RepairList />} />
-                    <Route path="/maintenance/repairs/new" element={<RepairForm />} />
-                    <Route path="/maintenance/repairs/edit/:id" element={<RepairForm />} />
-                    <Route path="/maintenance/repairs/print/:id" element={<RepairPrintView />} /> {/* Added */}
-                    <Route path="/maintenance/planning/mechanic" element={<MechanicPlanning />} />
-                    <Route path="/maintenance/planning/equipment" element={<EquipmentPlanning />} />
+                        <Route path="/maintenance" element={<MaintenanceDashboard />} />
+                        <Route path="/maintenance" element={<MaintenanceDashboard />} />
+                        <Route path="/maintenance/equipment" element={<EquipmentList />} />
+                        <Route path="/maintenance/categories" element={<CategoryList />} />
+                        <Route path="/maintenance/parts" element={<PartList />} />
+                        <Route path="/maintenance/part-categories" element={<PartCategoryList />} />
+                        <Route path="/maintenance/repairs" element={<RepairList />} />
+                        <Route path="/maintenance/repairs/new" element={<RepairForm />} />
+                        <Route path="/maintenance/repairs/edit/:id" element={<RepairForm />} />
+                        <Route path="/maintenance/repairs/print/:id" element={<RepairPrintView />} /> {/* Added */}
+                        <Route path="/maintenance/planning/mechanic" element={<MechanicPlanning />} />
+                        <Route path="/maintenance/planning/equipment" element={<EquipmentPlanning />} />
 
 
-                    {/* Added */}
+                        {/* Added */}
 
-                    <Route path="/rh" element={<RHDashboard />} />
+                        <Route path="/rh" element={<RHDashboard />} />
 
-                    {/* Keeping /quotes for direct access or legacy if needed, but main flow is via Project */}
-                    <Route path="/quotes" element={<QuoteList />} />
-                    <Route path="/quotes/:id" element={<QuoteForm />} />
+                        {/* Keeping /quotes for direct access or legacy if needed, but main flow is via Project */}
+                        <Route path="/quotes" element={<QuoteList />} />
+                        <Route path="/quotes/:id" element={<QuoteForm />} />
 
-                    <Route path="/settings" element={<SettingsLayout />}>
-                        <Route index element={<div className="text-gray-500">Sélectionnez une option</div>} />
-                        <Route path="representatives" element={<RepresentativeList />} />
-                        <Route path="contact-types" element={<ContactTypeList />} />
-                        <Route path="languages" element={<LanguageList />} />
-                        <Route path="currencies" element={<CurrencyList />} />
-                        <Route path="locations" element={<ProjectLocationList />} />
-                        <Route path="incoterms" element={<IncotermList />} /> {/* Added */}
-                        <Route path="system-config" element={<SystemConfig />} /> {/* Added V8 */}
-                        <Route path="production-sites" element={<ProductionSiteList />} />
-                        <Route path="maintenance-sites" element={<MaintenanceSiteList />} />
-                        <Route path="system" element={<SystemConfigPage />} />
-                        <Route path="database" element={<DatabaseSettings />} />
+                        <Route path="/settings" element={<SettingsLayout />}>
+                            <Route index element={<div className="text-gray-500">Sélectionnez une option</div>} />
+                            <Route path="representatives" element={<RepresentativeList />} />
+                            <Route path="contact-types" element={<ContactTypeList />} />
+                            <Route path="languages" element={<LanguageList />} />
+                            <Route path="currencies" element={<CurrencyList />} />
+                            <Route path="locations" element={<ProjectLocationList />} />
+                            <Route path="incoterms" element={<IncotermList />} /> {/* Added */}
+                            <Route path="system-config" element={<SystemConfig />} /> {/* Added V8 */}
+                            <Route path="production-sites" element={<ProductionSiteList />} />
+                            <Route path="maintenance-sites" element={<MaintenanceSiteList />} />
+                            <Route path="system" element={<SystemConfigPage />} />
+                            <Route path="database" element={<DatabaseSettings />} />
+                        </Route>
                     </Route>
                 </Routes>
-            </Layout>
+            </AuthProvider>
         </Router>
     );
 }

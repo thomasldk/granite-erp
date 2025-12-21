@@ -52,3 +52,17 @@ export const deleteProjectLocation = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Failed to delete location' });
     }
 };
+
+export const updateProjectLocation = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { name } = req.body;
+    try {
+        const location = await prisma.projectLocation.update({
+            where: { id },
+            data: { name }
+        });
+        res.json(location);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update location' });
+    }
+};

@@ -177,6 +177,7 @@ model Quote {
   totalAmount        Float        @default(0)
   estimatedWeeks     Int?
   excelFilePath      String?
+  pdfFilePath        String?
   syncStatus         String?
   odooId             String?
   odooStatus         String?
@@ -461,4 +462,22 @@ model SystemConfig {
   defaultMeasureUnit        String   @default("an")
   defaultValidityDuration   Int      @default(30)
   updatedAt                 DateTime @updatedAt
+}
+
+model ExchangeRateHistory {
+  id        String   @id @default(uuid())
+  rate      Float
+  date      DateTime @default(now()) // Can be set explicitly if we fetch historical data
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // Hashed
+  firstName String?
+  lastName  String?
+  role      String   @default("ADMIN") // ADMIN, USER, AGENT?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

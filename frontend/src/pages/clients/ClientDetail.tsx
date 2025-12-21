@@ -131,23 +131,31 @@ const ClientDetail: React.FC = () => {
                                 Modifier
                             </button>
                         </div>
-                        {client.paymentTerm && (
+                        {(client.paymentTerm || client.incoterm) && (
                             <div className={`px-4 py-2 rounded-lg text-sm border ${client.paymentTermId ? 'bg-green-50 border-green-200 text-green-800' : 'bg-gray-100 border-gray-200 text-gray-800'}`}>
                                 <div className="font-bold mb-1 flex items-center gap-2">
-                                    <span>💳 Conditions de Paiement</span>
+                                    <span>💳 Conditions & Incoterm</span>
                                     {client.limitReached && <span className="bg-red-100 text-red-600 px-2 py-0.5 rounded text-xs">Limite Crédit Atteinte</span>}
                                 </div>
-                                <p className="font-medium whitespace-pre-wrap">
-                                    {generatePaymentTermLabel(
-                                        client.paymentTerm.code,
-                                        client.paymentDays || client.paymentTerm.days,
-                                        client.depositPercentage || client.paymentTerm.depositPercentage,
-                                        client.language,
-                                        client.discountPercentage || 0,
-                                        client.discountDays || 0
-                                    )}
-                                    {client.paymentCustomText && <span className="block mt-1 italic text-gray-600 font-normal">{client.paymentCustomText}</span>}
-                                </p>
+                                {client.paymentTerm && (
+                                    <p className="font-medium whitespace-pre-wrap mb-1">
+                                        {generatePaymentTermLabel(
+                                            client.paymentTerm.code,
+                                            client.paymentDays || client.paymentTerm.days,
+                                            client.depositPercentage || client.paymentTerm.depositPercentage,
+                                            client.language,
+                                            client.discountPercentage || 0,
+                                            client.discountDays || 0
+                                        )}
+                                        {client.paymentCustomText && <span className="block mt-1 italic text-gray-600 font-normal">{client.paymentCustomText}</span>}
+                                    </p>
+                                )}
+                                {client.incoterm && (
+                                    <p className="font-bold border-t border-green-200 pt-1 mt-1">
+                                        Incoterm: {client.incoterm}
+                                        {client.incotermCustomText && <span className="block font-normal italic text-xs">{client.incotermCustomText}</span>}
+                                    </p>
+                                )}
                             </div>
                         )}
                     </div>

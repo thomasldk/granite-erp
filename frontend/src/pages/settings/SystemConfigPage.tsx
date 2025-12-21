@@ -21,7 +21,6 @@ export const SystemConfigPage: React.FC = () => {
         setLoading(true);
         try {
             const data = await getSystemSettings();
-            // Merge with defaults if keys missing
             setSettings(prev => ({ ...prev, ...data }));
         } catch (error) {
             console.error(error);
@@ -121,7 +120,6 @@ export const SystemConfigPage: React.FC = () => {
                             <p className="text-xs text-blue-600">
                                 Ce chemin est géré par le script "Facteur" sur Windows. Modifiez le fichier <code>facteur.js</code> si nécessaire.
                             </p>
-                            {/* Hidden input effectively merely for default view, actually editable if needed but Factor script is source of truth for download */}
                             <input
                                 type="text"
                                 name="path.prod.exchange"
@@ -146,3 +144,4 @@ export const SystemConfigPage: React.FC = () => {
         </div>
     );
 };
+

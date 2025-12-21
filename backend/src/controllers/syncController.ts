@@ -79,7 +79,7 @@ export const pollPending = async (req: Request, res: Response) => {
             const targetExcelPath = `${winBasePath}\\${pName}\\${targetExcelFilename}`;
 
             // 2. Generate XML Trigger
-            xmlContent = await xmlService.generateReintegrationXml(targetExcelPath);
+            xmlContent = await xmlService.generateReintegrationXml(targetExcelPath, pendingQuote.id);
 
             // 3. Prepare Trigger Filename (.rak)
             // Use same base name but .rak extension or specific name?

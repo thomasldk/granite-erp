@@ -105,3 +105,29 @@ export const updateSystemConfig = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Failed to update system configuration' });
     }
 };
+
+import { ExchangeRateService } from '../services/exchangeRateService';
+
+export const refreshExchangeRate = async (req: Request, res: Response) => {
+    try {
+        console.log('[SystemConfig] Refreshing Exchange Rate...');
+        const rate = await ExchangeRateService.fetchAndStoreRate();
+
+        res.json({ message: 'Taux de change mis à jour', rate });
+
+    } catch (error: any) {
+        console.error('refreshExchangeRate Error:', error);
+        res.status(500).json({ error: 'Failed to refresh exchange rate', details: error.message });
+    }
+};
+
+export const getExchangeRateHistory = async (req: Request, res: Response) => {
+    try {
+        // limit could be query param
+        const history = await ExchangeRateService.getHistory(30);
+        res.json(history);
+    } catch (error: any) {
+        console.error('getExchangeRateHistory Error:', error);
+        res.status(500).json({ error: 'Failed to fetch history', details: error.message });
+    }
+};

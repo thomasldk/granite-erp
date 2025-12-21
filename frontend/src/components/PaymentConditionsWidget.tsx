@@ -14,7 +14,8 @@ interface PaymentConditionsProps {
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
     paymentTerms: PaymentTerm[];
     readOnly?: boolean;
-    compact?: boolean; // New Prop
+    compact?: boolean;
+    disabled?: boolean; // Added disabled prop
 }
 
 export const PaymentConditionsWidget: React.FC<PaymentConditionsProps> = ({ data, onChange, paymentTerms, readOnly = false, compact = false }) => {
@@ -95,7 +96,7 @@ export const PaymentConditionsWidget: React.FC<PaymentConditionsProps> = ({ data
                         className="w-full shadow-sm border-slate-300 rounded py-1 px-2 text-sm focus:ring-2 focus:ring-blue-500"
                         name="paymentDays"
                         type="number"
-                        value={data.paymentDays}
+                        value={data.paymentDays ?? ''}
                         onChange={onChange}
                         disabled={readOnly}
                     />
@@ -107,7 +108,7 @@ export const PaymentConditionsWidget: React.FC<PaymentConditionsProps> = ({ data
                         name="depositPercentage"
                         type="number"
                         step="0.01"
-                        value={data.depositPercentage}
+                        value={data.depositPercentage ?? ''}
                         onChange={onChange}
                         disabled={readOnly}
                     />
@@ -119,7 +120,7 @@ export const PaymentConditionsWidget: React.FC<PaymentConditionsProps> = ({ data
                         name="discountPercentage"
                         type="number"
                         step="0.01"
-                        value={data.discountPercentage}
+                        value={data.discountPercentage ?? ''}
                         onChange={onChange}
                         disabled={readOnly}
                     />
@@ -130,7 +131,7 @@ export const PaymentConditionsWidget: React.FC<PaymentConditionsProps> = ({ data
                         className="w-full shadow-sm border-slate-300 rounded py-1 px-2 text-sm focus:ring-2 focus:ring-blue-500"
                         name="discountDays"
                         type="number"
-                        value={data.discountDays}
+                        value={data.discountDays ?? ''}
                         onChange={onChange}
                         disabled={readOnly}
                     />

@@ -15,3 +15,18 @@ export const getIncoterms = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Error fetching incoterms' });
     }
 };
+
+export const updateIncoterm = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { name, xmlCode, requiresText } = req.body;
+        const incoterm = await prisma.incoterm.update({
+            where: { id },
+            data: { name, xmlCode, requiresText }
+        });
+        res.json(incoterm);
+    } catch (error) {
+        console.error('Error updating incoterm:', error);
+        res.status(500).json({ error: 'Error updating incoterm' });
+    }
+};

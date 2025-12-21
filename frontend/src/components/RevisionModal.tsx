@@ -38,39 +38,51 @@ interface RevisionModalProps {
     materials: any[];
     incoterms: any[];
     paymentTerms: PaymentTerm[];
-    currencies: any[]; // New prop
+    currencies: any[];
+    isSubmitting?: boolean; // New Prop
 }
 
 export const RevisionModal: React.FC<RevisionModalProps> = ({
-    isOpen, onClose, onConfirm, originalQuote, materials, incoterms, paymentTerms, currencies
+    isOpen, onClose, onConfirm, originalQuote, materials, incoterms, paymentTerms, currencies, isSubmitting
 }) => {
     // State for New Values
     const [newValues, setNewValues] = useState<any>({});
 
     // Initialize state when modal opens
+    // Initialize state when modal opens
     useEffect(() => {
         if (isOpen && originalQuote) {
-            setNewValues({
-                materialId: originalQuote.materialId,
-                incotermId: originalQuote.incotermId,
-                incotermCustomText: originalQuote.incotermCustomText,
+            // Only set initial values if not already set or we want to force reset on open.
+            // CAUTION: originalQuote might update from polling in background.
+            // We should only initialize ONCE when opening.
+            setNewValues(() => { // Removed 'prev' as it's not used and causes lint warning
+                // Heuristic: if we already have values, don't overwrite them just because originalQuote ref changed
+                // But we DO want to set them on first open.
+                // Better approach: Depend only on isOpen change?
+                // Or check if modal was previously closed.
+                return {
+                    materialId: originalQuote.materialId || '',
+                    incotermId: originalQuote.incotermId || '',
+                    incotermCustomText: originalQuote.incotermCustomText || '',
 
-                paymentTermId: originalQuote.paymentTermId,
-                paymentDays: originalQuote.paymentDays,
-                depositPercentage: originalQuote.depositPercentage,
-                discountPercentage: originalQuote.discountPercentage,
-                discountDays: originalQuote.discountDays,
-                paymentCustomText: originalQuote.paymentCustomText,
+                    paymentTermId: originalQuote.paymentTermId || '',
+                    paymentDays: originalQuote.paymentDays ?? '',
+                    depositPercentage: originalQuote.depositPercentage ?? '',
+                    discountPercentage: originalQuote.discountPercentage ?? '',
+                    discountDays: originalQuote.discountDays ?? '',
+                    paymentCustomText: originalQuote.paymentCustomText || '',
 
-                // Commercial Defaults
-                salesCurrency: originalQuote.salesCurrency || 'CAD',
-                validityDuration: originalQuote.validityDuration,
-                exchangeRate: originalQuote.exchangeRate,
-                estimatedWeeks: originalQuote.estimatedWeeks,
-                palletRequired: originalQuote.palletRequired
+                    // Commercial Defaults
+                    salesCurrency: originalQuote.salesCurrency || 'CAD',
+                    validityDuration: originalQuote.validityDuration || 30,
+                    exchangeRate: originalQuote.exchangeRate ?? '',
+                    estimatedWeeks: originalQuote.estimatedWeeks ?? '',
+                    palletRequired: originalQuote.palletRequired || false
+                };
             });
         }
-    }, [isOpen, originalQuote]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]); // REMOVED originalQuote from dependency to prevent overwrite during polling
 
     if (!isOpen) return null;
 
@@ -158,6 +170,7 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({
                     onClick={onClose}
                     className="absolute top-4 right-4 text-gray-400 hover:text-red-500 focus:outline-none transition-colors p-1 rounded-full hover:bg-gray-100 z-10"
                     title="Fermer"
+                    disabled={!!isSubmitting}
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -193,6 +206,7 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({
                                             className="w-32 h-9 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm text-ellipsis overflow-hidden"
                                             value={selectedMatName}
                                             onChange={handleMaterialNameChange}
+                                            disabled={!!isSubmitting}
                                         >
                                             <option value="">-- Matière --</option>
                                             {(uniqueMaterialNames || []).map((name: string) => (
@@ -205,7 +219,7 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({
                                             className="w-16 h-9 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm px-1"
                                             value={newValues.materialId || ''}
                                             onChange={handleVariantChange}
-                                            disabled={!selectedMatName}
+                                            disabled={!selectedMatName || !!isSubmitting}
                                         >
                                             <option value="">-</option>
                                             {(availableVariants || []).map((v: any) => (
@@ -224,9 +238,16 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({
                                                 className="w-full h-9 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm pr-5"
                                                 value={newValues.unitPrice || ''}
                                                 onChange={handleChange}
+                                                disabled={!!isSubmitting}
                                             />
                                             <span className="absolute right-1 top-2 text-gray-500 text-sm">$</span>
                                         </div>
+                                        {/* Purchase Price Display */}
+                                        {newValues.materialId && (
+                                            <div className="flex items-center text-xs text-gray-500 italic">
+                                                (Achat: {materials.find(m => m.id === newValues.materialId)?.purchasePrice || 0} $)
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -245,6 +266,7 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({
                                                 name="incotermId"
                                                 value={newValues.incotermId || ''}
                                                 onChange={handleChange}
+                                                disabled={!!isSubmitting}
                                             >
                                                 <option value="">-- Choix --</option>
                                                 {(incoterms || []).map((i: any) => (
@@ -258,6 +280,7 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({
                                                 className="w-1/2 h-9 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
                                                 value={newValues.incotermCustomText || ''}
                                                 onChange={handleChange}
+                                                disabled={!!isSubmitting}
                                             />
                                         </div>
                                     </div>
@@ -276,6 +299,7 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({
                                         name="salesCurrency"
                                         value={newValues.salesCurrency || 'CAD'}
                                         onChange={handleChange}
+                                        disabled={!!isSubmitting}
                                     >
                                         {(currencies || []).map((c: any) => (
                                             <option key={c.id} value={c.code}>{c.code}</option>
@@ -290,6 +314,7 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({
                                         name="exchangeRate"
                                         value={newValues.exchangeRate || ''}
                                         onChange={handleChange}
+                                        disabled={!!isSubmitting}
                                     />
                                 </div>
                                 <div>
@@ -300,6 +325,7 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({
                                         name="validityDuration"
                                         value={newValues.validityDuration || ''}
                                         onChange={handleChange}
+                                        disabled={!!isSubmitting}
                                     />
                                 </div>
                                 <div>
@@ -310,6 +336,7 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({
                                         name="estimatedWeeks"
                                         value={newValues.estimatedWeeks || ''}
                                         onChange={handleChange}
+                                        disabled={!!isSubmitting}
                                     />
                                 </div>
                             </div>
@@ -334,20 +361,24 @@ export const RevisionModal: React.FC<RevisionModalProps> = ({
                                 onChange={handleChange}
                                 paymentTerms={paymentTerms}
                                 compact={true}
+                                disabled={!!isSubmitting}
+                                readOnly={!!isSubmitting}
                             />
                         </div>
                     </div>
 
                     <div className="items-center px-4 py-3">
                         <button
-                            className="px-4 py-2 bg-indigo-600 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                            className={`px-4 py-2 text-white text-base font-medium rounded-md w-full shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
                             onClick={handleConfirm}
+                            disabled={!!isSubmitting}
                         >
-                            Confirmer la Révision
+                            {isSubmitting ? 'Création...' : 'Confirmer la Révision'}
                         </button>
                         <button
                             className="mt-3 px-4 py-2 bg-white text-gray-700 text-base font-medium rounded-md w-full shadow-sm border border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
                             onClick={onClose}
+                            disabled={!!isSubmitting}
                         >
                             Annuler
                         </button>

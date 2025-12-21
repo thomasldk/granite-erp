@@ -151,7 +151,12 @@ export const getProjects = async (req: Request, res: Response) => {
             include: {
                 client: true,
                 quotes: {
-                    include: { client: true },
+                    include: {
+                        client: {
+                            include: { addresses: true }
+                        },
+                        material: true
+                    },
                     orderBy: { createdAt: 'desc' }
                 },
                 location: true

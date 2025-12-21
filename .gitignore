@@ -144,3 +144,6 @@ backend/axios_test.xlsx
 backend/scripts/data_dump.json
 backend/test_download.xlsx
 backend/scripts/windows_bridge.js
+
+*.zip
+project_backup_snapshot/

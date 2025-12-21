@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getContactTypes, createContactType, deleteContactType } from '../../services/thirdPartyService';
+import { getContactTypes, createContactType, deleteContactType, updateContactType } from '../../services/thirdPartyService';
 
 interface ContactType {
     id: string;
@@ -12,6 +12,10 @@ const ContactTypeList: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<'Client' | 'Supplier'>('Client');
 
+    // Edit State
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editingName, setEditingName] = useState('');
+
     useEffect(() => {
         loadTypes();
     }, [activeTab]);
@@ -22,6 +26,27 @@ const ContactTypeList: React.FC = () => {
             setTypes(data);
         } catch (error) {
             console.error('Error loading contact types', error);
+        }
+    };
+
+    const startEditing = (type: ContactType) => {
+        setEditingId(type.id);
+        setEditingName(type.name);
+    };
+
+    const cancelEditing = () => {
+        setEditingId(null);
+        setEditingName('');
+    };
+
+    const saveEditing = async () => {
+        if (!editingName.trim() || !editingId) return;
+        try {
+            await updateContactType(editingId, editingName, activeTab);
+            setEditingId(null);
+            loadTypes();
+        } catch (error) {
+            console.error('Error updating type', error);
         }
     };
 
@@ -42,12 +67,18 @@ const ContactTypeList: React.FC = () => {
     };
 
     const handleDelete = async (id: string) => {
-        if (!window.confirm('Êtes-vous sûr de vouloir supprimer ce type ?')) return;
+        const code = window.prompt("Code de sécurité requis pour supprimer :");
+        if (code !== '1234') {
+            if (code !== null) alert("Code incorrect.");
+            return;
+        }
+
         try {
             await deleteContactType(id);
             loadTypes();
         } catch (error) {
-            console.error('Error deleting type', error);
+            console.error('Failed to delete type', error);
+            alert('Erreur: Impossible de supprimer (peut-être utilisé ?)');
         }
     };
 
@@ -109,15 +140,29 @@ const ContactTypeList: React.FC = () => {
                         {types.map((type) => (
                             <tr key={type.id}>
                                 <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
-                                    <p className="text-gray-900 whitespace-no-wrap">{type.name}</p>
+                                    {editingId === type.id ? (
+                                        <input
+                                            type="text"
+                                            value={editingName}
+                                            onChange={(e) => setEditingName(e.target.value)}
+                                            className="shadow appearance-none border rounded py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                                        />
+                                    ) : (
+                                        <p className="text-gray-900 whitespace-no-wrap">{type.name}</p>
+                                    )}
                                 </td>
                                 <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm text-right">
-                                    <button
-                                        onClick={() => handleDelete(type.id)}
-                                        className="text-red-600 hover:text-red-900 font-bold"
-                                    >
-                                        Supprimer
-                                    </button>
+                                    {editingId === type.id ? (
+                                        <div className="flex justify-end gap-2">
+                                            <button onClick={saveEditing} className="text-green-600 hover:text-green-900 font-bold">Sauver</button>
+                                            <button onClick={cancelEditing} className="text-gray-500 hover:text-gray-700 font-bold">Annuler</button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex justify-end gap-2">
+                                            <button onClick={() => startEditing(type)} className="text-blue-600 hover:text-blue-900 font-bold">Modifier</button>
+                                            <button onClick={() => handleDelete(type.id)} className="text-red-600 hover:text-red-900 font-bold">Supprimer</button>
+                                        </div>
+                                    )}
                                 </td>
                             </tr>
                         ))}

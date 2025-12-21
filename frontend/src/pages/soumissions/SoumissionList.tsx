@@ -99,14 +99,18 @@ const SoumissionList: React.FC = () => {
                                             className="text-red-600 hover:text-red-900 font-medium border border-red-200 hover:bg-red-50 px-3 py-1 rounded"
                                             onClick={async (e) => {
                                                 e.stopPropagation();
-                                                if (window.confirm('Voulez-vous vraiment supprimer ce projet et toutes ses soumissions ?')) {
-                                                    try {
-                                                        await api.delete(`/soumissions/${project.id}`);
-                                                        fetchProjects(); // Refresh list
-                                                    } catch (err) {
-                                                        console.error(err);
-                                                        alert("Erreur lors de la suppression");
-                                                    }
+                                                const code = window.prompt("Code de sécurité requis pour supprimer ce projet :");
+                                                if (code !== '1234') {
+                                                    if (code !== null) alert("Code incorrect.");
+                                                    return;
+                                                }
+
+                                                try {
+                                                    await api.delete(`/soumissions/${project.id}`);
+                                                    fetchProjects(); // Refresh list
+                                                } catch (err) {
+                                                    console.error(err);
+                                                    alert("Erreur lors de la suppression");
                                                 }
                                             }}
                                         >

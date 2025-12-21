@@ -39,12 +39,18 @@ export default function ProductionSiteList() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Supprimer ce lieu de production ?')) return;
+        const code = window.prompt("Code de sécurité requis pour supprimer :");
+        if (code !== '1234') {
+            if (code !== null) alert("Code incorrect.");
+            return;
+        }
+
         try {
             await api.delete(`/production-sites/${id}`);
             fetchSites();
-        } catch (e) {
-            console.error("Failed to delete production site", e);
+        } catch (error) {
+            console.error('Failed to delete site', error);
+            alert('Erreur lors de la suppression');
         }
     };
 

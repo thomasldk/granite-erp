@@ -121,14 +121,18 @@ export default function QuoteList() {
                                                     </Link>
                                                     <button
                                                         onClick={async () => {
-                                                            if (window.confirm('Voulez-vous vraiment supprimer cette soumission ?')) {
-                                                                try {
-                                                                    await api.delete(`/quotes/${quote.id}`);
-                                                                    setQuotes(quotes.filter(q => q.id !== quote.id));
-                                                                } catch (e) {
-                                                                    console.error(e);
-                                                                    alert('Erreur lors de la suppression');
-                                                                }
+                                                            const code = window.prompt("Code de sécurité requis pour supprimer cette soumission :");
+                                                            if (code !== '1234') {
+                                                                if (code !== null) alert("Code incorrect.");
+                                                                return;
+                                                            }
+
+                                                            try {
+                                                                await api.delete(`/quotes/${quote.id}`);
+                                                                setQuotes(quotes.filter(q => q.id !== quote.id));
+                                                            } catch (e) {
+                                                                console.error(e);
+                                                                alert('Erreur lors de la suppression');
                                                             }
                                                         }}
                                                         className="text-red-600 hover:text-red-900"

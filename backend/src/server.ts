@@ -38,8 +38,21 @@ import repairRoutes from './routes/repairRoutes'; // Added
 import partCategoryRoutes from './routes/partCategoryRoutes'; // Added
 import systemConfigRoutes from './routes/systemConfigRoutes'; // Added V8
 import path from 'path'; // Added for static serving
+import * as authController from './controllers/authController'; // Authentication
+import { authenticate } from './middleware/authMiddleware';
 
 app.use('/uploads', express.static(path.join(__dirname, '../uploads'))); // Serve uploads statically
+
+// --- AUTHENTICATION ROUTES (PUBLIC) ---
+app.post('/api/auth/login', authController.login);
+app.post('/api/auth/seed-admin', authController.seedAdmin);
+// -------------------------------------
+
+// --- PROTECT ALL SUBSEQUENT API ROUTES ---
+// API Key (Agent) or Bearer Token (User) required
+app.use('/api', authenticate);
+app.get('/api/auth/me', authController.getMe); // Protected route for verifying token
+// ----------------------------------------
 
 app.use('/api/third-parties', thirdPartyRoutes);
 app.use('/api/representatives', representativeRoutes);
@@ -76,6 +89,7 @@ app.get('/', (req: Request, res: Response) => {
 
 
 import { BackupService } from './services/BackupService';
+import { startCronJobs } from './services/cronService';
 
 if (require.main === module) {
     process.on('uncaughtException', (error) => {
@@ -88,15 +102,16 @@ if (require.main === module) {
 
     console.log('--- SERVER V3 DEBUG START ---');
     const backupService = new BackupService();
+    startCronJobs();
 
     const server = app.listen(port, '0.0.0.0', () => {
         console.log(`\n\n🚨 SERVER RESTART V3 (POLLING FIX APPLIED) - IF YOU SEE THIS, IT WORKED 🚨`);
         console.log(`Server running on port ${port} - API Ready (Bound to 0.0.0.0)`);
 
         // Start Backup Service
-        console.log("🚀 Server Ready. Backup scheduling disabled for debugging.");
-        // console.log("🚀 Triggering initial backup on startup...");
-        // backupService.startAutomatedBackup();
+        console.log("🚀 Server Ready. Backup scheduling enabled (Hourly).");
+        console.log("🚀 Triggering initial backup on startup...");
+        backupService.startAutomatedBackup();
     });
 
     server.on('error', (e: any) => {

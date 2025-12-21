@@ -2,10 +2,15 @@ import { Router } from 'express';
 import { getQuotes, getQuoteById, createQuote, updateQuote, addItem, deleteItem, generateQuoteExcel } from '../controllers/quoteController';
 import * as quoteController from '../controllers/quoteController'; // Import all as quoteController for consistency with the new route
 
+
+import fs from 'fs';
+import path from 'path';
 import multer from 'multer';
 
 // Configure basic multer for temp storage
-const upload = multer({ dest: 'uploads/' });
+const uploadDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const upload = multer({ dest: uploadDir });
 
 const router = Router();
 
@@ -39,12 +44,13 @@ router.get('/:id/download-source', quoteController.downloadQuoteResult); // Alia
 router.post('/save-rak', quoteController.saveRakToNetwork);
 router.post('/:id/fetch-return-xml', quoteController.fetchReturnXml);
 router.get('/:id/download-pdf', quoteController.downloadQuotePdf);
+router.post('/:id/generate-pdf', quoteController.generatePdf); // PDF Trigger
 router.post('/:id/emit', quoteController.emitQuote);
 
 router.get('/:id/download-result', quoteController.downloadQuoteResult);
+router.get('/:id/download-source-excel', quoteController.downloadSourceExcel); // Explicit Agent Route
 
-import fs from 'fs';
-import path from 'path';
+
 
 // --- AGENT POLLING ROUTES ---
 const agentStorage = multer.diskStorage({
@@ -62,6 +68,7 @@ const agentUpload = multer({ storage: agentStorage });
 router.get('/agent/pending-xml', quoteController.listPendingXmls);
 router.get('/agent/pending-xml/:filename', quoteController.downloadPendingXml);
 router.post('/agent/ack-xml', quoteController.ackPendingXml);
-router.post('/agent/upload-bundle', agentUpload.fields([{ name: 'xml', maxCount: 1 }, { name: 'excel', maxCount: 1 }]), quoteController.processAgentBundle);
+// Updated to accept 'pdf' field
+router.post('/agent/upload-bundle', agentUpload.fields([{ name: 'xml', maxCount: 1 }, { name: 'excel', maxCount: 1 }, { name: 'pdf', maxCount: 1 }]), quoteController.processAgentBundle);
 
 export default router;
