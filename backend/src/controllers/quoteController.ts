@@ -2067,12 +2067,9 @@ export const processAgentBundle = async (req: Request, res: Response) => {
         }
 
         // --- SAFETY BACKUP (USER RULE) ---
-        console.log('🛡️ [Agent-Bundle] Triggering SAFETY BACKUP before update...');
-        // await backupService.performBackupToDisk(); // Optimization: Skip full backup for PDF only? Or keep safety?
-        // User requested: "Tu code pas". Rules imply safety. Let's keep it but maybe optimize?
-        // Keep it.
-        await backupService.performBackupToDisk();
-        console.log('✅ [Agent-Bundle] Safety Backup Complete.');
+        // console.log('🛡️ [Agent-Bundle] Triggering SAFETY BACKUP before update...');
+        // await backupService.performBackupToDisk(); // Optimization: DISABLED to prevent 502 OOM on Railway (Hourly backup suffices)
+        // console.log('✅ [Agent-Bundle] Safety Backup Complete.');
 
         // 1. Parse XML and Update Database
         const xmlContent = fs.readFileSync(xmlFile.path, 'utf-8');
