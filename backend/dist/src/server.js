@@ -41,7 +41,10 @@ const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
-const port = process.env.PORT ? parseInt(process.env.PORT) : 5006; // Use ENV port (Railway) or default 5006 (Local)
+console.log("Checking Environment Variables...");
+console.log("RAW PORT:", process.env.PORT);
+const port = process.env.PORT ? parseInt(process.env.PORT) : 5006;
+console.log("RESOLVED PORT:", port);
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
 app.use((req, res, next) => {

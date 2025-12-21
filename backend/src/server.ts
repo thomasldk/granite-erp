@@ -5,7 +5,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT ? parseInt(process.env.PORT) : 5006; // Use ENV port (Railway) or default 5006 (Local)
+console.log("Checking Environment Variables...");
+console.log("RAW PORT:", process.env.PORT);
+const port = process.env.PORT ? parseInt(process.env.PORT) : 5006;
+console.log("RESOLVED PORT:", port);
 
 app.use(cors());
 app.use(express.json());
