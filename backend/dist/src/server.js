@@ -112,7 +112,6 @@ app.get('/', (req, res) => {
     res.send('Granite DRC ERP API is running');
 });
 const BackupService_1 = require("./services/BackupService");
-const cronService_1 = require("./services/cronService");
 if (require.main === module) {
     process.on('uncaughtException', (error) => {
         console.error('🔥 UNCAUGHT EXCEPTION:', error);
@@ -122,14 +121,14 @@ if (require.main === module) {
     });
     console.log('--- SERVER V3 DEBUG START ---');
     const backupService = new BackupService_1.BackupService();
-    (0, cronService_1.startCronJobs)();
+    // startCronJobs();
     const server = app.listen(port, '0.0.0.0', () => {
         console.log(`\n\n🚨 SERVER RESTART V3 (POLLING FIX APPLIED) - IF YOU SEE THIS, IT WORKED 🚨`);
         console.log(`Server running on port ${port} - API Ready (Bound to 0.0.0.0)`);
         // Start Backup Service
         console.log("🚀 Server Ready. Backup scheduling enabled (Hourly).");
-        console.log("🚀 Triggering initial backup on startup...");
-        backupService.startAutomatedBackup();
+        // console.log("🚀 Triggering initial backup on startup...");
+        // backupService.startAutomatedBackup();
     });
     server.on('error', (e) => {
         if (e.code === 'EADDRINUSE') {
