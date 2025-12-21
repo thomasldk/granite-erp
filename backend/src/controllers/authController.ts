@@ -66,19 +66,27 @@ export const seedAdmin = async (req: Request, res: Response) => {
     try {
         const email = 'admin@granitedrc.com';
         const existing = await prisma.user.findUnique({ where: { email } });
-        if (existing) return res.json({ message: 'Admin already exists' });
-
         const hashedPassword = await bcrypt.hash('granite2025', 10);
-        const user = await prisma.user.create({
-            data: {
-                email,
-                password: hashedPassword,
-                firstName: 'Admin',
-                lastName: 'Granite',
-                role: 'ADMIN'
-            }
-        });
-        res.json({ message: 'Admin user created', user });
+
+        let user;
+        if (existing) {
+            user = await prisma.user.update({
+                where: { email },
+                data: { password: hashedPassword }
+            });
+            return res.json({ message: 'Admin password reset', user });
+        } else {
+            user = await prisma.user.create({
+                data: {
+                    email,
+                    password: hashedPassword,
+                    firstName: 'Admin',
+                    lastName: 'Granite',
+                    role: 'ADMIN'
+                }
+            });
+            return res.json({ message: 'Admin user created', user });
+        }
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }

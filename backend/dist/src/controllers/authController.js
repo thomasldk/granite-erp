@@ -75,19 +75,27 @@ const seedAdmin = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const email = 'admin@granitedrc.com';
         const existing = yield prisma.user.findUnique({ where: { email } });
-        if (existing)
-            return res.json({ message: 'Admin already exists' });
         const hashedPassword = yield bcryptjs_1.default.hash('granite2025', 10);
-        const user = yield prisma.user.create({
-            data: {
-                email,
-                password: hashedPassword,
-                firstName: 'Admin',
-                lastName: 'Granite',
-                role: 'ADMIN'
-            }
-        });
-        res.json({ message: 'Admin user created', user });
+        let user;
+        if (existing) {
+            user = yield prisma.user.update({
+                where: { email },
+                data: { password: hashedPassword }
+            });
+            return res.json({ message: 'Admin password reset', user });
+        }
+        else {
+            user = yield prisma.user.create({
+                data: {
+                    email,
+                    password: hashedPassword,
+                    firstName: 'Admin',
+                    lastName: 'Granite',
+                    role: 'ADMIN'
+                }
+            });
+            return res.json({ message: 'Admin user created', user });
+        }
     }
     catch (error) {
         res.status(500).json({ error: error.message });
