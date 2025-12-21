@@ -617,7 +617,11 @@ export default function QuoteForm() {
                                             } catch (e) { }
                                         }, 2000);
                                         setTimeout(() => { if (activeAction === 'GENERATE') { clearInterval(pollInterval); setActiveAction(null); } }, 120000);
-                                    } catch (e) { setActiveAction(null); alert("Erreur lors du lancement de la génération."); }
+                                    } catch (e: any) {
+                                        setActiveAction(null);
+                                        const msg = e.response?.data?.details || e.response?.data?.error || e.message;
+                                        alert(`ERREUR DÉTAILLÉE: ${msg}`);
+                                    }
                                 }}
                                 className={`inline-flex items-center rounded px-3 py-2 text-sm font-semibold text-white shadow-sm ${activeAction === 'GENERATE' ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-500'}`}
                                 disabled={!!activeAction}
