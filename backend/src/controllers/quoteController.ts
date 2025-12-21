@@ -1945,7 +1945,7 @@ export const reviseQuote = async (req: Request, res: Response) => {
             // Save to pending_xml
             const safeRef = (str: string | undefined) => (str || '').replace(/[^a-zA-Z0-9- ]/g, '');
             const rakFilename = `${safeRef(newQuote.reference)}.rak`;
-            const outputPath = path.join(__dirname, '../../pending_xml', rakFilename);
+            const outputPath = path.join(process.cwd(), 'pending_xml', rakFilename);
 
             fs.writeFileSync(outputPath, xmlContent);
             console.log(`[Revise] RAK saved to ${outputPath}`);

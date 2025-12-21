@@ -1,12 +1,12 @@
-/* AGENT V5.27 - FINAL PDF (PROTECTION + RECOVERY) */
+/* AGENT V5.29 - RAILWAY PROD (PROTECTION + RECOVERY) */
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
 // --- CONFIGURATION ---
-const AGENT_VERSION = "V5.28 - AUTH SECURE";
-const API_BASE = 'http://192.168.3.68:5006/api';
-// const API_BASE = 'https://granite-erp-production.up.railway.app/api'; // PROD URL (Railway)
+const AGENT_VERSION = "V5.29 - RAILWAY PROD";
+// const API_BASE = 'http://192.168.3.68:5006/api';
+const API_BASE = 'https://granite-erp-production.up.railway.app/api'; // PROD URL (Railway)
 const API_KEY = 'GRANITE_AGENT_KEY_V527_SECURE'; // Added for Auth
 axios.defaults.headers.common['x-api-key'] = API_KEY; // Apply to all requests
 
@@ -140,7 +140,7 @@ async function processJob(filename) {
     } else if (targetPath && quoteId && action !== 'devispdf') {
         // --- GENERATE / REINTEGRATE (Download from Mac) ---
         // CRITICAL FIX: EXCLUDE 'devispdf' TO PREVENT OVERWRITE/DELETION
-        console.log(`📥 Downloading Excel Source from Mac... URL=${API_BASE}/quotes/${quoteId}/download-source-excel`);
+        console.log(`📥 Downloading Excel Source from Server... URL=${API_BASE}/quotes/${quoteId}/download-source-excel`);
         const sourceUrl = `${API_BASE}/quotes/${quoteId}/download-source-excel`;
         try {
             const targetDir = path.dirname(targetPath);

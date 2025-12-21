@@ -103,7 +103,7 @@ export const pollPending = async (req: Request, res: Response) => {
             targetFilename = `${pendingQuote.reference}.rak`;
             const fs = require('fs');
             const path = require('path');
-            const rakPath = path.join(__dirname, '../../pending_xml', targetFilename);
+            const rakPath = path.join(process.cwd(), 'pending_xml', targetFilename);
 
             if (fs.existsSync(rakPath)) {
                 xmlContent = fs.readFileSync(rakPath, 'utf-8');
@@ -410,7 +410,7 @@ export const uploadExcel = async (req: Request, res: Response) => {
 
         const fs = require('fs');
         const path = require('path');
-        const uploadsDir = path.join(__dirname, '../../uploads');
+        const uploadsDir = path.join(process.cwd(), 'uploads');
         if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
         // Standardize filename: ID__OriginalName.xlsx
