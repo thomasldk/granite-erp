@@ -4,6 +4,7 @@
     "description": "Backend for Granite DRC ERP",
     "main": "dist/server.js",
     "scripts": {
+        "prestart": "npm run build",
         "start": "node dist/server.js",
         "dev": "nodemon",
         "build": "tsc",
