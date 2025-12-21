@@ -154,7 +154,7 @@ export default function QuoteForm() {
                 try {
                     const res = await api.get(`/quotes/${id}`);
                     const status = res.data.syncStatus;
-                    const fullQuote = res.data;
+
 
                     // If Agent returned 'Calculated (Agent)' OR 'Synced', we are good.
                     if (status === 'Calculated (Agent)' || status === 'Synced' || status === 'SYNCED_PC') {
