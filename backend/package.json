@@ -4,7 +4,7 @@
     "description": "Backend for Granite DRC ERP",
     "main": "dist/src/server.js",
     "scripts": {
-        "start": "echo '--- DEBUG FS ---' && ls -R dist && echo '--- END DEBUG FS ---' && node dist/src/server.js",
+        "start": "node dist/src/server.js",
         "dev": "nodemon",
         "build": "echo 'Skipping build on Railway'",
         "build:local": "tsc",
