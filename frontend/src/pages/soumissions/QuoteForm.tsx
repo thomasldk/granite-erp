@@ -551,7 +551,7 @@ export default function QuoteForm() {
                             <ArrowLeftIcon className="h-5 w-5" />
                         </button>
                         <h1 className="text-lg font-bold text-gray-900 truncate">
-                            {isNew ? 'Nouvelle Soumission' : `Soumission ${formData.reference}`}
+                            {isNew ? 'Nouvelle Soumission' : `Soumission ${formData.reference} (vFix)`}
                         </h1>
                     </div>
 
