@@ -705,10 +705,17 @@ export default function QuoteForm() {
                                 {pdfAvailable && (
                                     <a
                                         href="#"
-                                        onClick={(e) => {
+                                        onClick={async (e) => {
                                             e.preventDefault();
-                                            const baseUrl = api.defaults.baseURL || import.meta.env.VITE_API_URL;
-                                            window.open(`${baseUrl}/quotes/${id}/download-pdf`, '_blank');
+                                            try {
+                                                // Authenticatted Download via Blob
+                                                const response = await api.get(`/quotes/${id}/download-pdf`, { responseType: 'blob' });
+                                                const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+                                                window.open(url, '_blank');
+                                            } catch (err: any) {
+                                                console.error("PDF Download Error", err);
+                                                alert("Erreur lors de l'ouverture du PDF (Authentification ou Fichier manquant).");
+                                            }
                                         }}
                                         className="absolute top-full mt-1 text-[10px] text-blue-600 hover:text-blue-800 underline leading-none whitespace-nowrap"
                                     >
