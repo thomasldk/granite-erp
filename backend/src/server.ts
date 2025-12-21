@@ -105,7 +105,7 @@ if (require.main === module) {
 
     console.log('--- SERVER V3 DEBUG START ---');
     const backupService = new BackupService();
-    startCronJobs();
+    // startCronJobs();
 
     const server = app.listen(port, '0.0.0.0', () => {
         console.log(`\n\n🚨 SERVER RESTART V3 (POLLING FIX APPLIED) - IF YOU SEE THIS, IT WORKED 🚨`);
@@ -113,8 +113,8 @@ if (require.main === module) {
 
         // Start Backup Service
         console.log("🚀 Server Ready. Backup scheduling enabled (Hourly).");
-        console.log("🚀 Triggering initial backup on startup...");
-        backupService.startAutomatedBackup();
+        // console.log("🚀 Triggering initial backup on startup...");
+        // backupService.startAutomatedBackup();
     });
 
     server.on('error', (e: any) => {
