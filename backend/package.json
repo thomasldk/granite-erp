@@ -2,7 +2,7 @@
     "name": "granite-erp-backend",
     "version": "1.0.0",
     "description": "Backend for Granite DRC ERP",
-    "main": "dist/server.js",
+    "main": "dist/src/server.js",
     "scripts": {
         "start": "node dist/src/server.js",
         "dev": "nodemon",
