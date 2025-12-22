@@ -6,12 +6,14 @@ import dotenvExpand from 'dotenv-expand';
 // AUTO-DETECT ENVIRONMENT:
 // If running in Railway, we must rely on System Variables (Internal Network).
 // If running locally, we load .env (which might contain Proxy/Tunnel settings).
-if (!process.env.RAILWAY_ENVIRONMENT) {
+const isRailway = process.env.RAILWAY_SERVICE_ID || process.env.RAILWAY_STATIC_URL || process.env.RAILWAY_ENVIRONMENT;
+
+if (!isRailway) {
     console.log("📍 Local Environment Detected: Loading .env file...");
     const env = dotenv.config();
     dotenvExpand.expand(env);
 } else {
-    console.log("🚀 Railway Environment Detected: Skipping .env (Using System Variables)");
+    console.log("🚀 Railway Environment Detected: Skipping .env (System Variables Active)");
 }
 
 const app = express();
