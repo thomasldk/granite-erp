@@ -1,12 +1,11 @@
 import { Request, Response } from 'express';
-// import { PrismaClient } from '@prisma/client';
-import { Resend } from 'resend';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 import { ExcelService } from '../services/excelService';
 import { PdfService } from '../services/pdfService';
 import { XmlService } from '../services/xmlService';
@@ -441,7 +440,11 @@ export const updateQuote = async (req: Request, res: Response) => {
                 discountDays: (discountDays !== undefined && discountDays !== '') ? parseInt(discountDays) : undefined,
                 paymentCustomText,
                 validityDuration: (validityDuration !== undefined && validityDuration !== '') ? parseInt(validityDuration) : undefined,
-                representativeId: representativeId !== undefined ? (representativeId || null) : undefined
+                representativeId: representativeId !== undefined ? (representativeId || null) : undefined,
+
+                // CRITICAL: Any update invalidates the PDF and Sync Status
+                pdfFilePath: null,
+                syncStatus: 'Draft'
             },
             include: { project: true, client: true } // Include client to get clientId for update
         });
@@ -505,6 +508,13 @@ export const addItem = async (req: Request, res: Response) => {
                 totalPrice: 0
             }
         });
+
+        // INVALIDATE PDF on Item Add
+        await prisma.quote.update({
+            where: { id: quoteId },
+            data: { pdfFilePath: null, syncStatus: 'Draft' }
+        });
+
         res.json(item);
     } catch (error) {
         console.error(error);
@@ -515,9 +525,17 @@ export const addItem = async (req: Request, res: Response) => {
 export const deleteItem = async (req: Request, res: Response) => {
     const { itemId } = req.params;
     try {
-        await prisma.quoteItem.delete({
+        const deletedItem = await prisma.quoteItem.delete({
             where: { id: itemId }
         });
+
+        // INVALIDATE PDF on Item Delete
+        await prisma.quote.update({
+            where: { id: deletedItem.quoteId },
+            data: { pdfFilePath: null, syncStatus: 'Draft' }
+        });
+
+        res.json(deletedItem);
     } catch (error) {
         res.status(500).json({ error: 'Error deleting item' });
     }
@@ -1459,21 +1477,80 @@ export const downloadQuotePdf = async (req: Request, res: Response) => {
             }
         }
 
-        // Fallback: Generate fresh PDF (Node.js)
-        const pdfBuffer = await PdfService.generateQuotePdf(quote as any);
-
-        res.set({
-            'Content-Type': 'application/pdf',
-            'Content-Disposition': `inline; filename="${quote.reference}.pdf"`,
-            'Content-Length': pdfBuffer.length
-        });
-
-        res.send(pdfBuffer);
+        // REMOVED LEGACY FALLBACK (User Request: "NO FAKE MODEL")
+        console.warn(`⚠️ [downloadQuotePdf] No Agent PDF found for ${quote.reference}. Returning 404.`);
+        return res.status(404).json({ error: 'Aucun PDF officiel (Agent) disponible. Utilisez "Créer PDF".' });
 
     } catch (error) {
         console.error('Error generating PDF:', error);
         res.status(500).json({ error: 'Failed to generate PDF' });
     }
+};
+
+
+// --- HELPER: Ensure Agent PDF Exists ---
+const ensureAgentPdf = async (quote: any): Promise<string> => {
+    // 1. Check if we already have a valid PDF linked and existing
+    if (quote.pdfFilePath) {
+        let currentPath = quote.pdfFilePath;
+        if (!path.isAbsolute(currentPath)) currentPath = path.join(process.cwd(), currentPath);
+
+        if (fs.existsSync(currentPath)) {
+            console.log(`✅ [ensureAgentPdf] Found existing PDF at ${currentPath}`);
+            return currentPath;
+        } else {
+            console.warn(`⚠️ [ensureAgentPdf] DB says ${currentPath} but file missing. Triggering regeneration.`);
+        }
+    }
+
+    // 2. Trigger Agent Generation (RAK)
+    console.log(`🚀 [ensureAgentPdf] Triggering Window Agent for Quote ${quote.reference}...`);
+
+    // Generate XML content
+    let rep = quote.representative;
+    if (!rep && quote.client?.repName) {
+        const allReps = await prisma.representative.findMany();
+        rep = allReps.find(r => `${r.firstName} ${r.lastName}` === quote.client?.repName) || null;
+    }
+    const xmlContent = await xmlService.generateQuoteXml(quote, rep);
+
+    // Save .rak file to pending_xml
+    const pendingDir = path.join(process.cwd(), 'pending_xml');
+    if (!fs.existsSync(pendingDir)) fs.mkdirSync(pendingDir, { recursive: true });
+
+    const rakFilename = `${quote.reference}.rak`;
+    const rakPath = path.join(pendingDir, rakFilename);
+    fs.writeFileSync(rakPath, xmlContent);
+    console.log(`📄 [ensureAgentPdf] RAK file deposited: ${rakPath}`);
+
+    // 3. Wait/Poll for the Agent to return the PDF
+    // The Agent should process the RAK, generate PDF, upload it to /uploads via API, and update the quote.
+    // We poll the DB or the uploads folder.
+
+    console.log(`⏳ [ensureAgentPdf] Waiting for Agent to return PDF... (Max 30s)`);
+    const maxRetries = 30; // 30 seconds
+    const expectedFilename = `${quote.reference}.pdf`;
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    const expectedPath = path.join(uploadsDir, expectedFilename);
+
+    for (let i = 0; i < maxRetries; i++) {
+        await new Promise(r => setTimeout(r, 1000)); // Sleep 1s
+
+        // Check if file appeared
+        if (fs.existsSync(expectedPath)) {
+            console.log(`🎉 [ensureAgentPdf] PDF appeared at ${expectedPath}!`);
+
+            // Update DB if not already done by the Agent's callback
+            await prisma.quote.update({
+                where: { id: quote.id },
+                data: { pdfFilePath: `uploads/${expectedFilename}`, syncStatus: 'Synced' }
+            });
+
+            return expectedPath;
+        }
+    }
+
+    throw new Error("Timeout: Agent did not return PDF in time. Is the Agent running?");
 };
 
 // Initialize Resend
@@ -1518,8 +1595,20 @@ export const emitQuote = async (req: Request, res: Response) => {
                 pdfBuffer = await PdfService.generateQuotePdf(quote as any);
             }
         } else {
-            console.log(`[EMIT] No existing PDF found (Status: ${quote.syncStatus}). Generating fresh PDF.`);
-            pdfBuffer = await PdfService.generateQuotePdf(quote as any);
+            console.log(`[EMIT] No existing PDF found (Status: ${quote.syncStatus}). Requesting Agent PDF.`);
+            try {
+                const pdfPath = await ensureAgentPdf(quote);
+                pdfBuffer = fs.readFileSync(pdfPath);
+                pdfFilename = path.basename(pdfPath);
+            } catch (agentError) {
+                console.error("Agent PDF Error during Emit:", agentError);
+                // Fail gracefull or hard? User wants REAL PDF.
+                // We will throw error so they know it failed.
+                return res.status(503).json({
+                    error: "Impossible d'obtenir le PDF officiel de l'Agent.",
+                    details: "L'agent Windows n'a pas répondu à temps. Vérifiez le tunnel."
+                });
+            }
         }
 
         // 3. Send Email via Resend
@@ -1544,10 +1633,10 @@ export const emitQuote = async (req: Request, res: Response) => {
         const { data, error } = await resend.emails.send({
             from: 'Soumissions Granite DRC <onboarding@resend.dev>',
             // RESTRICTION RESEND mode Test: Envoi uniquement autorisé vers l'email du compte
-            to: ['thomasldk@granitedrc.com'],
-            // to: [recipientEmail], // TODO: Restore this when Domain is verified
+            // to: [recipientEmail],
+            to: ['thomasldk@granitedrc.com'], // OVERRIDE DEV MODE
 
-            cc: quote.representative?.email ? [quote.representative.email] : undefined,
+            // cc: quote.representative?.email ? [quote.representative.email] : undefined,
             subject: subject || `Soumission pour le Projet ${quote.project?.name || quote.reference}`,
             html: emailHtml,
             attachments: [
@@ -2242,5 +2331,67 @@ export const processAgentBundle = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error("Agent Bundle Error:", error);
         res.status(500).json({ error: error.message });
+    }
+};
+
+export const serveQuotePdf = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    console.log(`🔍 [serveQuotePdf] Request for Quote ID: ${id}`);
+
+    try {
+        const quote = await prisma.quote.findUnique({
+            where: { id },
+            include: { items: true, project: true, client: true, contact: true, representative: true, material: true, paymentTerm: true }
+        });
+
+        if (!quote) {
+            return res.status(404).json({ error: 'Soumission introuvable.' });
+        }
+
+        try {
+            // FORCE AGENT PDF
+            const pdfPath = await ensureAgentPdf(quote);
+
+            console.log(`✅ [serveQuotePdf] Serving file: ${pdfPath}`);
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `inline; filename="Soumission_${quote.reference}.pdf"`);
+            const fileStream = fs.createReadStream(pdfPath);
+            fileStream.pipe(res);
+
+        } catch (err: any) {
+            console.error(`❌ [serveQuotePdf] Error:`, err);
+            // Fallback to error message, DO NOT generate "fake" PDF
+            res.status(503).json({
+                error: "Le PDF n'est pas encore prêt.",
+                details: "L'agent Windows n'a pas répondu à temps (30s) ou le tunnel est lent. Réessayez."
+            });
+        }
+
+    } catch (error: any) {
+        console.error('❌ [serveQuotePdf] Server Error:', error);
+        res.status(500).json({ error: 'Erreur serveur.', details: error.message });
+    }
+};
+
+// Check if PDF physically exists
+export const checkPdfStatus = async (req: Request, res: Response) => {
+    // console.log(`[checkPdfStatus] Checking for ${req.params.id}`);
+    try {
+        const { id } = req.params;
+        const quote = await prisma.quote.findUnique({ where: { id } });
+
+        if (!quote || !quote.pdfFilePath) {
+            return res.json({ ready: false });
+        }
+
+        const fullPath = path.join(process.cwd(), quote.pdfFilePath);
+        if (fs.existsSync(fullPath)) {
+            return res.json({ ready: true });
+        } else {
+            return res.json({ ready: false });
+        }
+    } catch (error) {
+        console.error("Check PDF Status Error:", error);
+        res.status(500).json({ error: 'Check failed' });
     }
 };

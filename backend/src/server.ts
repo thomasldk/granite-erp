@@ -29,9 +29,10 @@ import projectLocationRoutes from './routes/projectLocationRoutes'; // Added
 import materialRoutes from './routes/materialRoutes';
 import paymentTermRoutes from './routes/paymentTermRoutes'; // Added
 import uploadRoutes from './routes/uploadRoutes'; // Added
-import syncRoutes from './routes/syncRoutes'; // Added
 import productionRoutes from './routes/productionRoutes'; // Added
+import workOrderRoutes from './routes/workOrderRoutes'; // Added WorkOrder route
 import productionSiteRoutes from './routes/productionSiteRoutes'; // Added
+import syncRoutes from './routes/syncRoutes'; // Added
 import maintenanceSiteRoutes from './routes/maintenanceSiteRoutes'; // Added
 import incotermRoutes from './routes/incotermRoutes'; // Added
 import equipmentCategoryRoutes from './routes/equipmentCategoryRoutes'; // Added
@@ -68,6 +69,7 @@ app.use('/api/materials', materialRoutes); // Added for Materials management
 app.use('/api/payment-terms', paymentTermRoutes); // Added for Payment Terms
 app.use('/api/upload', uploadRoutes); // Added upload route
 app.use('/api/production', productionRoutes); // Added production route
+app.use('/api/work-orders', workOrderRoutes); // Added WorkOrder route for Production Module
 app.use('/api/production-sites', productionSiteRoutes); // Added production sites route
 app.use('/api/maintenance-sites', maintenanceSiteRoutes); // Added maintenance sites route
 app.use('/api/incoterms', incotermRoutes); // Added
@@ -105,7 +107,7 @@ if (require.main === module) {
 
     console.log('--- SERVER V3 DEBUG START ---');
     const backupService = new BackupService();
-    // startCronJobs();
+    // startCronJobs(); // Deprecated in favor of BackupService
 
     const server = app.listen(port, '0.0.0.0', () => {
         console.log(`\n\n🚨 SERVER RESTART V3 (POLLING FIX APPLIED) - IF YOU SEE THIS, IT WORKED 🚨`);
@@ -113,8 +115,8 @@ if (require.main === module) {
 
         // Start Backup Service
         console.log("🚀 Server Ready. Backup scheduling enabled (Hourly).");
-        // console.log("🚀 Triggering initial backup on startup...");
-        // backupService.startAutomatedBackup();
+        console.log("🚀 Triggering initial backup on startup...");
+        backupService.startAutomatedBackup();
     });
 
     server.on('error', (e: any) => {

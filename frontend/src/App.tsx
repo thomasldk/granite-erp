@@ -25,6 +25,7 @@ import IncotermList from './pages/settings/IncotermList'; // Added
 import SystemConfig from './pages/settings/GlobalParameters'; // Added V8
 import { DatabaseSettings } from './pages/settings/DatabaseSettings';
 import ProductionDashboard from './pages/production/ProductionDashboard';
+import ProductionOrderDetail from './pages/production/ProductionOrderDetail'; // Added
 import MaintenanceDashboard from './pages/maintenance/MaintenanceDashboard';
 import RHDashboard from './pages/rh/RHDashboard';
 import EquipmentList from './pages/maintenance/EquipmentList';
@@ -87,6 +88,7 @@ const Layout: React.FC = () => {
                             </button>
                             {isProductionOpen && (
                                 <div className="ml-8 mt-2 space-y-1 text-sm border-l-2 border-gray-700 pl-4">
+                                    <Link to="/production" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Bons de Travail</Link>
                                     <Link to="/production?site=RAP" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Production RAP</Link>
                                     <Link to="/production?site=STD" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Production STD</Link>
                                 </div>
@@ -305,6 +307,7 @@ function App() {
                         <Route path="/soumissions/:projectId/new-quote" element={<QuoteForm />} />
 
                         <Route path="/production" element={<ProductionDashboard />} />
+                        <Route path="/production/:id" element={<ProductionOrderDetail />} /> {/* Added Detail Route */}
 
                         <Route path="/maintenance" element={<MaintenanceDashboard />} />
                         <Route path="/maintenance" element={<MaintenanceDashboard />} />

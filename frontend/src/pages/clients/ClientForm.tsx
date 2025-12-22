@@ -79,13 +79,13 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                     fetch('/api/system-config').then(r => r.json()).catch(() => ({})),
                     getContactTypes('Supplier').catch(() => [])
                 ]);
-                setReps(repsData);
-                setLanguages(langsData);
-                setCurrencies(currsData);
-                setPaymentTermsList(termsData);
-                setIncoterms(fetchedIncoterms); // Fetch Properly
-                setSystemDefaults(sysData);
-                setSupplierTypesList(suppTypes);
+                setReps(repsData || []);
+                setLanguages(langsData || []);
+                setCurrencies(currsData || []);
+                setPaymentTermsList(termsData || []);
+                setIncoterms(fetchedIncoterms || []); // Fetch Properly
+                setSystemDefaults(sysData || {});
+                setSupplierTypesList(suppTypes || []);
 
                 // V8: Pre-fill defaults only for New Clients
                 if (!id && sysData) {
@@ -114,10 +114,18 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                 if (id) {
                     setLoading(true);
                     const client = await getThirdPartyById(id);
+
+                    if (!client) {
+                        console.error("Client not found for ID:", id);
+                        alert("Client introuvable.");
+                        navigate(basePath);
+                        return;
+                    }
+
                     const mainAddr = client.addresses?.find((a: any) => a.type === 'Main') || {};
 
                     setFormData({
-                        name: client.name,
+                        name: client.name || '',
                         code: client.code || '',
                         phone: client.phone || '',
                         mobile: (client as any).mobile || '',
@@ -146,13 +154,13 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                         addressState: mainAddr.state || '',
                         addressZip: mainAddr.zipCode || '',
                         addressCountry: mainAddr.country || 'Canada',
-                        semiStandardRate: (client as any).semiStandardRate !== null ? String((client as any).semiStandardRate || '') : '',
+                        semiStandardRate: (client as any).semiStandardRate !== null && (client as any).semiStandardRate !== undefined ? String((client as any).semiStandardRate) : '',
                         salesCurrency: (client as any).salesCurrency || '',
-                        palletPrice: (client as any).palletPrice !== null ? String((client as any).palletPrice || '') : '',
-                        palletRequired: (client as any).palletRequired === null ? '' : String((client as any).palletRequired),
-                        exchangeRate: (client as any).exchangeRate !== null ? String((client as any).exchangeRate || '') : '',
-                        discountPercentage: (client as any).discountPercentage !== undefined ? String((client as any).discountPercentage) : '',
-                        discountDays: (client as any).discountDays !== undefined ? String((client as any).discountDays) : '',
+                        palletPrice: (client as any).palletPrice !== null && (client as any).palletPrice !== undefined ? String((client as any).palletPrice) : '',
+                        palletRequired: (client as any).palletRequired === null || (client as any).palletRequired === undefined ? '' : String((client as any).palletRequired),
+                        exchangeRate: (client as any).exchangeRate !== null && (client as any).exchangeRate !== undefined ? String((client as any).exchangeRate) : '',
+                        discountPercentage: (client as any).discountPercentage !== undefined && (client as any).discountPercentage !== null ? String((client as any).discountPercentage) : '',
+                        discountDays: (client as any).discountDays !== undefined && (client as any).discountDays !== null ? String((client as any).discountDays) : '',
                         paymentCustomText: (client as any).paymentCustomText || '',
                         validityDuration: (client as any).validityDuration !== undefined && (client as any).validityDuration !== null ? String((client as any).validityDuration) : ''
                     });
@@ -837,7 +845,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                         </div>
                         {/* Show input if Custom/Other */}
                         {(() => {
-                            const selected = incoterms.find((i: any) => i.id === formData.incotermId);
+                            const selected = (incoterms || []).find((i: any) => i.id === formData.incotermId);
                             if (selected && selected.requiresText) {
                                 return (
                                     <input

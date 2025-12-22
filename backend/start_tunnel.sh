@@ -13,4 +13,4 @@ echo ""
 echo "Starting Cloudflare Tunnel..."
 echo "--> RECHERCHEZ L'URL (https://xxxx.trycloudflare.com) CI-DESSOUS :"
 echo ""
-./bin/cloudflared tunnel --url http://localhost:$PORT
+./bin/cloudflared tunnel --config config.yml run granite-erp

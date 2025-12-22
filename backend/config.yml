@@ -1,0 +1,7 @@
+tunnel: f4dd955b-7447-42e4-b204-dc7cf48e06f0
+credentials-file: /Users/thomasleguendekergolan/.cloudflared/f4dd955b-7447-42e4-b204-dc7cf48e06f0.json
+
+ingress:
+  - hostname: erp.granitedrc.info
+    service: http://localhost:5006
+  - service: http_status:404

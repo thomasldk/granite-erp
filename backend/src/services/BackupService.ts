@@ -16,9 +16,9 @@ export class BackupService {
     }
 
     startAutomatedBackup() {
-        // Run immediately on startup
-        console.log('🚀 Triggering initial backup on startup...');
-        this.performBackupToDisk();
+        // Run immediately on startup -> DISABLED to prevent boot crash
+        // console.log('🚀 Triggering initial backup on startup...');
+        // this.performBackupToDisk();
 
         // Run every hour at minute 0
         this.task = cron.schedule('0 * * * *', async () => {

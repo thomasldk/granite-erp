@@ -1,12 +1,12 @@
-/* AGENT V5.29 - RAILWAY PROD (PROTECTION + RECOVERY) */
+/* AGENT V5.31 - TUNNEL MODE (CLOUDFLARE) */
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
 // --- CONFIGURATION ---
-const AGENT_VERSION = "V5.29 - RAILWAY PROD";
-// const API_BASE = 'http://192.168.3.68:5006/api';
-const API_BASE = 'https://granite-erp-production.up.railway.app/api'; // PROD URL (Railway)
+const AGENT_VERSION = "V5.31 - TUNNEL MODE (CLOUDFLARE)";
+// const API_BASE = 'http://192.168.68.54:5006/api'; // LOCAL IP (FAILED)
+const API_BASE = 'https://threshold-believes-reasonably-spelling.trycloudflare.com/api'; // ✅ TUNNEL URL (BYPASS FIREWALL)
 const API_KEY = 'GRANITE_AGENT_KEY_V527_SECURE'; // Added for Auth
 axios.defaults.headers.common['x-api-key'] = API_KEY; // Apply to all requests
 
@@ -222,11 +222,28 @@ async function waitForReturn(originalRakName, excelPath, jobStartTime, action = 
                     console.log(`🔎 Found PDF in Fallback Dir: ${pdfPath}`);
                 }
             }
-            if (fs.existsSync(pdfPath)) {
+
+            // SMART WAIT: Poll for PDF (Max 15s)
+            // Automate might write XML first, then PDF takes a few seconds.
+            let pdfFound = false;
+            if (pdfPath && path.extname(pdfPath).toLowerCase() === '.pdf') {
+                console.log(`⏳ Waiting for PDF to appear at: ${pdfPath}`);
+                for (let i = 0; i < 15; i++) {
+                    if (fs.existsSync(pdfPath)) {
+                        pdfFound = true;
+                        // Wait 1s extra to ensure write complete
+                        await new Promise(r => setTimeout(r, 1000));
+                        break;
+                    }
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
+
+            if (pdfFound) {
                 console.log(`📎 Attaching Generated PDF: ${pdfPath}`);
                 form.append('pdf', fs.createReadStream(pdfPath));
             } else {
-                console.error(`❌ PDF NOT FOUND at ${pdfPath}`);
+                console.error(`❌ PDF NOT FOUND (after 15s wait) at ${pdfPath}`);
             }
         } else {
             // STANDARD EXCEL UPLOAD

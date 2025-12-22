@@ -36,6 +36,9 @@ router.post('/:id/export-local', quoteController.exportQuoteToLocal); // Save to
 router.post('/:id/import-network', quoteController.importNetworkXml); // Import from server disk
 router.get('/:id/download-excel', quoteController.downloadQuoteExcel); // Download generated Excel from network // Added
 
+// View PDF
+router.get('/:id/pdf-view', quoteController.serveQuotePdf);
+
 // Import XML
 router.post('/:id/import-xml', upload.single('file'), quoteController.importQuoteXml);
 router.post('/:id/reintegrate-excel', upload.single('file'), quoteController.reintegrateExcel);
@@ -44,6 +47,7 @@ router.get('/:id/download-source', quoteController.downloadQuoteResult); // Alia
 router.post('/save-rak', quoteController.saveRakToNetwork);
 router.post('/:id/fetch-return-xml', quoteController.fetchReturnXml);
 router.get('/:id/download-pdf', quoteController.downloadQuotePdf);
+router.get('/:id/pdf-status', quoteController.checkPdfStatus); // NEW: Robust Check
 router.post('/:id/generate-pdf', quoteController.generatePdf); // PDF Trigger
 router.post('/:id/emit', quoteController.emitQuote);
 

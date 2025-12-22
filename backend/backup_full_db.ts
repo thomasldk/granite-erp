@@ -8,9 +8,12 @@ const prisma = new PrismaClient();
 async function backup() {
     const data: any = {};
     const models = [
-        'User', 'Client', 'Supplier', 'Contact', 'Address', 'Project',
+        'User', 'ThirdParty', 'Contact', 'Address', 'Project',
         'Quote', 'QuoteItem', 'Material', 'Incoterm', 'PaymentTerm',
-        'Representative', 'ProjectLocation', 'ProductionSite', 'MaintenanceSite'
+        'Representative', 'ProjectLocation', 'ProductionSite', 'MaintenanceSite',
+        'WorkOrder', 'Pallet', 'PalletItem', 'Setting', 'Language', 'Currency',
+        'EquipmentCategory', 'Equipment', 'PartCategory', 'Part', 'RepairRequest', 'RepairPart',
+        'SystemConfig', 'ExchangeRateHistory'
     ];
 
     for (const model of models) {

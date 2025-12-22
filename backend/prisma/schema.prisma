@@ -107,6 +107,8 @@ model Contact {
   updatedAt    DateTime   @updatedAt
   thirdParty   ThirdParty @relation(fields: [thirdPartyId], references: [id])
   quotes       Quote[]
+  managedProjects WorkOrder[] @relation("ProjectManager")
+  accountingWorkOrders WorkOrder[] @relation("AccountingContact")
 }
 
 model Address {
@@ -194,6 +196,63 @@ model Quote {
   representativeId   String?
   representative     Representative? @relation(fields: [representativeId], references: [id])
   items              QuoteItem[]
+  workOrder          WorkOrder?
+}
+
+model WorkOrder {
+  id              String   @id @default(uuid())
+  reference       String   @unique // Format: BT25-0001
+  status          String   @default("Open") // Open, Completed, Cancelled
+  
+  mepDate         DateTime @default(now()) // Mise en Production
+  deadlineDate    DateTime? // A produire pour le (Calculated)
+  deliveryDate    DateTime? // A livrer pour le
+  clientRequiredDate DateTime? // Pour le (Requested by Client)
+
+  productionWeeks Int?      // Délai Production (Semaines)
+  note            String?   // Note textuelle (Entête)
+
+  clientPO            String?   // Bon de commande client
+  clientPOFilePath    String?   // Chemin du fichier uploadé
+  projectManagerId    String?   // Responsable Projet (Contact)
+  accountingContactId String?   // Responsable Compta (Contact)
+  productionSiteId    String?   // Lieu de Production (NEW)
+
+  projectManager      Contact?  @relation("ProjectManager", fields: [projectManagerId], references: [id])
+  accountingContact   Contact?  @relation("AccountingContact", fields: [accountingContactId], references: [id])
+  productionSite      ProductionSite? @relation(fields: [productionSiteId], references: [id])
+
+  quoteId         String   @unique
+  quote           Quote    @relation(fields: [quoteId], references: [id])
+  pallets         Pallet[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Pallet {
+  id          String       @id @default(uuid())
+  number      Int          // 1, 2, 3...
+  barcode     String?      // BT25-0001-P1
+  status      String       @default("Open") // Open, Wrapped, Shipped
+  workOrderId String
+  workOrder   WorkOrder    @relation(fields: [workOrderId], references: [id])
+  items       PalletItem[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model PalletItem {
+  id          String    @id @default(uuid())
+  palletId    String
+  quoteItemId String
+  quantity    Float     // Quantity put on this pallet
+  
+  pallet      Pallet    @relation(fields: [palletId], references: [id], onDelete: Cascade)
+  quoteItem   QuoteItem @relation(fields: [quoteItemId], references: [id])
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model QuoteItem {
@@ -240,6 +299,7 @@ model QuoteItem {
   updatedAt           DateTime        @updatedAt
   productionSite      ProductionSite? @relation(fields: [productionSiteId], references: [id])
   quote               Quote           @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  palletItems         PalletItem[]
 }
 
 model Setting {
@@ -289,6 +349,19 @@ model ProductionSite {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   items     QuoteItem[]
+  workOrders WorkOrder[]
+
+  // Address
+  address   String?
+  city      String?
+  province  String?     @default("QC")
+  zipCode   String?
+  country   String?     @default("Canada")
+
+  // Manager
+  managerName  String?
+  managerEmail String?
+  managerPhone String?
 }
 
 

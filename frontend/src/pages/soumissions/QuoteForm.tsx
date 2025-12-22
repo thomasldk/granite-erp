@@ -6,10 +6,23 @@ import { generatePaymentTermLabel } from '../../services/paymentTermService';
 import { getCurrencies } from '../../services/thirdPartyService'; // Import
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { RevisionModal } from '../../components/RevisionModal';
+import ProductionModal from '../../components/ProductionModal'; // Import
 import { useLocation } from 'react-router-dom';
 
 export default function QuoteForm() {
-    const { id, projectId } = useParams(); // Need to ensure route captures projectId
+    const { id, projectId } = useParams();
+    // ...
+    /* 
+       Button placement:
+       Somewhere near Generate Excel.
+    */
+
+    // ... inside return ...
+    /* 
+       Button placement:
+       Somewhere near Generate Excel.
+    */
+    // Need to ensure route captures projectId
     const navigate = useNavigate();
     const isNew = !id;
 
@@ -53,6 +66,8 @@ export default function QuoteForm() {
     // Note: formData.status gets updated by fetchQuote
     const isReadOnly = !isNew && formData.status !== 'Draft';
 
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+    const [isSending, setIsSending] = useState(false); // New Sending State
     const [clients, setClients] = useState<any[]>([]);
     const [projects, setProjects] = useState<any[]>([]);
     const [materials, setMaterials] = useState<Material[]>([]);
@@ -76,6 +91,7 @@ export default function QuoteForm() {
 
     // Revision Modal State
     const [showRevisionModal, setShowRevisionModal] = useState(false);
+    const [showProductionModal, setShowProductionModal] = useState(false); // Re-added State
     const [isPdfGenerating, setIsPdfGenerating] = useState(false);
     const [pdfAvailable, setPdfAvailable] = useState(false);
     const [isDirty, setIsDirty] = useState(false); // Track unsaved changes
@@ -106,44 +122,52 @@ export default function QuoteForm() {
         }
     };
 
-    const handlePdfGeneration = async () => {
-        if (!id) return;
+    const handlePdfGeneration = async (): Promise<boolean> => {
+        if (!id) return false;
         setIsPdfGenerating(true);
         try {
+            // 1. Trigger Generation (Agent)
             await api.post(`/quotes/${id}/generate-pdf`);
-            // console.log("PDF request sent");
 
-            // 2. Poll for Completion
-            const pollInterval = setInterval(async () => {
+            // 2. Poll for Robust Status (Wait for Agent w/ 10s-30s timeout)
+            const MAX_RETRIES = 15; // 30 seconds max
+            const POLL_INTERVAL = 2000; // 2 seconds
+
+            for (let i = 0; i < MAX_RETRIES; i++) {
                 try {
-                    const pollRes = await api.get(`/quotes/${id}?t=${Date.now()}`);
-                    const updatedPdfPath = pollRes.data.pdfFilePath;
-
-                    if (updatedPdfPath && updatedPdfPath.length > 5) {
-                        clearInterval(pollInterval);
-                        setIsPdfGenerating(false);
-                        setFormData(prev => ({ ...prev, pdfPath: updatedPdfPath }));
+                    // Check physical file existence via our new robust endpoint
+                    const statusRes = await api.get(`/quotes/${id}/pdf-status`);
+                    if (statusRes.data.ready) {
+                        // Success! Update local state to reflect it immediately
                         setPdfAvailable(true);
+                        // Also refresh form data to get the path if needed
+                        const qRes = await api.get(`/quotes/${id}`);
+                        setFormData(prev => ({ ...prev, pdfPath: qRes.data.pdfFilePath }));
+
+                        setIsPdfGenerating(false);
+                        return true;
                     }
-                } catch (e) {
-                    console.error("Polling Error", e);
+                } catch (pollErr) {
+                    console.warn(`Polling error (attempt ${i + 1}):`, pollErr);
                 }
-            }, 3000);
+                // Wait
+                await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
+            }
 
-            // Timeout after 5 mins
-            setTimeout(() => {
-                if (isPdfGenerating) {
-                    clearInterval(pollInterval);
-                    setIsPdfGenerating(false);
-                }
-            }, 300000);
-
-        } catch (error) {
-            console.error("PDF Gen Error", error);
+            // Timeout
+            alert("Timeout : L'agent Windows met trop de temps à générer le PDF.\nVeuillez réessayer dans quelques secondes.");
             setIsPdfGenerating(false);
-            alert("Erreur lors de la demande PDF.");
+            return false;
+
+        } catch (error: any) {
+            console.error(error);
+            const msg = error.response?.data?.error || "Erreur de connexion Agent.";
+            alert(`Erreur génération PDF: ${msg}`);
+            setIsPdfGenerating(false);
+            return false;
         }
     };
+
     const location = useLocation();
 
     // Poll for Revision Completion
@@ -462,14 +486,11 @@ export default function QuoteForm() {
                 // Redirect to edit mode
                 navigate(`/quotes/${res.data.id}`);
             } else {
-                await api.put(`/quotes/${id}`, payload);
+                const res = await api.put(`/quotes/${id}`, payload);
 
-                // Update Project Number Of Lines if changed
-                if (formData.projectId) {
-                    await api.put(`/soumissions/${formData.projectId}`, {
-                        numberOfLines: (formData as any).projectNumberOfLines
-                    });
-                }
+                // CRITICAL: Update local state with response (contains pdfFilePath: null)
+                setFormData(prev => ({ ...prev, ...res.data }));
+
                 // Update Project Number Of Lines if changed
                 if (formData.projectId) {
                     await api.put(`/soumissions/${formData.projectId}`, {
@@ -551,7 +572,7 @@ export default function QuoteForm() {
                             <ArrowLeftIcon className="h-5 w-5" />
                         </button>
                         <h1 className="text-lg font-bold text-gray-900 truncate">
-                            {isNew ? 'Nouvelle Soumission' : `Soumission ${formData.reference} (vFix)`}
+                            {isNew ? 'Nouvelle Soumission' : `Soumission ${formData.reference}`}
                         </h1>
                     </div>
 
@@ -626,8 +647,24 @@ export default function QuoteForm() {
                                 className={`inline-flex items-center rounded px-3 py-2 text-sm font-semibold text-white shadow-sm ${activeAction === 'GENERATE' ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-500'}`}
                                 disabled={!!activeAction}
                             >
-                                {activeAction === 'GENERATE' ? 'Génération...' : 'Générer'}
+                                {activeAction === 'GENERATE' ? 'Génération...' : 'Générer Excel'}
                             </button>
+                        )}
+
+                        {/* 3. MISE EN PRODUCTION (ORANGE) & DATE LABEL - Visible ONLY if Quote is SENT */}
+                        {id && isSent && (
+                            <div className="flex items-center gap-4">
+                                <span className="text-gray-600 font-medium text-sm">
+                                    Soumission émise le {new Date(formData.dateIssued || new Date()).toLocaleDateString()}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowProductionModal(true)}
+                                    className="inline-flex items-center rounded px-3 py-2 text-sm font-semibold text-white shadow-sm bg-orange-600 hover:bg-orange-500"
+                                >
+                                    Mise en Production
+                                </button>
+                            </div>
                         )}
 
                         {/* 3. REINTEGRER EXCEL (PURPLE) - HIDDEN IF SENT */}
@@ -667,8 +704,8 @@ export default function QuoteForm() {
                             </label>
                         )}
 
-                        {/* 4. COPIER (ORANGE) - VISIBLE ALWAYS (except New) */}
-                        {!isNew && (
+                        {/* 4. COPIER (ORANGE) - HIDDEN IF SENT */}
+                        {!isNew && !isSent && (
                             <button
                                 type="button"
                                 onClick={() => setShowDuplicateModal(true)}
@@ -679,8 +716,8 @@ export default function QuoteForm() {
                             </button>
                         )}
 
-                        {/* 5. REVISER (YELLOW) - VISIBLE IF NOT NEW (Even if ReadOnly/Sent) */}
-                        {!isNew && (
+                        {/* 5. REVISER (YELLOW) - VISIBLE IF NOT NEW AND NOT SENT */}
+                        {!isNew && !isSent && (
                             <button
                                 type="button"
                                 onClick={() => setShowRevisionModal(true)}
@@ -714,7 +751,7 @@ export default function QuoteForm() {
                                                 window.open(url, '_blank');
                                             } catch (err: any) {
                                                 console.error("PDF Download Error", err);
-                                                alert("Erreur lors de l'ouverture du PDF (Authentification ou Fichier manquant).");
+                                                alert("Aucun PDF de créé ! (Veuillez cliquer sur 'Créer PDF' d'abord)");
                                             }
                                         }}
                                         className="absolute top-full mt-1 text-[10px] text-blue-600 hover:text-blue-800 underline leading-none whitespace-nowrap"
@@ -725,83 +762,75 @@ export default function QuoteForm() {
                             </div>
                         )}
 
-                        {/* 6. EMETTRE (RED DARK) - MOVED BEFORE PDF */}
-                        {!isNew && formData.status !== 'Accepted' && (
+                        {/* 6. EMETTRE (RED DARK) - HIDDEN IF SENT */}
+                        {!isNew && !isSent && formData.status !== 'Accepted' && (
                             <button
                                 type="button"
+                                disabled={isPdfGenerating || !!activeAction}
                                 onClick={async () => {
-                                    // 1. Prepare Template
-                                    // 1. Prepare Template
-                                    const contactName = contacts.find((c: any) => c.id === (formData as any).contactId)?.firstName || 'Client';
+                                    // 1. Check Real PDF Existence (Server-Side)
+                                    try {
+                                        // Prepare Template Logic First (to be ready when modal opens)
+                                        const contactName = contacts.find((c: any) => c.id === (formData as any).contactId)?.firstName || 'Client';
+                                        let projectName = '';
+                                        if (formData.project && formData.project.name) {
+                                            projectName = formData.project.name;
+                                        } else {
+                                            const p = projects.find(p => p.id === formData.projectId);
+                                            projectName = p ? p.name : '(Projet Inconnu)';
+                                        }
+                                        const client = clients.find(c => c.id === formData.thirdPartyId);
+                                        const rep = representatives.find(r => r.id === (formData as any).representativeId) ||
+                                            (client?.representativeId ? representatives.find(r => r.id === client.representativeId) : null);
+                                        const repName = rep ? `${rep.firstName} ${rep.lastName}` : (client?.language === 'en' ? 'Your Representative' : 'Votre Représentant');
+                                        const repCell = rep?.mobile || rep?.phone || '';
+                                        const repEmail = rep?.email || '';
+                                        const contactParts = [];
+                                        const isEn = client?.language === 'en' || client?.language === 'EN';
+                                        if (repCell) contactParts.push(isEn ? `at ${repCell}` : `au ${repCell}`);
+                                        if (repEmail) contactParts.push(isEn ? `or by email at ${repEmail}` : `ou par email à ${repEmail}`);
+                                        const contactDetails = contactParts.join(' ');
+                                        let template = '';
+                                        let subject = '';
+                                        if (isEn) {
+                                            subject = `Quote ${formData.reference} - ${projectName}`;
+                                            template = `Hello ${contactName},\n\nPlease find attached your quote ${formData.reference} regarding project ${projectName}.\n\nIf you have any questions, please contact ${repName}${contactDetails ? ' ' + contactDetails : ''}.\n\nThank you for your trust.\n\nProduction Team.`;
+                                        } else {
+                                            subject = `Soumission ${formData.reference} - ${projectName}`;
+                                            template = `Bonjour ${contactName},\n\nVeuillez trouver ci-joint votre soumission ${formData.reference} concernant le projet ${projectName}.\n\nSi vous avez des questions, contactez ${repName}${contactDetails ? ' ' + contactDetails : ''}.\n\nMerci pour votre confiance.\n\nL'équipe de Production.`;
+                                        }
+                                        const contactEmail = (contacts.find((c: any) => c.id === (formData as any).contactId)?.email) || 'N/A';
+                                        setEmailDetails({
+                                            to: contactEmail,
+                                            cc: repEmail || 'N/A'
+                                        });
+                                        setEmailBody(template);
+                                        setEmailSubject(subject);
 
-                                    // Robust Project Lookup
-                                    let projectName = '';
-                                    if (formData.project && formData.project.name) {
-                                        projectName = formData.project.name;
-                                    } else {
-                                        const p = projects.find(p => p.id === formData.projectId);
-                                        projectName = p ? p.name : '(Projet Inconnu)';
+                                        // 2. CHECK STATUS
+                                        const checkRes = await api.get(`/quotes/${id}/pdf-status`);
+                                        const isReady = checkRes.data.ready;
+
+                                        if (!isReady) {
+                                            // Trigger Generation
+                                            const success = await handlePdfGeneration();
+                                            if (!success) {
+                                                alert("Impossible de générer le PDF. L'agent ne répond pas.");
+                                                return;
+                                            }
+                                        }
+                                        // 3. Open Modal (PDF is ready)
+                                        setShowEmitModal(true);
+
+                                    } catch (e) {
+                                        console.error("Emit Check Error", e);
+                                        alert("Erreur technique lors de la vérification du PDF.");
                                     }
-
-                                    const client = clients.find(c => c.id === formData.thirdPartyId);
-
-                                    const rep = representatives.find(r => r.id === (formData as any).representativeId) ||
-                                        (client?.representativeId ? representatives.find(r => r.id === client.representativeId) : null);
-
-                                    const repName = rep ? `${rep.firstName} ${rep.lastName}` : (client?.language === 'en' ? 'Your Representative' : 'Votre Représentant');
-                                    const repCell = rep?.mobile || rep?.phone || ''; // FIXED: Use 'mobile' (or phone fallback) from DB schema
-                                    const repEmail = rep?.email || '';
-
-                                    // Build contact details string cleanly to avoid double spaces
-                                    const contactParts = [];
-                                    const isEn = client?.language === 'en' || client?.language === 'EN';
-
-                                    if (repCell) contactParts.push(isEn ? `at ${repCell}` : `au ${repCell}`);
-                                    if (repEmail) contactParts.push(isEn ? `or by email at ${repEmail}` : `ou par email à ${repEmail}`);
-                                    const contactDetails = contactParts.join(' ');
-
-                                    let template = '';
-                                    let subject = '';
-
-                                    if (isEn) {
-                                        subject = `Quote ${formData.reference} - ${projectName}`;
-                                        template = `Hello ${contactName},
-
-Please find attached your quote ${formData.reference} regarding project ${projectName}.
-
-If you have any questions, please contact ${repName}${contactDetails ? ' ' + contactDetails : ''}.
-
-Thank you for your trust.
-
-Production Team.`;
-                                    } else {
-                                        subject = `Soumission ${formData.reference} - ${projectName}`;
-                                        template = `Bonjour ${contactName},
-
-Veuillez trouver ci-joint votre soumission ${formData.reference} concernant le projet ${projectName}.
-
-Si vous avez des questions, contactez ${repName}${contactDetails ? ' ' + contactDetails : ''}.
-
-Merci pour votre confiance.
-
-L'équipe de Production.`;
-                                    }
-
-                                    const contactEmail = (contacts.find((c: any) => c.id === (formData as any).contactId)?.email) || 'N/A';
-                                    setEmailDetails({
-                                        to: contactEmail,
-                                        cc: repEmail || 'N/A'
-                                    });
-
-                                    setEmailBody(template);
-                                    setEmailSubject(subject);
-                                    setShowEmitModal(true);
                                 }}
 
-                                className="inline-flex items-center rounded px-3 py-2 text-sm font-semibold text-white shadow-sm bg-red-900 hover:bg-red-800"
-                                disabled={!!activeAction}
+                                className={`inline-flex items-center rounded px-3 py-2 text-sm font-semibold text-white shadow-sm ${isPdfGenerating ? 'bg-gray-400 cursor-wait' : 'bg-red-900 hover:bg-red-800'}`}
                             >
-                                Émettre
+                                {isPdfGenerating ? 'Génération PDF...' : 'Émettre'}
                             </button>
                         )}
 
@@ -1508,6 +1537,21 @@ L'équipe de Production.`;
                         </div >
                     )
                 }
+                {/* PRODUCTION MODAL */}
+                <ProductionModal
+                    isOpen={showProductionModal}
+                    onClose={() => setShowProductionModal(false)}
+                    quoteId={id || ''}
+                    reference={formData.reference}
+                    pdfUrl={formData.pdfPath}
+                    project={formData.project}
+                    client={selectedClient}
+                    defaultWeeks={formData.estimatedWeeks ? parseInt(formData.estimatedWeeks) : 4}
+                    onSuccess={(workOrderId) => {
+                        navigate(`/production/${workOrderId}`);
+                    }}
+                />
+
                 {/* DUPLICATE MODAL */}
                 {
                     showDuplicateModal && (
@@ -1587,7 +1631,7 @@ L'équipe de Production.`;
 
                                                             // 3. Trigger Download (Restored)
                                                             try {
-                                                                const response = await api.get(`/quotes/${newQuoteId}/download-result?t=${Date.now()}`, {
+                                                                const response = await api.get(`/quotes/${newQuoteId}/download-excel?t=${Date.now()}`, {
                                                                     responseType: 'blob',
                                                                 });
                                                                 const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -1708,20 +1752,34 @@ L'équipe de Production.`;
                                 <div className="text-right">
                                     <button
                                         type="button"
-                                        className="text-sm text-blue-600 hover:text-blue-800 underline"
+                                        disabled={isGeneratingPdf}
+                                        className={`text-sm underline ${isGeneratingPdf ? 'text-gray-500 cursor-wait' : 'text-blue-600 hover:text-blue-800'}`}
                                         onClick={async (e) => {
                                             e.preventDefault();
+                                            setIsGeneratingPdf(true);
                                             try {
-                                                const response = await api.get(`/quotes/${id}/download-pdf`, { responseType: 'blob' });
+                                                const response = await api.get(`/quotes/${id}/pdf-view`, { responseType: 'blob' });
                                                 const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
                                                 window.open(url, '_blank');
-                                            } catch (err) {
-                                                console.error("PDF Preview Error (Modal)", err);
-                                                alert("Erreur: Impossible de prévisualiser le PDF (Non trouvé ou Auth).");
+                                            } catch (err: any) {
+                                                console.error("PDF Preview Error", err);
+                                                if (err.response && err.response.data instanceof Blob) {
+                                                    const text = await err.response.data.text();
+                                                    try {
+                                                        const json = JSON.parse(text);
+                                                        alert(`Erreur PDF: ${json.error || ''}\n${json.details || ''}`);
+                                                    } catch {
+                                                        alert("Erreur: Timeout Agent ou Fichier non trouvé.");
+                                                    }
+                                                } else {
+                                                    alert("Erreur technique PDF.");
+                                                }
+                                            } finally {
+                                                setIsGeneratingPdf(false);
                                             }
                                         }}
                                     >
-                                        Voir le PDF joint à ce courriel
+                                        {isGeneratingPdf ? 'Génération du PDF en cours (Agent)...' : 'Voir le PDF joint à ce courriel'}
                                     </button>
                                 </div>
 
@@ -1737,29 +1795,34 @@ L'équipe de Production.`;
                                         type="button"
                                         className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md"
                                         onClick={async () => {
-                                            setShowEmitModal(false);
-                                            setActiveAction('EMIT');
+                                            if (isSending) return;
+                                            setIsSending(true);
                                             try {
                                                 await api.post(`/quotes/${id}/emit`, { message: emailBody, subject: emailSubject });
-                                                setActiveAction('EMIT_SUCCESS'); // Show success message
+                                                setActiveAction('EMIT_SUCCESS');
+                                                // Success!
+                                                setShowEmitModal(false); // Close Email Modal
+                                                // setShowProductionModal(true); // REMOVED (User Request: Stay on Quote)
+
                                                 fetchQuote();
-                                                setTimeout(() => setActiveAction(null), 1500); // Auto-dismiss after 1.5s
+                                                setTimeout(() => setActiveAction(null), 1500);
                                             } catch (error: any) {
-                                                setActiveAction(null); // UNBLOCK UI BEFORE ALERT
                                                 console.error("Emit Error", error);
-                                                // Show detailed error from backend
                                                 const detail = error.response?.data?.details || error.response?.data?.error || error.message;
                                                 alert("Erreur lors de l'envoi: " + (typeof detail === 'object' ? JSON.stringify(detail) : detail));
+                                            } finally {
+                                                setIsSending(false);
                                             }
                                         }}
                                     >
-                                        Envoyer
+                                        {isSending ? 'Envoi en cours (Patientez)...' : 'Envoyer'}
                                     </button>
                                 </div>
                             </div>
                         </div>
                     </div>
-                )}
+                )
+                }
 
             </form >
         </div >
