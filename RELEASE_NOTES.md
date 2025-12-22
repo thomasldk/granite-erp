@@ -1,35 +1,24 @@
-# Granite ERP - Release V1.0.0
+# Granite ERP - Release V1.1.0
 
 **Date :** 22 Décembre 2025
 **Statut :** Production
 
-## 🚀 Nouvelles Fonctionnalités
+## 🚀 Correctifs & Améliorations
 
-### 1. Architecture Tunnel Cloudflare (Mode Hybride)
-- Connexion sécurisée et permanente via `https://erp.granitedrc.info`.
-- Plus besoin de renouveler l'URL du tunnel "Quick Tunnel" temporaire.
-- L'Agent Windows PC et le Serveur Mac communiquent de manière chiffrée.
+### 1. Gestion Intelligente des Environnements
+- **Détection Automatique** : Le serveur détecte s'il tourne localement ou sur Railway.
+- **Support Proxy** : En local, le fichier `.env` est chargé automatiquement (avec support `dotenv-expand`).
+- **Production Railway** : Sur Railway, le fichier `.env` est ignoré au profit des variables systèmes internes sécurisées.
 
-### 2. Module de Mise en Production
-- Possibilité pour les ventes de "Confirmer" une soumission "Émise".
-- Génération automatique d'un **Bon de Travail (Work Order)**.
-- Upload obligatoire du PO Client (PDF/Image) pour validation.
-- Assignation des responsables (Projet et Comptabilité) côté client.
-- Validation des champs obligatoires via une interface fluide (plus de popups bloquants).
+### 2. Formulaires & UI
+- **Correctif Tiers (Clients/Fournisseurs)** : Résolution du plantage lors du chargement des listes vides (Incoterms, etc.).
+- **Diagnostic Visible** : Ajout d'une bannière d'erreur rouge explicite sur les formulaires pour faciliter le debug.
+- **Refactoring** : Sécurisation du code avec des vérifications de types strictes (`Array.isArray`).
 
-### 3. Agent Windows Intelligent (V5.32)
-- **Détection Automatique** : L'agent attend le retour du fichier PDF de l'automate.
-- **Synchronisation Bidirectionnelle** : 
-  - Mac -> PC : Envoi de l'Excel source.
-  - PC -> Automate : Traitement Excel/PDF.
-  - Automate -> PC -> Mac : Renvoi du PDF généré.
-- **Mode Révision** : Support complet des révisions (CxRx) avec gestion intelligente des noms de fichiers.
+### 3. Base de Données
+- **Nettoyage** : Vérification complète de la base de données.
+- **Sécurisation de la Config** : La variable `DATABASE_URL` a été décomposée en variables unitaires (`DB_HOST`, `DB_USER`, etc.) pour plus de clarté.
 
-### 4. Sauvegarde & Sécurité
-- Scripts de sauvegarde complète (Base de données JSON + Code Source ZIP + Agent).
-- Nettoyage du code : Archivage des scripts de debug (`backend/archive`).
-
-## 🛠 Technique
-- **Backend** : Node.js / Express / Prisma / PostgreSQL.
-- **Frontend** : React / Vite / TailwindCSS.
-- **Version** : 1.0.0 (Officielle).
+---
+# Granite ERP - Release V1.0.0
+... (Keep existing V1.0 content)

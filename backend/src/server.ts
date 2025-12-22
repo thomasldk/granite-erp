@@ -1,8 +1,18 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import dotenvExpand from 'dotenv-expand';
 
-dotenv.config();
+// AUTO-DETECT ENVIRONMENT:
+// If running in Railway, we must rely on System Variables (Internal Network).
+// If running locally, we load .env (which might contain Proxy/Tunnel settings).
+if (!process.env.RAILWAY_ENVIRONMENT) {
+    console.log("📍 Local Environment Detected: Loading .env file...");
+    const env = dotenv.config();
+    dotenvExpand.expand(env);
+} else {
+    console.log("🚀 Railway Environment Detected: Skipping .env (Using System Variables)");
+}
 
 const app = express();
 console.log("Checking Environment Variables...");

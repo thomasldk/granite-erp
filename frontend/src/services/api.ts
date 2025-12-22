@@ -2,10 +2,8 @@
 import axios from 'axios';
 
 
-// Hardcoded for production stability (COMMENTED OUT FOR DEV)
-// const apiUrl = 'https://granite-erp-production.up.railway.app/api';
-const apiUrl = 'http://localhost:5006/api';
-// const apiUrl = import.meta.env.VITE_API_URL || '/api';
+// Adapts automatically to Localhost or Cloudflare Tunnel via Vite Proxy
+const apiUrl = '/api';
 console.log('🔗 API URL:', apiUrl);
 
 const api = axios.create({

@@ -63,32 +63,39 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
         validityDuration: ''
     });
 
+    const [error, setError] = useState<string | null>(null); // Added for visibility
+
     const isClient = formData.type === 'Client';
     const singular = isClient ? 'Client' : 'Fournisseur';
     const basePath = isClient ? '/clients' : '/suppliers';
 
     useEffect(() => {
         const init = async () => {
+            setError(null); // Reset
             try {
+                // ... (Promise.all block identical)
                 const [repsData, langsData, currsData, termsData, fetchedIncoterms, sysData, suppTypes] = await Promise.all([
-                    getRepresentatives(),
-                    getLanguages(),
-                    getCurrencies(),
-                    getPaymentTerms(),
-                    fetch('/api/incoterms').then(r => r.json()).catch(() => []),
-                    fetch('/api/system-config').then(r => r.json()).catch(() => ({})),
-                    getContactTypes('Supplier').catch(() => [])
+                    getRepresentatives().catch(e => { console.error('Reps fail', e); return []; }),
+                    getLanguages().catch(e => { console.error('Langs fail', e); return []; }),
+                    getCurrencies().catch(e => { console.error('Currs fail', e); return []; }),
+                    getPaymentTerms().catch(e => { console.error('Terms fail', e); return []; }),
+                    fetch('/api/incoterms').then(r => r.json()).catch(e => { console.error('Inco fail', e); return []; }),
+                    fetch('/api/system-config').then(r => r.json()).catch(e => { console.error('SysConf fail', e); return {}; }),
+                    getContactTypes('Supplier').catch(e => { console.error('Types fail', e); return []; })
                 ]);
-                setReps(repsData || []);
-                setLanguages(langsData || []);
-                setCurrencies(currsData || []);
-                setPaymentTermsList(termsData || []);
-                setIncoterms(fetchedIncoterms || []); // Fetch Properly
-                setSystemDefaults(sysData || {});
-                setSupplierTypesList(suppTypes || []);
 
-                // V8: Pre-fill defaults only for New Clients
+                // Setters (identical)
+                setReps(Array.isArray(repsData) ? repsData.filter(Boolean) : []);
+                setLanguages(Array.isArray(langsData) ? langsData.filter(Boolean) : []);
+                setCurrencies(Array.isArray(currsData) ? currsData.filter(Boolean) : []);
+                setPaymentTermsList(Array.isArray(termsData) ? termsData.filter(Boolean) : []);
+                setIncoterms(Array.isArray(fetchedIncoterms) ? fetchedIncoterms.filter(Boolean) : []);
+                setSystemDefaults(sysData || {});
+                setSupplierTypesList(Array.isArray(suppTypes) ? suppTypes.filter(Boolean) : []);
+
+                // ... (Default Pre-fill block identical)
                 if (!id && sysData) {
+                    // ... (keep existing logic)
                     setFormData(prev => ({
                         ...prev,
                         semiStandardRate: sysData.defaultSemiStandardRate !== undefined ? String(sysData.defaultSemiStandardRate) : '',
@@ -96,78 +103,78 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                         palletPrice: sysData.defaultPalletPrice !== undefined ? String(sysData.defaultPalletPrice) : '',
                         palletRequired: sysData.defaultPalletRequired !== undefined ? String(sysData.defaultPalletRequired) : 'false',
                         exchangeRate: sysData.defaultExchangeRate !== undefined ? String(sysData.defaultExchangeRate) : '',
-
-                        // V8 Payment Defaults
                         paymentTermId: sysData.defaultPaymentTermId || '',
                         paymentDays: sysData.defaultPaymentDays !== undefined ? String(sysData.defaultPaymentDays) : '30',
                         depositPercentage: sysData.defaultDepositPercentage !== undefined ? String(sysData.defaultDepositPercentage) : '0',
                         discountPercentage: sysData.defaultDiscountPercentage !== undefined ? String(sysData.defaultDiscountPercentage) : '0',
                         discountDays: sysData.defaultDiscountDays !== undefined ? String(sysData.defaultDiscountDays) : '10',
-
                         validityDuration: sysData.defaultValidityDuration !== undefined ? String(sysData.defaultValidityDuration) : '30',
-
-                        // V8 Measure Unit Default
                         unitSystem: (sysData.defaultMeasureUnit === 'm') ? 'Metric' : 'Imperial'
                     }));
                 }
 
                 if (id) {
                     setLoading(true);
-                    const client = await getThirdPartyById(id);
+                    try {
+                        console.log(`Fetching Client ID: ${id}`);
+                        const client = await getThirdPartyById(id);
+                        console.log("Client Fetched:", client);
 
-                    if (!client) {
-                        console.error("Client not found for ID:", id);
-                        alert("Client introuvable.");
-                        navigate(basePath);
-                        return;
+                        if (!client) {
+                            throw new Error("Données client vides (null)");
+                        }
+
+                        const mainAddr = client.addresses?.find((a: any) => a.type === 'Main') || {};
+
+                        setFormData({
+                            name: client.name || '',
+                            code: client.code || '',
+                            phone: client.phone || '',
+                            mobile: (client as any).mobile || '',
+                            fax: client.fax || '',
+                            website: client.website || '',
+                            type: (client.type as 'Client' | 'Supplier') || 'Client',
+                            defaultCurrency: client.defaultCurrency || 'CAD',
+                            supplierType: client.supplierType || '',
+                            priceListUrl: client.priceListUrl || '',
+                            priceListDate: client.priceListDate || '',
+                            paymentTerms: client.paymentTerms || '',
+                            paymentTermId: client.paymentTermId || '',
+                            paymentDays: client.paymentDays !== undefined ? String(client.paymentDays) : '0',
+                            depositPercentage: client.depositPercentage !== undefined ? String(client.depositPercentage) : '0',
+                            taxScheme: client.taxScheme || 'TPS/TVQ',
+                            creditLimit: client.creditLimit ? String(client.creditLimit) : '',
+                            repName: client.repName || '',
+                            language: client.language || 'fr',
+                            unitSystem: (client as any).unitSystem || 'Imperial',
+                            incoterm: (client as any).incoterm || '',
+                            incotermId: (client as any).incotermId || '',
+                            incotermCustomText: (client as any).incotermCustomText || '',
+                            internalNotes: client.internalNotes || '',
+                            addressLine1: mainAddr.line1 || '',
+                            addressCity: mainAddr.city || '',
+                            addressState: mainAddr.state || '',
+                            addressZip: mainAddr.zipCode || '',
+                            addressCountry: mainAddr.country || 'Canada',
+                            semiStandardRate: (client as any).semiStandardRate !== null && (client as any).semiStandardRate !== undefined ? String((client as any).semiStandardRate) : '',
+                            salesCurrency: (client as any).salesCurrency || '',
+                            palletPrice: (client as any).palletPrice !== null && (client as any).palletPrice !== undefined ? String((client as any).palletPrice) : '',
+                            palletRequired: (client as any).palletRequired === null || (client as any).palletRequired === undefined ? '' : String((client as any).palletRequired),
+                            exchangeRate: (client as any).exchangeRate !== null && (client as any).exchangeRate !== undefined ? String((client as any).exchangeRate) : '',
+                            discountPercentage: (client as any).discountPercentage !== undefined && (client as any).discountPercentage !== null ? String((client as any).discountPercentage) : '',
+                            discountDays: (client as any).discountDays !== undefined && (client as any).discountDays !== null ? String((client as any).discountDays) : '',
+                            paymentCustomText: (client as any).paymentCustomText || '',
+                            validityDuration: (client as any).validityDuration !== undefined && (client as any).validityDuration !== null ? String((client as any).validityDuration) : ''
+                        });
+                    } catch (err: any) {
+                        console.error("FATAL ERROR FETCHING CLIENT:", err);
+                        setError(`Erreur chargement client: ${err.message || err}`);
                     }
-
-                    const mainAddr = client.addresses?.find((a: any) => a.type === 'Main') || {};
-
-                    setFormData({
-                        name: client.name || '',
-                        code: client.code || '',
-                        phone: client.phone || '',
-                        mobile: (client as any).mobile || '',
-                        fax: client.fax || '',
-                        website: client.website || '',
-                        type: (client.type as 'Client' | 'Supplier') || 'Client',
-                        defaultCurrency: client.defaultCurrency || 'CAD',
-                        supplierType: client.supplierType || '',
-                        priceListUrl: client.priceListUrl || '',
-                        priceListDate: client.priceListDate || '',
-                        paymentTerms: client.paymentTerms || '',
-                        paymentTermId: client.paymentTermId || '',
-                        paymentDays: client.paymentDays !== undefined ? String(client.paymentDays) : '0',
-                        depositPercentage: client.depositPercentage !== undefined ? String(client.depositPercentage) : '0',
-                        taxScheme: client.taxScheme || 'TPS/TVQ',
-                        creditLimit: client.creditLimit ? String(client.creditLimit) : '',
-                        repName: client.repName || '',
-                        language: client.language || 'fr',
-                        unitSystem: (client as any).unitSystem || 'Imperial',
-                        incoterm: (client as any).incoterm || '',
-                        incotermId: (client as any).incotermId || '',
-                        incotermCustomText: (client as any).incotermCustomText || '',
-                        internalNotes: client.internalNotes || '',
-                        addressLine1: mainAddr.line1 || '',
-                        addressCity: mainAddr.city || '',
-                        addressState: mainAddr.state || '',
-                        addressZip: mainAddr.zipCode || '',
-                        addressCountry: mainAddr.country || 'Canada',
-                        semiStandardRate: (client as any).semiStandardRate !== null && (client as any).semiStandardRate !== undefined ? String((client as any).semiStandardRate) : '',
-                        salesCurrency: (client as any).salesCurrency || '',
-                        palletPrice: (client as any).palletPrice !== null && (client as any).palletPrice !== undefined ? String((client as any).palletPrice) : '',
-                        palletRequired: (client as any).palletRequired === null || (client as any).palletRequired === undefined ? '' : String((client as any).palletRequired),
-                        exchangeRate: (client as any).exchangeRate !== null && (client as any).exchangeRate !== undefined ? String((client as any).exchangeRate) : '',
-                        discountPercentage: (client as any).discountPercentage !== undefined && (client as any).discountPercentage !== null ? String((client as any).discountPercentage) : '',
-                        discountDays: (client as any).discountDays !== undefined && (client as any).discountDays !== null ? String((client as any).discountDays) : '',
-                        paymentCustomText: (client as any).paymentCustomText || '',
-                        validityDuration: (client as any).validityDuration !== undefined && (client as any).validityDuration !== null ? String((client as any).validityDuration) : ''
-                    });
                     setLoading(false);
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error("Error initializing form", error);
+                setError(`Erreur initialisation: ${error.message || error}`);
                 setLoading(false);
             }
         };
@@ -278,6 +285,12 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
 
     return (
         <div className="p-8 max-w-2xl mx-auto">
+            {error && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
+                    <strong className="font-bold">Erreur! </strong>
+                    <span className="block sm:inline">{error}</span>
+                </div>
+            )}
             <h1 className="text-3xl font-bold text-gray-900 mb-6">
                 {id ? `Modifier le ${singular}` : `Nouveau ${singular}`}
             </h1>
