@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { createThirdParty, getThirdPartyById, updateThirdParty, getLanguages, getCurrencies, getContactTypes } from '../../services/thirdPartyService';
+import api from '../../services/api'; // Added import
+import { createThirdParty, getThirdPartyById, updateThirdParty, getLanguages, getCurrencies, getContactTypes, getThirdParties } from '../../services/thirdPartyService';
 import { getRepresentatives, Representative } from '../../services/representativeService';
 import { getPaymentTerms, PaymentTerm, generatePaymentTermLabel } from '../../services/paymentTermService';
 import { formatPhoneNumber } from '../../utils/formatters';
@@ -18,6 +19,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
     const [incoterms, setIncoterms] = useState<any[]>([]); // New
     const [paymentTermsList, setPaymentTermsList] = useState<PaymentTerm[]>([]);
     const [supplierTypesList, setSupplierTypesList] = useState<any[]>([]); // Added
+    const [brokers, setBrokers] = useState<any[]>([]); // New
     const [systemDefaults, setSystemDefaults] = useState<any>({}); // New v8
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
@@ -44,6 +46,8 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
         incoterm: '',
         incotermId: '', // New
         incotermCustomText: '', // New
+        taxId: '', // New
+        customsBrokerId: '', // New
         internalNotes: '',
         // Address
         addressLine1: '',
@@ -74,15 +78,18 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
             setError(null); // Reset
             try {
                 // ... (Promise.all block identical)
-                const [repsData, langsData, currsData, termsData, fetchedIncoterms, sysData, suppTypes] = await Promise.all([
+                const [repsData, langsData, currsData, termsData, fetchedIncoterms, sysData, suppTypes, brokersData] = await Promise.all([
                     getRepresentatives().catch(e => { console.error('Reps fail', e); return []; }),
                     getLanguages().catch(e => { console.error('Langs fail', e); return []; }),
                     getCurrencies().catch(e => { console.error('Currs fail', e); return []; }),
                     getPaymentTerms().catch(e => { console.error('Terms fail', e); return []; }),
-                    fetch('/api/incoterms').then(r => r.json()).catch(e => { console.error('Inco fail', e); return []; }),
-                    fetch('/api/system-config').then(r => r.json()).catch(e => { console.error('SysConf fail', e); return {}; }),
-                    getContactTypes('Supplier').catch(e => { console.error('Types fail', e); return []; })
+                    api.get('/incoterms').then(r => r.data).catch(e => { console.error('Inco fail', e); return []; }),
+                    api.get('/system-config').then(r => r.data).catch(e => { console.error('SysConf fail', e); return {}; }),
+                    getContactTypes('Supplier').catch(e => { console.error('Types fail', e); return []; }),
+                    getThirdParties('Supplier').catch(e => { console.error('Brokers fail', e); return []; })
                 ]);
+
+                console.log('DEBUG INCOTERMS:', fetchedIncoterms);
 
                 // Setters (identical)
                 setReps(Array.isArray(repsData) ? repsData.filter(Boolean) : []);
@@ -92,6 +99,8 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                 setIncoterms(Array.isArray(fetchedIncoterms) ? fetchedIncoterms.filter(Boolean) : []);
                 setSystemDefaults(sysData || {});
                 setSupplierTypesList(Array.isArray(suppTypes) ? suppTypes.filter(Boolean) : []);
+                setBrokers(Array.isArray(brokersData) ? brokersData.filter(Boolean) : []);
+
 
                 // ... (Default Pre-fill block identical)
                 if (!id && sysData) {
@@ -148,8 +157,10 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                             language: client.language || 'fr',
                             unitSystem: (client as any).unitSystem || 'Imperial',
                             incoterm: (client as any).incoterm || '',
-                            incotermId: (client as any).incotermId || '',
+                            incotermId: (client as any).incotermId || (Array.isArray(fetchedIncoterms) ? fetchedIncoterms.find((i: any) => i.name === (client as any).incoterm)?.id : '') || '',
                             incotermCustomText: (client as any).incotermCustomText || '',
+                            taxId: (client as any).taxId || '',
+                            customsBrokerId: (client as any).customsBrokerId || '',
                             internalNotes: client.internalNotes || '',
                             addressLine1: mainAddr.line1 || '',
                             addressCity: mainAddr.city || '',
@@ -263,7 +274,9 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                 discountPercentage: formData.discountPercentage ? parseFloat(formData.discountPercentage) : 0,
                 discountDays: formData.discountDays ? parseInt(formData.discountDays) : 0,
                 paymentCustomText: formData.paymentCustomText || null,
-                validityDuration: formData.validityDuration ? parseInt(formData.validityDuration) : null
+                validityDuration: formData.validityDuration ? parseInt(formData.validityDuration) : null,
+                taxId: formData.taxId || undefined, // Use undefined instead of null
+                customsBrokerId: formData.customsBrokerId || undefined // Use undefined instead of null
             };
 
             if (id) {
@@ -591,6 +604,43 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                         )}
                     </div>
 
+                    {/* NEW FIELDS: Tax ID & Broker (Client Only) */}
+                    {formData.type === 'Client' && (
+                        <div className="grid grid-cols-2 gap-6 mb-6">
+                            <div>
+                                <label className="block text-slate-700 text-sm font-bold mb-2">
+                                    Numéro de Taxe / IRS
+                                </label>
+                                <input
+                                    className="w-full shadow-sm border-slate-300 rounded-lg py-2 px-3 text-slate-700 focus:ring-2 focus:ring-blue-500"
+                                    name="taxId"
+                                    type="text"
+                                    placeholder="Ex: 123-456-789"
+                                    value={formData.taxId}
+                                    onChange={handleChange}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-slate-700 text-sm font-bold mb-2">
+                                    Courtier en Douane
+                                </label>
+                                <select
+                                    className="w-full shadow-sm border-slate-300 rounded-lg py-2 px-3 text-slate-700 bg-white focus:ring-2 focus:ring-blue-500"
+                                    name="customsBrokerId"
+                                    value={formData.customsBrokerId}
+                                    onChange={handleChange}
+                                >
+                                    <option value="">-- Sélectionner --</option>
+                                    {brokers.filter((b: any) => b.supplierType === 'Courtier').map((broker: any) => (
+                                        <option key={broker.id} value={broker.id}>
+                                            {broker.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    )}
+
                     {/* ROW 2: Payment Terms (Full Width Card) */}
                     <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
                         <div className="flex flex-col md:flex-row gap-6 mb-6">
@@ -634,13 +684,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                                                     if (formData.paymentCustomText) return formData.paymentCustomText;
 
                                                     // Generate Dynamic Label with Overrides included
-                                                    let label = generatePaymentTermLabel(term.code, days, deposit, formData.language, discount, dDays);
-
-                                                    // If there's a discount, append it to visual preview if not already handled by standard generator
-                                                    if (discount > 0 && !label.includes('%')) {
-                                                        label += ` (avec ${discount}% d'escompte si payé sous ${dDays} jours)`;
-                                                    }
-                                                    return label;
+                                                    return generatePaymentTermLabel(term.code, days, deposit, formData.language, discount, dDays);
                                                 })()}
                                             </p>
                                         </div>

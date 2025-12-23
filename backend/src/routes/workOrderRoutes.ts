@@ -29,6 +29,7 @@ router.get('/next-reference', workOrderController.getNextReference); // Add this
 router.get('/', workOrderController.getWorkOrders);
 router.patch('/:id', workOrderController.updateWorkOrder);
 router.post('/:id/pallets', workOrderController.createPallet);
+router.patch('/:id/pallets/:palletId', workOrderController.updatePallet); // Add Update Path
 router.get('/:id', workOrderController.getWorkOrderById);
 router.get('/:id/po-view', workOrderController.viewClientPO); // Add this
 

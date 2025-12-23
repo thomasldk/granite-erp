@@ -16,7 +16,8 @@ interface WorkOrder {
         items: any[]; // New for Production Line View
     };
     clientPOFilePath?: string;
-    productionSite?: { name: string }; // New
+    productionSite?: { name: string };
+    pallets?: any[]; // Allow pallets to pass through
 }
 
 export default function ProductionDashboard() {
@@ -32,6 +33,7 @@ export default function ProductionDashboard() {
     const fetchWorkOrders = async () => {
         try {
             const res = await api.get('/work-orders');
+            console.log("Dashboard fetched WOs:", res.data); // DEBUG
             setWorkOrders(res.data);
         } catch (error) {
             console.error(error);

@@ -124,7 +124,10 @@ export const getWorkOrders = async (req: Request, res: Response) => {
                         items: true // Needed for Production Line View
                     }
                 },
-                productionSite: true // Include Site Name
+                productionSite: true, // Include Site Name
+                pallets: {
+                    include: { items: true }
+                }
             },
             orderBy: { createdAt: 'desc' }
         });
@@ -214,6 +217,66 @@ export const createPallet = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Error creating Pallet:', error);
         res.status(500).json({ error: 'Failed to create Pallet' });
+    }
+};
+
+export const updatePallet = async (req: Request, res: Response) => {
+    try {
+        const { id, palletId } = req.params; // id=workOrder, palletId=pallet
+        const { status, items } = req.body; // items = [{ quoteItemId, quantity }]
+
+        // 1. Update Status & Items
+        // If items are provided, we replace them entirely (Transaction-like)
+        const updateData: any = {};
+        if (status) updateData.status = status;
+
+        // If generic update (status only), simple update
+        if (!items) {
+            const updated = await prisma.pallet.update({
+                where: { id: palletId },
+                data: updateData,
+                include: { items: true }
+            });
+            return res.json(updated);
+        }
+
+        // If items provided, use transaction to replace items
+        const updatedPallet = await prisma.$transaction(async (tx) => {
+            // Update pallet details
+            const p = await tx.pallet.update({
+                where: { id: palletId },
+                data: updateData
+            });
+
+            // Delete old items
+            await tx.palletItem.deleteMany({
+                where: { palletId }
+            });
+
+            // Create new items (filter out 0 quantity)
+            const validItems = items.filter((i: any) => parseFloat(i.quantity) > 0);
+
+            if (validItems.length > 0) {
+                await tx.palletItem.createMany({
+                    data: validItems.map((item: any) => ({
+                        palletId,
+                        quoteItemId: item.quoteItemId,
+                        quantity: parseFloat(item.quantity)
+                    }))
+                });
+            }
+
+            return tx.pallet.findUnique({
+                where: { id: palletId },
+                include: { items: true }
+            });
+        });
+
+        res.json(updatedPallet);
+
+    } catch (error) {
+        console.error('Error updating Pallet:', error);
+        res.status(500).json({ error: 'Failed to update Pallet' });
     }
 };
 

@@ -23,6 +23,9 @@ export interface ThirdParty {
     repName?: string;
     language?: string;
     internalNotes?: string;
+    taxId?: string; // Added
+    customsBrokerId?: string; // Added
+    customsBroker?: { name: string }; // Optional relation data
     // Address fields for creation
     addressLine1?: string;
     addressCity?: string;

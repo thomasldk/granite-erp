@@ -543,6 +543,7 @@ export default function QuoteForm() {
 
     // Helper to determine if Locked Down (Sent)
     const isSent = formData.status === 'Sent';
+    const isInProduction = formData.status === 'Accepted' || formData.status === 'In Production';
 
     return (
         <div className="max-w-[1920px] mx-auto p-2 bg-slate-50 relative min-h-screen">
@@ -574,6 +575,15 @@ export default function QuoteForm() {
                         <h1 className="text-lg font-bold text-gray-900 truncate">
                             {isNew ? 'Nouvelle Soumission' : `Soumission ${formData.reference}`}
                         </h1>
+                        {!isNew && (
+                            <span className={`ml-4 px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-sm ${formData.status === 'Draft' ? 'bg-gray-100 text-gray-800 border-gray-200' :
+                                formData.status === 'Sent' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                                    isInProduction ? 'bg-green-100 text-green-800 border-green-200' :
+                                        'bg-gray-100 text-gray-800'
+                                }`}>
+                                {isInProduction ? 'Status: In Production' : formData.status}
+                            </span>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-2 flex-nowrap">
@@ -704,8 +714,8 @@ export default function QuoteForm() {
                             </label>
                         )}
 
-                        {/* 4. COPIER (ORANGE) - HIDDEN IF SENT */}
-                        {!isNew && !isSent && (
+                        {/* 4. COPIER (ORANGE) - HIDDEN IF SENT OR PRODUCTION */}
+                        {!isNew && !isSent && !isInProduction && (
                             <button
                                 type="button"
                                 onClick={() => setShowDuplicateModal(true)}
@@ -716,8 +726,8 @@ export default function QuoteForm() {
                             </button>
                         )}
 
-                        {/* 5. REVISER (YELLOW) - VISIBLE IF NOT NEW AND NOT SENT */}
-                        {!isNew && !isSent && (
+                        {/* 5. REVISER (YELLOW) - VISIBLE IF NOT NEW AND NOT SENT OR PRODUCTION */}
+                        {!isNew && !isSent && !isInProduction && (
                             <button
                                 type="button"
                                 onClick={() => setShowRevisionModal(true)}
@@ -728,8 +738,8 @@ export default function QuoteForm() {
                             </button>
                         )}
 
-                        {/* 6. PDF (RED) - HIDDEN IF SENT */}
-                        {!isNew && !isSent && (
+                        {/* 6. PDF (RED) - HIDDEN IF SENT OR PRODUCTION */}
+                        {!isNew && !isSent && !isInProduction && (
                             <div className="relative flex flex-col items-center">
                                 <button
                                     type="button"
@@ -762,8 +772,8 @@ export default function QuoteForm() {
                             </div>
                         )}
 
-                        {/* 6. EMETTRE (RED DARK) - HIDDEN IF SENT */}
-                        {!isNew && !isSent && formData.status !== 'Accepted' && (
+                        {/* 6. EMETTRE (RED DARK) - HIDDEN IF SENT OR PRODUCTION */}
+                        {!isNew && !isSent && !isInProduction && (
                             <button
                                 type="button"
                                 disabled={isPdfGenerating || !!activeAction}

@@ -18,7 +18,8 @@ export const createThirdParty = async (req: Request, res: Response) => {
             // V8
             semiStandardRate, salesCurrency, palletPrice, palletRequired,
             discountPercentage, discountDays, paymentCustomText, exchangeRate,
-            validityDuration
+            validityDuration,
+            taxId, customsBrokerId // Added
         } = req.body;
 
         const thirdParty = await prisma.thirdParty.create({
@@ -56,6 +57,8 @@ export const createThirdParty = async (req: Request, res: Response) => {
                 paymentCustomText,
                 exchangeRate: exchangeRate ? parseFloat(exchangeRate) : null,
                 validityDuration: validityDuration ? parseInt(validityDuration) : null,
+                taxId, // Added
+                customsBrokerId: customsBrokerId || null, // Added
                 addresses: {
                     create: {
                         line1: addressLine1,
@@ -173,7 +176,8 @@ export const updateThirdParty = async (req: Request, res: Response) => {
             // V8
             semiStandardRate, salesCurrency, palletPrice, palletRequired,
             discountPercentage, discountDays, paymentCustomText, exchangeRate,
-            validityDuration
+            validityDuration,
+            taxId, customsBrokerId // Added
         } = req.body;
 
         // update core fields
@@ -203,7 +207,9 @@ export const updateThirdParty = async (req: Request, res: Response) => {
                 discountDays: discountDays !== undefined ? parseInt(discountDays) : undefined,
                 paymentCustomText,
                 exchangeRate: exchangeRate !== undefined ? parseFloat(exchangeRate) : undefined,
-                validityDuration: validityDuration !== undefined ? parseInt(validityDuration) : undefined
+                validityDuration: validityDuration !== undefined ? parseInt(validityDuration) : undefined,
+                taxId, // Added
+                customsBrokerId: customsBrokerId || null // Added
             }
         });
 

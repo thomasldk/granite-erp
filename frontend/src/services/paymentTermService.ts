@@ -33,14 +33,14 @@ export const generatePaymentTermLabel = (code: number, days: number, deposit: nu
         }
     } else {
         switch (code) {
-            case 1: return "Payment upon confirmation of order";
+            case 1: return "Payment on confirmation of order";
             case 2: return `${deposit}% deposit on confirmation of order, balance before delivery`;
-            case 3: return `${deposit}% deposit on confirmation of order, balance net ${days} days after date of production`; // Changed
-            case 4: return `net ${days} days and ${discountPercent}% discount if payment by WIRE TRANSFER is received before ${discountDays} days from date of invoice`; // V8
-            case 5: return `net ${days} days of date of invoice`;
+            case 3: return `${deposit}% deposit on confirmation of order, balance net ${days} days after date of production`;
+            case 4: return `net ${days} days and ${discountPercent}% discount if payment by WIRE TRANSFER is received before ${discountDays} days from date of invoice`;
+            case 5: return `Net ${days} days from date of invoice`;
             case 6: return "Terms to be confirmed";
-            case 7: return "Manual entry"; // V8
-            case 8: return `${deposit}% deposit on confirmation of order and ${discountPercent}% discount on balance if payment received before ${discountDays} days from date of invoice`; // V8
+            case 7: return "Manual entry";
+            case 8: return `${deposit}% deposit on confirmation of order and ${discountPercent}% discount on balance if payment received before ${discountDays} days from date of invoice`;
             default: return "";
         }
     }

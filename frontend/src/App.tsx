@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { SystemConfigPage } from './pages/settings/SystemConfigPage';
 import { UsersIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import ClientList from './pages/clients/ClientList';
@@ -53,6 +53,14 @@ const Layout: React.FC = () => {
     const [isEquipmentsSubOpen, setIsEquipmentsSubOpen] = useState(true);
     const [isPartsSubOpen, setIsPartsSubOpen] = useState(true);
     const { logout, user } = useAuth(); // Access Logout
+    const location = useLocation();
+    const mainRef = useRef<HTMLElement>(null);
+
+    useEffect(() => {
+        if (mainRef.current) {
+            mainRef.current.scrollTo(0, 0);
+        }
+    }, [location.pathname]);
 
     return (
         <div className="min-h-screen bg-gray-50 flex">
@@ -245,7 +253,7 @@ const Layout: React.FC = () => {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
+            <main ref={mainRef} className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
                 <Outlet />
             </main>
         </div>

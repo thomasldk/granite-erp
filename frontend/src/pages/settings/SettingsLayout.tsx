@@ -1,7 +1,22 @@
-import React from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import React, { useEffect, useRef } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
 const SettingsLayout: React.FC = () => {
+    const location = useLocation();
+    const mainRef = useRef<HTMLElement>(null);
+
+    useEffect(() => {
+        // Use setTimeout to ensure DOM is fully updated before scrolling
+        const timer = setTimeout(() => {
+            if (mainRef.current) {
+                // Try both methods for maximum compatibility
+                mainRef.current.scrollTo({ top: 0, behavior: 'instant' });
+                mainRef.current.scrollTop = 0;
+            }
+        }, 0);
+        return () => clearTimeout(timer);
+    }, [location.pathname]);
+
     return (
         <div className="flex h-full">
             <aside className="w-64 bg-white border-r border-gray-200 pt-8">
@@ -136,7 +151,7 @@ const SettingsLayout: React.FC = () => {
                     </NavLink>
                 </nav>
             </aside>
-            <main className="flex-1 p-8 overflow-auto">
+            <main ref={mainRef} className="flex-1 p-8 overflow-auto">
                 <Outlet />
             </main>
         </div>

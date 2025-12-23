@@ -280,9 +280,8 @@ const StoneForm: React.FC<{ defaultCategory?: string }> = ({ defaultCategory }) 
                             onChange={handleChange}
                         >
                             <option value="Granite">Granite</option>
-                            <option value="Quartz">Quartz</option>
-                            <option value="Porcelaine">Porcelaine</option>
-                            <option value="Autre">Autre</option>
+                            <option value="Calcaire">Calcaire</option>
+                            <option value="Grès">Grès</option>
                         </select>
                     )}
                 </div>

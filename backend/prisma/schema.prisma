@@ -75,6 +75,12 @@ model ThirdParty {
   quotes             Quote[]
   incotermRef        Incoterm?    @relation(fields: [incotermId], references: [id])
   paymentTerm        PaymentTerm? @relation(fields: [paymentTermId], references: [id])
+
+  // New Fields
+  taxId              String?      // IRS / Tax Number
+  customsBrokerId    String?
+  customsBroker      ThirdParty?  @relation("CustomsBroker", fields: [customsBrokerId], references: [id])
+  brokeredClients    ThirdParty[] @relation("CustomsBroker")
 }
 
 model PaymentTerm {
