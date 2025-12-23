@@ -27,6 +27,8 @@ const upload = multer({ storage });
 router.post('/', upload.single('clientPOFile'), workOrderController.createWorkOrder);
 router.get('/next-reference', workOrderController.getNextReference); // Add this BEFORE /:id
 router.get('/', workOrderController.getWorkOrders);
+router.patch('/:id', workOrderController.updateWorkOrder);
+router.post('/:id/pallets', workOrderController.createPallet);
 router.get('/:id', workOrderController.getWorkOrderById);
 router.get('/:id/po-view', workOrderController.viewClientPO); // Add this
 

@@ -25,6 +25,8 @@ export default function ProductionOrderDetail() {
     const { id } = useParams();
     const [wo, setWo] = useState<WorkOrder | null>(null);
     const [loading, setLoading] = useState(true);
+    // State to track inputs for new pallet: { quoteItemId: quantity }
+    const [palletInputs, setPalletInputs] = useState<Record<string, number>>({});
 
     useEffect(() => {
         if (id) fetchWorkOrder();
@@ -55,6 +57,28 @@ export default function ProductionOrderDetail() {
             });
         });
         return total;
+    };
+
+    const handleCreatePallet = async () => {
+        // Filter items with quantity > 0
+        const itemsToPack = Object.entries(palletInputs)
+            .filter(([_, qty]) => qty > 0)
+            .map(([quoteItemId, quantity]) => ({ quoteItemId, quantity }));
+
+        if (itemsToPack.length === 0) {
+            alert("Veuillez saisir des quantités pour la palette.");
+            return;
+        }
+
+        try {
+            await api.post(`/work-orders/${id}/pallets`, { items: itemsToPack });
+            alert("Palette créée avec succès !");
+            setPalletInputs({}); // Reset inputs
+            fetchWorkOrder(); // Refresh to update "Remaining" and "Produced" counts
+        } catch (e) {
+            console.error(e);
+            alert("Erreur lors de la création de la palette.");
+        }
     };
 
     return (
@@ -113,17 +137,16 @@ export default function ProductionOrderDetail() {
                 </div>
             </div>
 
-            {/* ACTIONS / PALLETS */}
-            <div className="mb-4 flex justify-between items-center bg-white p-3 rounded shadow-sm">
-                <h3 className="text-lg font-bold">Informations détaillées (Palettes: {wo.pallets.length})</h3>
-                <div className="space-x-2">
-                    <button className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700">
-                        + Créer Palette
-                    </button>
-                    <button className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700">
-                        Ajouter Item à Palette
-                    </button>
-                </div>
+            {/* ACTIONS / PALLETS HEADER REMOVED - INTEGRATED BELOW */}
+
+            <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-800">Détails de production & Palettisation</h3>
+                <button
+                    onClick={handleCreatePallet}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold shadow-md transition-colors flex items-center gap-2"
+                >
+                    <span>📦</span> Créer Palette
+                </button>
             </div>
 
             {/* TABLE */}
@@ -131,15 +154,14 @@ export default function ProductionOrderDetail() {
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
                     <thead className="bg-gray-800 text-white">
                         <tr>
-                            <th className="px-3 py-2 text-left">Ligne</th>
-                            <th className="px-3 py-2 text-left">Statut</th>
-                            <th className="px-3 py-2 text-left">Tag</th>
+                            <th className="px-3 py-2 text-left w-16">Ligne</th>
+                            <th className="px-3 py-2 text-left w-32">Ref</th>
+                            <th className="px-3 py-2 text-left w-32">Tag</th>
                             <th className="px-3 py-2 text-left">Item</th>
-                            <th className="px-3 py-2 text-left">Finis</th>
-                            <th className="px-3 py-2 text-right">Qté Initiale</th>
-                            <th className="px-3 py-2 text-right">Qté Produite (Pal)</th>
-                            <th className="px-3 py-2 text-right">Reste à Produire</th>
-                            <th className="px-3 py-2 text-right">Unit</th>
+                            {/* <th className="px-3 py-2 text-left">Finis</th> */}
+                            <th className="px-3 py-2 text-center w-24">Qté Initiale</th>
+                            <th className="px-3 py-2 text-center w-24">Reste</th>
+                            <th className="px-3 py-2 text-center w-32 bg-blue-900 border-l border-blue-700">Qté Palette</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -147,29 +169,48 @@ export default function ProductionOrderDetail() {
                             const produced = getProducedQty(item.id);
                             const remaining = (item.quantity - produced);
                             const isComplete = remaining <= 0;
+                            const inputVal = palletInputs[item.id] || '';
 
                             return (
-                                <tr key={item.id || index} className={isComplete ? 'bg-green-50' : 'hover:bg-gray-50'}>
-                                    <td className="px-3 py-2 font-medium">{item.lineNo}</td>
+                                <tr key={item.id || index} className={isComplete ? 'bg-green-50 opacity-75' : 'hover:bg-gray-50'}>
+                                    <td className="px-3 py-2 font-medium text-gray-500">{item.lineNo}</td>
+                                    <td className="px-3 py-2 font-medium">{item.refReference || '-'}</td>
+                                    <td className="px-3 py-2 font-bold">{item.tag || '-'}</td>
                                     <td className="px-3 py-2">
-                                        <span className={`px-2 py-0.5 rounded text-xs ${isComplete ? 'bg-green-200 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                            {isComplete ? 'Complet' : '00 - Ouvert'}
-                                        </span>
+                                        <div className="font-medium text-gray-900">{item.product || item.description}</div>
+                                        {/* <div className="text-gray-500 text-xs">{item.description}</div> */}
                                     </td>
-                                    <td className="px-3 py-2 font-bold">{item.tag}</td>
-                                    <td className="px-3 py-2">
-                                        <div className="font-medium text-xs">{item.material}</div>
-                                        <div className="text-gray-500 text-xs">{item.description}</div>
-                                    </td>
-                                    <td className="px-3 py-2">{item.finish}</td>
+                                    {/* <td className="px-3 py-2">{item.finish}</td> */}
 
                                     {/* QUANTITIES */}
-                                    <td className="px-3 py-2 text-right font-bold">{item.quantity}</td>
-                                    <td className="px-3 py-2 text-right text-blue-600 font-medium">{produced}</td>
-                                    <td className="px-3 py-2 text-right font-bold text-red-600">
+                                    <td className="px-3 py-2 text-center font-bold text-gray-700">{item.quantity}</td>
+                                    {/* <td className="px-3 py-2 text-right text-blue-600 font-medium">{produced}</td> */}
+                                    <td className="px-3 py-2 text-center font-bold text-red-600">
                                         {remaining > 0 ? remaining : 0}
                                     </td>
-                                    <td className="px-3 py-2 text-right">{item.unit}</td>
+
+                                    {/* PALLET INPUT */}
+                                    <td className="px-3 py-2 text-center bg-blue-50 border-l border-blue-100 table-cell-input">
+                                        {!isComplete && (
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                max={remaining}
+                                                className={`w-20 text-center border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-bold ${inputVal ? 'bg-white border-blue-500 shadow-sm' : 'bg-transparent'}`}
+                                                placeholder="0"
+                                                value={inputVal}
+                                                onChange={(e) => {
+                                                    const val = parseFloat(e.target.value);
+                                                    setPalletInputs(prev => ({
+                                                        ...prev,
+                                                        [item.id]: isNaN(val) ? 0 : val
+                                                    }));
+                                                }}
+                                                onFocus={(e) => e.target.select()}
+                                            />
+                                        )}
+                                        {isComplete && <span className="text-green-600 font-bold">✓</span>}
+                                    </td>
                                 </tr>
                             );
                         })}

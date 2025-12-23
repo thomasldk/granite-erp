@@ -120,7 +120,8 @@ export const getWorkOrders = async (req: Request, res: Response) => {
                 quote: {
                     include: {
                         client: true,
-                        project: true
+                        project: true,
+                        items: true // Needed for Production Line View
                     }
                 },
                 productionSite: true // Include Site Name
@@ -163,6 +164,59 @@ export const getWorkOrderById = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Failed to fetch Work Order' });
     }
 };
+
+export const updateWorkOrder = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const data = req.body;
+
+        const updatedWO = await prisma.workOrder.update({
+            where: { id },
+            data: data
+        });
+
+        res.json(updatedWO);
+    } catch (error) {
+        console.error('Error updating Work Order:', error);
+        res.status(500).json({ error: 'Failed to update Work Order' });
+    }
+};
+
+export const createPallet = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params; // WorkOrderId
+        const { items } = req.body; // Array of { quoteItemId, quantity }
+
+        // Get next pallet number for this WO
+        const lastPallet = await prisma.pallet.findFirst({
+            where: { workOrderId: id },
+            orderBy: { number: 'desc' }
+        });
+        const number = (lastPallet?.number || 0) + 1;
+
+        // Create Pallet
+        const pallet = await prisma.pallet.create({
+            data: {
+                workOrderId: id,
+                number,
+                status: 'Open',
+                items: {
+                    create: items.map((item: any) => ({
+                        quoteItemId: item.quoteItemId,
+                        quantity: parseFloat(item.quantity)
+                    }))
+                }
+            },
+            include: { items: true }
+        });
+
+        res.status(201).json(pallet);
+    } catch (error) {
+        console.error('Error creating Pallet:', error);
+        res.status(500).json({ error: 'Failed to create Pallet' });
+    }
+};
+
 // 9. View Client PO
 export const viewClientPO = async (req: Request, res: Response) => {
     try {
