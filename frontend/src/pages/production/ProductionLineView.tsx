@@ -42,7 +42,7 @@ interface WorkOrder {
         project: { name: string; measureSystem?: string };
         items: QuoteItem[];
     };
-    pallets: { items: { quoteItemId: string; quantity: number }[] }[];
+    pallets?: { items: { quoteItemId: string; quantity: number }[] }[];
 }
 
 interface ProductionLineViewProps {

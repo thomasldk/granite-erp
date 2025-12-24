@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import api from '../services/api';
 
@@ -139,7 +139,7 @@ export default function PalletEditModal({
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {quoteItems.map((item, index) => {
+                            {quoteItems.map((item) => {
                                 // Logic:
                                 // "Déjà saisi" (Gray) = The quantity currently ON THIS PALLET (before edits).
                                 //      If user changes it, they change "Nouvelle Valeur".

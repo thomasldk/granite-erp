@@ -1,4 +1,4 @@
-import React from 'react';
+// React import removed (unused)
 import { XMarkIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 import api from '../services/api';
 
