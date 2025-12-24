@@ -2,14 +2,14 @@
 import axios from 'axios';
 
 
-// Adapts automatically to Localhost or Cloudflare Tunnel via Vite Proxy
-// FIXME: Hardcoded for Production due to Railway environment variable injection issue. Revert to VITE_API_URL later.
-const apiUrl = import.meta.env.MODE === 'production'
+// Adapts automatically based on runtime hostname
+// This avoids build-time environment variable issues on Railway
+const isProduction = window.location.hostname.includes('railway.app');
+const apiUrl = isProduction
     ? 'https://granite-erp-production.up.railway.app'
     : '/api';
-console.log('🔗 API URL (Debug):', apiUrl);
-console.log('🔗 VITE_API_URL value:', import.meta.env.VITE_API_URL);
-console.log('🔗 Build Time:', new Date().toISOString());
+
+console.log('🔗 API URL:', apiUrl);
 
 const api = axios.create({
     baseURL: apiUrl
