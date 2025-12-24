@@ -375,22 +375,24 @@ export const printPalletLabel = async (req: Request, res: Response) => {
 
         const filename = `${clientName}-${btRef}-${palletNum}-${dateStr}.rak`;
 
-        // Strategy: Try direct write to Exchange Volume first, then local fallback
-        const exchangeDir = '/Volumes/demo/echange'; // Configurable?
-        let finalPath = '';
+        // Strategy: Force Agent Pickup (Tunnel Mode)
+        // We MUST write to 'pending_xml' so the Agent detects, processes, and UPLOADS the result back.
+        // Direct write to 'echange' bypasses the Agent's return tracking.
 
-        if (fs.existsSync(exchangeDir)) {
-            finalPath = path.join(exchangeDir, filename);
-        } else {
-            // Fallback to local pending_xml
-            const pendingDir = path.join(process.cwd(), 'pending_xml');
-            if (!fs.existsSync(pendingDir)) fs.mkdirSync(pendingDir, { recursive: true });
-            finalPath = path.join(pendingDir, filename);
-            console.log(`[PrintLabel] Exchange dir not found, saving to ${finalPath}`);
-        }
+        const pendingDir = path.join(process.cwd(), 'pending_xml');
+        if (!fs.existsSync(pendingDir)) fs.mkdirSync(pendingDir, { recursive: true });
 
+        // Final Path
+        const finalPath = path.join(pendingDir, filename);
+
+        // Remove Exchange direct write logic
+        /* 
+        const exchangeDir = '/Volumes/demo/echange';
+        if (fs.existsSync(exchangeDir)) ...
+        */
+
+        console.log(`[PrintLabel] Queuing for Agent in: ${finalPath}`);
         fs.writeFileSync(finalPath, xmlContent);
-        console.log(`[PrintLabel] Created ${finalPath}`);
 
         res.json({ message: 'Label sent to printer', path: finalPath, filename, clientName });
 

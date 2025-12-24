@@ -736,7 +736,10 @@ export class XmlService {
         xml += `<generation type='Etiquette'>\n`;
 
         // --- META ---
-        xml += `<meta cible='F:\\FP\\${(client.name || '').toUpperCase()}\\${(client.name || '').toUpperCase()}-${wo.reference}-${pallet.number}.xlsx'\n`;
+        // FILENAME MATCHING: Must match the RAK filename format (Client-Ref-Pal-Date) so the Agent upload logic works.
+        // The RAK filename in WorkOrderController is: Client-Ref-Pal-Date.rak
+        // So we name the Excel: Client-Ref-Pal-Date.xlsx
+        xml += `<meta cible='F:\\FP\\${(client.name || '').toUpperCase()}\\${(client.name || '').toUpperCase()}-${wo.reference}-${pallet.number}-${dateIso}.xlsx'\n`;
         xml += `print='${escape(printerName)}'\n`;
         xml += `Langue='${(client.language && client.language.toLowerCase().startsWith('en')) ? 'en' : 'fr'}'\n`;
         xml += `action='PrintSkill'\n`;
