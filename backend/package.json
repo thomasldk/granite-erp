@@ -4,9 +4,9 @@
     "description": "Backend for Granite DRC ERP",
     "main": "dist/src/server.js",
     "scripts": {
-        "start": "node dist/src/server.js",
+        "start": "npx prisma migrate deploy && node dist/src/server.js",
         "dev": "nodemon",
-        "build": "tsc",
+        "build": "npx prisma generate && tsc",
         "build:local": "tsc",
         "tunnel": "sh start_tunnel.sh"
     },
