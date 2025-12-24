@@ -2164,6 +2164,37 @@ export const processAgentBundle = async (req: Request, res: Response) => {
         const xmlContent = fs.readFileSync(xmlFile.path, 'utf-8');
         // console.log(`[Agent-Bundle] XML Content (Preview): ${xmlContent.substring(0, 500)}`);
 
+        // --- ETIQUETTE / LABEL HANDLING ---
+        // If this is a Label Return, we just stash the Excel for the User to download.
+        // We do NOT update any Quote/DB.
+        if (xmlContent.includes("type='Etiquette'") || xmlContent.includes('type="Etiquette"')) {
+            console.log('📦 [Agent-Bundle] Label (Etiquette) Bundle Detected. Saving files only.');
+
+            const uploadsDir = path.join(process.cwd(), 'uploads');
+            if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+            if (excelFile) {
+                const dest = path.join(uploadsDir, excelFile.originalname);
+                fs.copyFileSync(excelFile.path, dest);
+                console.log(`✅ [Agent-Bundle] Label Excel Saved: ${dest}`);
+                try { fs.unlinkSync(excelFile.path); } catch (e) { }
+            }
+            // If PDF label logic is ever restored...
+            if (pdfFile) {
+                const dest = path.join(uploadsDir, pdfFile.originalname);
+                fs.copyFileSync(pdfFile.path, dest);
+                console.log(`✅ [Agent-Bundle] Label PDF Saved: ${dest}`);
+                try { fs.unlinkSync(pdfFile.path); } catch (e) { }
+            }
+
+            // Clean XML
+            try { fs.unlinkSync(xmlFile.path); } catch (e) { }
+
+            return res.json({ success: true, mode: 'label' });
+        }
+
+        // --- END ETIQUETTE HANDLING ---
+
         // FIX: Handle Object Return ({ items, metadata }) vs Legacy Array
         const parsed = xmlService.parseExcelReturnXml(xmlContent);
         const items = Array.isArray(parsed) ? parsed : parsed.items;

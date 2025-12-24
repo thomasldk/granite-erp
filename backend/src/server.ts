@@ -37,6 +37,7 @@ import representativeRoutes from './routes/representativeRoutes';
 import contactTypeRoutes from './routes/contactTypeRoutes';
 import settingsRoutes from './routes/settingsRoutes';
 import quoteRoutes from './routes/quoteRoutes';
+import dashboardRoutes from './routes/dashboardRoutes';
 import projectLocationRoutes from './routes/projectLocationRoutes'; // Added
 import materialRoutes from './routes/materialRoutes';
 import paymentTermRoutes from './routes/paymentTermRoutes'; // Added
@@ -56,6 +57,8 @@ import systemConfigRoutes from './routes/systemConfigRoutes'; // Added V8
 import path from 'path'; // Added for static serving
 import * as authController from './controllers/authController'; // Authentication
 import { authenticate } from './middleware/authMiddleware';
+import userRoutes from './routes/userRoutes'; // Added V9
+import hrSettingsRoutes from './routes/hrSettingsRoutes'; // Added V10
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'))); // Serve uploads statically
 
@@ -91,9 +94,9 @@ app.use('/api/parts', partRoutes); // Added
 app.use('/api/repairs', repairRoutes); // Added
 app.use('/api/part-categories', partCategoryRoutes); // Added
 app.use('/api/system-config', systemConfigRoutes); // Added V8
-
-
-
+app.use('/api/users', userRoutes); // User Management API
+app.use('/api/hr-settings', hrSettingsRoutes); // HR Settings API
+app.use('/api/dashboard', dashboardRoutes);
 
 
 app.use('/api/sync', syncRoutes); // Added Sync Agent Routes

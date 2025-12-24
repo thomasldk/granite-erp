@@ -22,6 +22,7 @@ import ProjectLocationList from './pages/settings/ProjectLocationList';
 import ProductionSiteList from './pages/settings/ProductionSiteList';
 import MaintenanceSiteList from './pages/settings/MaintenanceSiteList';
 import IncotermList from './pages/settings/IncotermList'; // Added
+import HRSettings from './pages/settings/HRSettings'; // Added
 import SystemConfig from './pages/settings/GlobalParameters'; // Added V8
 import { DatabaseSettings } from './pages/settings/DatabaseSettings';
 import ProductionDashboard from './pages/production/ProductionDashboard';
@@ -37,6 +38,7 @@ import RepairForm from './pages/maintenance/RepairForm';
 import MechanicPlanning from './pages/maintenance/MechanicPlanning'; // Added
 import EquipmentPlanning from './pages/maintenance/EquipmentPlanning';
 import RepairPrintView from './pages/maintenance/RepairPrintView'; // Added
+import Dashboard from './pages/Dashboard'; // Added New Dashboard
 
 // Layout Component (unchanged)
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -45,13 +47,13 @@ import { Outlet } from 'react-router-dom';
 
 // Layout Component using Outlet and Logout Button
 const Layout: React.FC = () => {
-    const [isTiersOpen, setIsTiersOpen] = useState(true);
-    const [isCatalogueOpen, setIsCatalogueOpen] = useState(true);
-    const [isProductionOpen, setIsProductionOpen] = useState(true);
-    const [isMaintenanceOpen, setIsMaintenanceOpen] = useState(true);
-    const [isPlanningSubOpen, setIsPlanningSubOpen] = useState(true);
-    const [isEquipmentsSubOpen, setIsEquipmentsSubOpen] = useState(true);
-    const [isPartsSubOpen, setIsPartsSubOpen] = useState(true);
+    const [isTiersOpen, setIsTiersOpen] = useState(false);
+    const [isCatalogueOpen, setIsCatalogueOpen] = useState(false);
+    const [isProductionOpen, setIsProductionOpen] = useState(false);
+    const [isMaintenanceOpen, setIsMaintenanceOpen] = useState(false);
+    const [isPlanningSubOpen, setIsPlanningSubOpen] = useState(false);
+    const [isEquipmentsSubOpen, setIsEquipmentsSubOpen] = useState(false);
+    const [isPartsSubOpen, setIsPartsSubOpen] = useState(false);
     const { logout, user } = useAuth(); // Access Logout
     const location = useLocation();
     const mainRef = useRef<HTMLElement>(null);
@@ -61,6 +63,26 @@ const Layout: React.FC = () => {
             mainRef.current.scrollTo(0, 0);
         }
     }, [location.pathname]);
+
+    const toggleSection = (section: 'production' | 'tiers' | 'catalogue' | 'maintenance') => {
+        if (section === 'production') {
+            const willOpen = !isProductionOpen;
+            setIsProductionOpen(willOpen);
+            if (willOpen) { setIsTiersOpen(false); setIsCatalogueOpen(false); setIsMaintenanceOpen(false); }
+        } else if (section === 'tiers') {
+            const willOpen = !isTiersOpen;
+            setIsTiersOpen(willOpen);
+            if (willOpen) { setIsProductionOpen(false); setIsCatalogueOpen(false); setIsMaintenanceOpen(false); }
+        } else if (section === 'catalogue') {
+            const willOpen = !isCatalogueOpen;
+            setIsCatalogueOpen(willOpen);
+            if (willOpen) { setIsProductionOpen(false); setIsTiersOpen(false); setIsMaintenanceOpen(false); }
+        } else if (section === 'maintenance') {
+            const willOpen = !isMaintenanceOpen;
+            setIsMaintenanceOpen(willOpen);
+            if (willOpen) { setIsProductionOpen(false); setIsTiersOpen(false); setIsCatalogueOpen(false); }
+        }
+    };
 
     return (
         <div className="min-h-screen bg-gray-50 flex">
@@ -81,7 +103,7 @@ const Layout: React.FC = () => {
                         {/* Production Accordion */}
                         <li className="px-6 py-2">
                             <button
-                                onClick={() => setIsProductionOpen(!isProductionOpen)}
+                                onClick={() => toggleSection('production')}
                                 className="flex items-center justify-between w-full text-gray-300 hover:text-white group focus:outline-none transition-colors border-l-4 border-transparent hover:border-blue-500"
                             >
                                 <span className="flex items-center">
@@ -103,7 +125,7 @@ const Layout: React.FC = () => {
                         </li>
                         <li className="px-6 py-2">
                             <button
-                                onClick={() => setIsTiersOpen(!isTiersOpen)}
+                                onClick={() => toggleSection('tiers')}
                                 className="flex items-center justify-between w-full text-gray-300 hover:text-white group focus:outline-none transition-colors"
                             >
                                 <span className="flex items-center">
@@ -126,7 +148,7 @@ const Layout: React.FC = () => {
                         {/* Catalogue Accordion */}
                         <li className="px-6 py-2">
                             <button
-                                onClick={() => setIsCatalogueOpen(!isCatalogueOpen)}
+                                onClick={() => toggleSection('catalogue')}
                                 className="flex items-center justify-between w-full text-gray-300 hover:text-white group focus:outline-none transition-colors"
                             >
                                 <span className="flex items-center">
@@ -148,7 +170,7 @@ const Layout: React.FC = () => {
                         </li>
                         <li className="px-6 py-2">
                             <button
-                                onClick={() => setIsMaintenanceOpen(!isMaintenanceOpen)}
+                                onClick={() => toggleSection('maintenance')}
                                 className="flex items-center justify-between w-full text-gray-300 hover:text-white group focus:outline-none transition-colors border-l-4 border-transparent hover:border-blue-500"
                             >
                                 <span className="flex items-center">
@@ -270,25 +292,7 @@ function App() {
 
                     {/* Protected Routes inside Layout */}
                     <Route element={<Layout />}>
-                        <Route path="/" element={
-                            <div className="p-8">
-                                <h2 className="text-2xl font-bold mb-4">Bienvenue sur Granite ERP</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                                        <h3 className="text-lg font-semibold text-gray-700">Soumissions en cours</h3>
-                                        <p className="text-3xl font-bold text-primary mt-2">12</p>
-                                    </div>
-                                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                                        <h3 className="text-lg font-semibold text-gray-700">Clients Actifs</h3>
-                                        <p className="text-3xl font-bold text-secondary mt-2">45</p>
-                                    </div>
-                                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                                        <h3 className="text-lg font-semibold text-gray-700">Commandes à livrer</h3>
-                                        <p className="text-3xl font-bold text-green-600 mt-2">8</p>
-                                    </div>
-                                </div>
-                            </div>
-                        } />
+                        <Route path="/" element={<Dashboard />} />
 
                         <Route path="/clients" element={<ClientList type="Client" />} />
                         <Route path="/clients/new" element={<ClientForm defaultType="Client" />} />
@@ -351,6 +355,7 @@ function App() {
                             <Route path="system-config" element={<SystemConfig />} /> {/* Added V8 */}
                             <Route path="production-sites" element={<ProductionSiteList />} />
                             <Route path="maintenance-sites" element={<MaintenanceSiteList />} />
+                            <Route path="hr" element={<HRSettings />} />
                             <Route path="system" element={<SystemConfigPage />} />
                             <Route path="database" element={<DatabaseSettings />} />
                         </Route>

@@ -550,6 +550,7 @@ model ExchangeRateHistory {
   createdAt DateTime @default(now())
 }
 
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -557,6 +558,101 @@ model User {
   firstName String?
   lastName  String?
   role      String   @default("ADMIN") // ADMIN, USER, AGENT?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  employeeProfile EmployeeProfile?
+}
+
+model EmployeeProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Personal Info
+  employeeNumber String? // Numéro
+  gender         String? // Genre (Monsieur/Madame)
+  maritalStatus  String? // État civil
+  dob            DateTime? // Date de naissance
+  nationality    String?
+  nas            String? // N° d'assurance social (Encrypted ideally, plain for now per MVP)
+  sex            String? // Sexe
+
+  // Contact Info
+  addressLine1   String?
+  city           String?
+  province       String?
+  zipCode        String?
+  country        String?
+  phoneWork      String?
+  phoneDirect    String?
+  phoneMobile    String?
+  phoneHome      String?
+  emailWork      String? // Courriel professionnel (Daily use)
+  emailPersonal  String? // Courriel personnel
+  emergencyName  String?
+  emergencyPhone String?
+  emergencyEmail String? // Added v11
+  
+  // Functions & Rights
+  site           String?
+  department     String?
+  jobTitle       String?
+  supervisor     String?
+  dateHired      DateTime?
+  dateDeparted   DateTime?
+  vacationDays   Int?
+  vacationBalance Float?
+  
+  // Printers
+  printerLabel   String?
+  printerOffice  String?
+  
+  // Payment Info
+  paymentMethod  String? // Paiement direct, Chèque
+  bankName       String?
+  bankBranch     String?
+  bankAccount    String?
+  institutionCode String?
+  branchCode     String?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Printer {
+  id        String   @id @default(uuid())
+  name      String
+  type      String? // 'Label' or 'Office'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model JobTitle {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Role {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model HRSite {
+  id        String   @id @default(uuid())
+  name      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

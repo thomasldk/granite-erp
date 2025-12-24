@@ -2,6 +2,9 @@ import { Request, Response } from 'express';
 import prisma from '../prisma';
 import path from 'path';
 import fs from 'fs';
+import { XmlService } from '../services/xmlService';
+
+const xmlService = new XmlService();
 
 // Helper: Generate BT Reference (BT25-0001)
 const generateNextWorkOrderReference = async (): Promise<string> => {
@@ -312,5 +315,151 @@ export const getNextReference = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Error getting next reference:', error);
         res.status(500).json({ error: 'Failed to generate reference' });
+    }
+};
+// 11. Print Pallet Label
+export const printPalletLabel = async (req: Request, res: Response) => {
+    try {
+        const { palletId } = req.params;
+        const { printerName } = req.body;
+        const authUser = (req as any).user;
+
+        if (!printerName) {
+            return res.status(400).json({ error: 'Printer name is required' });
+        }
+
+        // Fetch full user for name
+        const user = await prisma.user.findUnique({ where: { id: authUser.id } });
+        if (!user) return res.status(401).json({ error: 'User not found' });
+
+        const pallet = await prisma.pallet.findUnique({
+            where: { id: palletId },
+            include: { items: true }
+        });
+
+        if (!pallet) return res.status(404).json({ error: 'Pallet not found' });
+
+        const wo = await prisma.workOrder.findUnique({
+            where: { id: pallet.workOrderId },
+            include: {
+                quote: {
+                    include: {
+                        project: true,
+                        client: true,
+                        items: true, // Need items for dimensions/weight
+                        material: true
+                    }
+                }
+            }
+        });
+
+        if (!wo) return res.status(404).json({ error: 'Work Order not found' });
+
+        // Generate XML
+        const xmlContent = await xmlService.generatePalletLabelXml({
+            pallet,
+            wo,
+            printerName,
+            user: user || { firstName: 'System', lastName: 'Admin' } // Fallback
+        });
+
+        // Save File
+        // Save File
+        // Filename Format: ClientName-BT-PalletNumber-Date (YYYY-MM-DD)
+        const safe = (s: string) => (s || '').replace(/[^a-zA-Z0-9-]/g, '_').toUpperCase();
+
+        const clientName = safe(wo.quote.client?.name || 'CLIENT');
+        const btRef = safe(wo.reference || 'WO');
+        const palletNum = pallet.number;
+        const dateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+        const filename = `${clientName}-${btRef}-${palletNum}-${dateStr}.rak`;
+
+        // Strategy: Try direct write to Exchange Volume first, then local fallback
+        const exchangeDir = '/Volumes/demo/echange'; // Configurable?
+        let finalPath = '';
+
+        if (fs.existsSync(exchangeDir)) {
+            finalPath = path.join(exchangeDir, filename);
+        } else {
+            // Fallback to local pending_xml
+            const pendingDir = path.join(process.cwd(), 'pending_xml');
+            if (!fs.existsSync(pendingDir)) fs.mkdirSync(pendingDir, { recursive: true });
+            finalPath = path.join(pendingDir, filename);
+            console.log(`[PrintLabel] Exchange dir not found, saving to ${finalPath}`);
+        }
+
+        fs.writeFileSync(finalPath, xmlContent);
+        console.log(`[PrintLabel] Created ${finalPath}`);
+
+        res.json({ message: 'Label sent to printer', path: finalPath, filename, clientName });
+
+    } catch (error: any) {
+        console.error('Error printing label:', error);
+        res.status(500).json({ error: 'Failed to print label', details: error.message });
+    }
+};
+
+// 12. Check Label Status (Poll for Return XML)
+export const checkLabelStatus = async (req: Request, res: Response) => {
+    try {
+        const { filename } = req.query;
+        if (!filename) return res.status(400).json({ error: 'Filename required' });
+
+        // User Flow: Frontend knows 'CLIENT-BT-PAL.rak'.
+        // Agent Process: 
+        // 1. Sees RAK.
+        // 2. Triggers Automate -> Automate creates Excel at F:\FP\CLIENT...
+        // 3. Agent detects return XML using RAK name.
+        // 4. Agent finds Excel at F:\FP\CLIENT... (using 'cible' path from RAK).
+        // 5. Agent UPLOADS Excel to Backend 'processAgentBundle'.
+        // 6. Backend saves Excel to 'uploads/CLIENT-BT-PAL.xlsx'.
+
+        // So we check if 'CLIENT-BT-PAL.xlsx' exists in 'uploads'.
+        const excelName = (filename as string).replace(/\.rak$/i, '.xlsx');
+        const uploadsDir = path.join(process.cwd(), 'uploads');
+        const candidatePath = path.join(uploadsDir, excelName);
+
+        if (fs.existsSync(candidatePath)) {
+            // Also check if size is > 0 (upload complete)
+            const stats = fs.statSync(candidatePath);
+            if (stats.size > 0) return res.json({ ready: true });
+        }
+
+        res.json({ ready: false });
+
+    } catch (error) {
+        console.error('Error checking label status:', error);
+        res.json({ ready: false });
+    }
+};
+
+// 13. Download Label Excel (Serve from Local Uploads)
+export const downloadLabelExcel = async (req: Request, res: Response) => {
+    try {
+        const { filename } = req.query;
+        // filename here usually comes from frontend as the RAK filename? or constructed?
+        // Let's handle both .rak and .xlsx inputs just in case.
+
+        if (!filename) return res.status(400).json({ error: 'Missing params' });
+
+        let excelName = (filename as string);
+        if (excelName.toLowerCase().endsWith('.rak')) {
+            excelName = excelName.replace(/\.rak$/i, '.xlsx');
+        }
+
+        const uploadsDir = path.join(process.cwd(), 'uploads');
+        const filePath = path.join(uploadsDir, excelName);
+
+        if (!fs.existsSync(filePath)) {
+            console.error(`Excel file not found at: ${filePath}`);
+            return res.status(404).json({ error: 'Fichier Excel introuvable (Attente de l\'Agent...)' });
+        }
+
+        res.download(filePath);
+
+    } catch (error) {
+        console.error('Error downloading label Excel:', error);
+        res.status(500).json({ error: 'Download failed' });
     }
 };

@@ -8,6 +8,10 @@ interface User {
     firstName: string;
     lastName: string;
     role: string;
+    employeeProfile?: {
+        printerLabel?: string;
+        printerOffice?: string;
+    };
 }
 
 interface AuthContextType {
@@ -15,6 +19,7 @@ interface AuthContextType {
     token: string | null;
     login: (token: string, userData: User) => void;
     logout: () => void;
+    refreshUser: () => Promise<void>;
     loading: boolean;
 }
 
@@ -70,8 +75,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         navigate('/login');
     };
 
+    const refreshUser = async () => {
+        if (!token) return;
+        try {
+            const res = await api.get('/auth/me');
+            setUser(res.data);
+            console.log("User profile refreshed:", res.data);
+        } catch (error) {
+            console.error("Failed to refresh user profile", error);
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+        <AuthContext.Provider value={{ user, token, login, logout, refreshUser, loading }}>
             {!loading && children}
         </AuthContext.Provider>
     );

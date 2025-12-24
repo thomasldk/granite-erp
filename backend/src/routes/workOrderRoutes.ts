@@ -25,12 +25,15 @@ const upload = multer({ storage });
 
 // Routes
 router.post('/', upload.single('clientPOFile'), workOrderController.createWorkOrder);
-router.get('/next-reference', workOrderController.getNextReference); // Add this BEFORE /:id
+router.get('/next-reference', workOrderController.getNextReference);
+router.get('/label/status', workOrderController.checkLabelStatus); // New
+router.get('/label/download', workOrderController.downloadLabelExcel); // New
 router.get('/', workOrderController.getWorkOrders);
 router.patch('/:id', workOrderController.updateWorkOrder);
 router.post('/:id/pallets', workOrderController.createPallet);
 router.patch('/:id/pallets/:palletId', workOrderController.updatePallet); // Add Update Path
 router.get('/:id', workOrderController.getWorkOrderById);
-router.get('/:id/po-view', workOrderController.viewClientPO); // Add this
+router.get('/:id/po-view', workOrderController.viewClientPO);
+router.post('/:id/pallets/:palletId/print', workOrderController.printPalletLabel);
 
 export default router;

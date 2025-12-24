@@ -128,6 +128,17 @@ const SettingsLayout: React.FC = () => {
                     {/* Add other sub-tabs here later */}
 
                     <NavLink
+                        to="/settings/hr"
+                        className={({ isActive }) =>
+                            `flex items-center px-6 py-2 text-sm font-medium ${isActive
+                                ? 'bg-blue-50 text-purple-700 border-r-4 border-purple-700'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }`
+                        }
+                    >
+                        Ressources Humaines
+                    </NavLink>
+                    <NavLink
                         to="/settings/system"
                         className={({ isActive }) =>
                             `flex items-center px-6 py-2 text-sm font-medium ${isActive

@@ -685,4 +685,177 @@ export class XmlService {
             return { items: [], metadata: {} };
         }
     }
+
+    async generatePalletLabelXml(data: {
+        pallet: any,
+        wo: any,
+        printerName: string,
+        user: any
+    }): Promise<string> {
+        // Construct XML String Manually for Full Control (like generateDuplicateXml)
+        // Format: PrintSkill (Zebra Label)
+
+        const { pallet, wo, printerName, user } = data;
+        const quote = wo.quote;
+        const project = quote.project;
+        const client = quote.client;
+        const now = new Date();
+
+        // Safe helpers
+        const escape = (str: string | undefined | null) => (str || '').replace(/'/g, "’").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        const formatDec = (val: number | null | undefined) => (val === null || val === undefined) ? '' : val.toString().replace('.', ',');
+        const formatMetricSys = (sys: string | undefined) => (sys === 'Metric') ? 'm' : 'an'; // 'an' seems to be imperial/default based on previous code
+
+        const dateStr = now.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+        const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }).replace(':', ':');
+        const dateIso = now.toISOString().split('T')[0]; // YYYY-MM-DD
+
+        // Helper function for Item Weight (Duped from frontend logic roughly)
+        const calcWeight = (qItem: any, qty: number) => {
+            const lbsFt3 = 175.24;
+            let vol = 0;
+            const isImp = (project.measureSystem === 'Imperial') || (!project.measureSystem);
+            if (isImp) {
+                vol = (qItem.length * qItem.width * qItem.thickness) / 1728;
+            } else {
+                vol = (qItem.length / 304.8) * (qItem.width / 304.8) * (qItem.thickness / 304.8);
+            }
+            return vol * lbsFt3 * qty;
+        };
+
+        // TOTAL WEIGHT CALCULATION
+        let calculatedTotalWeight = 0;
+        pallet.items.forEach((pItem: any) => {
+            const qItem = wo.quote.items.find((i: any) => i.id === pItem.quoteItemId);
+            if (qItem) calculatedTotalWeight += calcWeight(qItem, pItem.quantity);
+        });
+
+        // BUILD XML
+        let xml = `<?xml version='1.0'?>\n`;
+        xml += `<!--Génération par DRC le ${dateStr} ${timeStr}-->\n`;
+        xml += `<generation type='Etiquette'>\n`;
+
+        // --- META ---
+        xml += `<meta cible='F:\\FP\\${(client.name || '').toUpperCase()}\\${(client.name || '').toUpperCase()}-${wo.reference}-${pallet.number}.xlsx'\n`;
+        xml += `print='${escape(printerName)}'\n`;
+        xml += `Langue='${(client.language && client.language.toLowerCase().startsWith('en')) ? 'en' : 'fr'}'\n`;
+        xml += `action='PrintSkill'\n`;
+        xml += `modele='H:\\Modeles\\Directe\\Modèle bon de palette.xlsx'\n`;
+        xml += `appCode='03'\n`;
+        xml += `journal=''\n`;
+        xml += `socLangue='${(client.language && client.language.toLowerCase().startsWith('en')) ? 'en' : 'fr'}'\n`;
+        xml += `codeModule='07'\n`;
+        xml += `definition='C:\\Travail\\XML\\CLAUTOMATEPALETTE.xml'\n`;
+        xml += `codeApplication='03'>\n`;
+        xml += `<resultat flag=''/>\n`;
+        xml += `</meta>`;
+
+        // --- CLIENT & PALLET HEADER ---
+        xml += `<client Langue='${(client.language && client.language.toLowerCase().startsWith('en')) ? 'en' : 'fr'}'\n`;
+        xml += `nomClient='${escape((client.name || '').toUpperCase())}'/>\n`;
+
+        const palletNum = `${wo.clientPO || 'NO-PO'}/line3/${pallet.number.toString().padStart(3, '0')}`;
+
+        xml += `<Palette Poids='${formatDec(calculatedTotalWeight)}'\n`;
+        xml += `BCNumero='${escape(wo.clientPO || '')}' BTNumero='${escape(wo.reference)}'\n`;
+        xml += `Palettenumero='${escape(palletNum)}'\n`;
+        xml += `dateFermeture='${dateIso}'\n`; // YYYY-MM-DD
+        xml += `PaletteValideur='${escape(user.firstName + ' ' + user.lastName)}'>\n`;
+
+        xml += `<lignes>\n`;
+
+        for (const pItem of pallet.items) {
+            const qItem = wo.quote.items.find((i: any) => i.id === pItem.quoteItemId);
+            if (!qItem) continue;
+
+            const w = calcWeight(qItem, pItem.quantity);
+            const measureSys = (project.measureSystem === 'Imperial' || !project.measureSystem) ? 'an' : 'm';
+            const matName = qItem.material?.name || qItem.material || 'N/A';
+
+            // Each PalletItem -> One <ligne> tag
+            xml += `<ligne QTÉ='${formatDec(pItem.quantity)}'\n`;
+            xml += `TAG='${escape(qItem.tag || '')}'\n`;
+            xml += `ITEM='${escape(qItem.refReference || qItem.product || qItem.description)}'\n`;
+            xml += `Poids='${formatDec(w)}'\n`;
+            xml += `GRANITE='${escape(matName)}'\n`;
+            xml += `Largeur='${formatDec(qItem.width)}'\n`;
+            xml += `Longeur='${formatDec(qItem.length)}'\n`;
+            xml += `uLargeur='${measureSys}'\n`;
+            xml += `uLongeur='${measureSys}'\n`;
+            xml += `Epaisseur='${formatDec(qItem.thickness)}'\n`;
+            xml += `uEpaisseur='${measureSys}'/>\n`;
+        }
+
+        xml += `</lignes></Palette></generation>`;
+
+        return xml;
+    }
+
+    async generatePalletLabelPdfXml(quote: any, client: any, filename: string): Promise<string> {
+        // PDF GENERATION FOR LABEL (Submitted Model)
+        // Structure based on User Image "Fonction PDF"
+        // <generation type='Soumission'><meta action='devispdf' ...>
+
+        const doc = create({ version: '1.0' });
+        const now = new Date();
+        const dateStr = `${now.getDate().toString().padStart(2, '0')}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+        doc.com(`Génération par DRC le ${dateStr}`);
+        const root = doc.ele('generation').att('type', 'Soumission');
+
+        // Paths based on User Annotation:
+        // cible: "ecrire meta cible='F:\FP\nome du client\fichier excel de l'étiquette'"
+        // modele: "ecrire modele='F:\nxerp\nomdu projet\nom du fichier' " 
+        // dirpdf: "F:\nxerp\pdf\"
+
+        const safe = (s: any) => (s || '').replace(/[^a-zA-Z0-9-]/g, '_');
+        const clientNameUpper = (client.name || '').toUpperCase();
+        const projectName = quote.project?.name || 'Projet';
+
+        // NOTE: User annotation says "nomdu projet\nom du fichier" for modele.
+        // Assuming 'filename' passed is just the name (e.g. FP25-003931.xlsx).
+
+        // Cible (Label Excel Location?) 
+        const ciblePath = `F:\\FP\\${clientNameUpper}\\${filename}`;
+
+        // Modele (Source Excel for PDF?) - User said "F:\nxerp\nomdu projet..."
+        // If the Label Print generated it in F:\FP, maybe this path is where the PDF Engine expects it?
+        // Or maybe User assumes it's copied there? 
+        // Let's follow annotation strictly: F:\nxerp\PROJECT\FILENAME
+        // WAIT: If the file is physically in F:\FP (created by PrintSkill), then THIS path must point to it for the Agent to find it.
+        // User annotation might be copying the Quote logic.
+        // But he said "ecrire modele='F:\nxerp...'"
+        // I will use F:\nxerp structure as requested, assuming the file exists there or Agent logic handles it.
+        // RISK: File might not be there. 
+        // ALTERNATIVE: Use F:\FP path for both if that's where it is?
+        // Let's use F:\nxerp path as requested.
+        const modelePath = `F:\\nxerp\\${projectName}\\${filename}`;
+
+        const dirPdf = 'F:\\nxerp\\pdf\\';
+
+        const lang = (client.language && client.language.toLowerCase().startsWith('en')) ? 'en' : 'fr';
+
+        const meta = root.ele('meta')
+            .att('cible', ciblePath) // Destination? Or Source for Label?
+            .att('print', '')
+            .att('Langue', lang)
+            .att('action', 'devispdf')
+            .att('dirpdf', dirPdf)
+            .att('modele', modelePath) // Source?
+            .att('appCode', '03')
+            .att('journal', '')
+            .att('socLangue', lang)
+            .att('codeModule', '01')
+            .att('definition', 'C:\\Travail\\XML\\CLAUTOMATEDEVISxml')
+            .att('codeApplication', '03');
+
+        meta.ele('resultat').att('flag', '').up();
+
+        // Close tags match image: </meta><devis><externe/></devis></generation>
+        root.ele('devis').ele('externe').up().up();
+
+        const xml = doc.end({ prettyPrint: false });
+        return xml.replace(/'/g, '’').replace(/"/g, "'");
+    }
 }
+

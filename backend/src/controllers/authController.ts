@@ -25,6 +25,12 @@ export const login = async (req: Request, res: Response) => {
         // 3. Generate Token
         const token = generateToken({ id: user.id, email: user.email, role: user.role });
 
+        // 3.5 Fetch full profile for response
+        const fullUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            include: { employeeProfile: true }
+        });
+
         // 4. Return
         res.json({
             token,
@@ -33,7 +39,8 @@ export const login = async (req: Request, res: Response) => {
                 email: user.email,
                 firstName: user.firstName,
                 lastName: user.lastName,
-                role: user.role
+                role: user.role,
+                employeeProfile: fullUser?.employeeProfile
             }
         });
 
@@ -46,7 +53,10 @@ export const login = async (req: Request, res: Response) => {
 // GET CURRENT USER (ME)
 export const getMe = async (req: Request | any, res: Response) => {
     try {
-        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id },
+            include: { employeeProfile: true }
+        });
         if (!user) return res.status(404).json({ error: 'User not found' });
 
         res.json({
@@ -54,7 +64,8 @@ export const getMe = async (req: Request | any, res: Response) => {
             email: user.email,
             firstName: user.firstName,
             lastName: user.lastName,
-            role: user.role
+            role: user.role,
+            employeeProfile: user.employeeProfile
         });
     } catch (error) {
         res.status(500).json({ error: 'Error fetching user' });

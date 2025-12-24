@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api';
-import { ChevronDownIcon, FunnelIcon, MagnifyingGlassIcon, CalendarIcon, Square3Stack3DIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, Square3Stack3DIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import ProductionItemModal from '../../components/ProductionItemModal';
 
 // Define strict types matching the backend response
@@ -131,8 +131,27 @@ export default function ProductionLineView({ workOrders }: ProductionLineViewPro
             {Object.entries(groupedData).map(([siteName, clients]) => (
                 <div key={siteName} className="mb-8">
                     {/* Site Header */}
-                    <div className="bg-gray-800 text-white px-4 py-2 font-bold text-lg uppercase flex items-center">
-                        <span className="mr-2">🏭</span> {siteName}
+                    <div className="bg-gray-800 text-white px-4 py-2 font-bold text-lg uppercase flex items-center justify-between">
+                        <div className="flex items-center">
+                            <span className="mr-2">🏭</span> {siteName}
+                        </div>
+                        {/* Calculated Site Totals */}
+                        {(() => {
+                            const allSiteWos = Object.values(clients).flat();
+                            const siteTotalArea = allSiteWos.reduce((acc, wo) => acc + (wo.quote?.items || []).reduce((s, i) => s + (i.netArea || 0), 0), 0);
+                            const siteTotalVolume = allSiteWos.reduce((acc, wo) => acc + (wo.quote?.items || []).reduce((s, i) => s + (i.netVolume || 0), 0), 0);
+                            const siteTotalWeight = allSiteWos.reduce((acc, wo) => acc + (wo.quote?.items || []).reduce((s, i) => s + (i.totalWeight || 0), 0), 0);
+                            const siteTotalPrice = allSiteWos.reduce((acc, wo) => acc + (wo.quote?.items || []).reduce((s, i) => s + (i.totalPrice || 0), 0), 0);
+
+                            return (
+                                <div className="flex gap-6 text-sm font-normal normal-case text-gray-300">
+                                    <div><span className="text-gray-500 text-xs uppercase mr-1">Surface:</span>{fmt(siteTotalArea)} pi²</div>
+                                    <div><span className="text-gray-500 text-xs uppercase mr-1">Vol:</span>{fmt(siteTotalVolume)} pi³</div>
+                                    <div><span className="text-gray-500 text-xs uppercase mr-1">Poids:</span>{fmt(siteTotalWeight)} lbs</div>
+                                    <div><span className="text-gray-500 text-xs uppercase mr-1">Total:</span>{fmt(siteTotalPrice)} $</div>
+                                </div>
+                            );
+                        })()}
                     </div>
 
                     {Object.entries(clients).map(([clientName, wos]) => {
