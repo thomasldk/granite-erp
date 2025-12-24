@@ -1,5 +1,5 @@
 
-import prisma from './src/prisma';
+import prisma from '../src/prisma';
 import bcrypt from 'bcryptjs';
 
 async function resetAdmin() {

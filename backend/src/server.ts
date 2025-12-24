@@ -64,7 +64,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'))); // Ser
 
 // --- AUTHENTICATION ROUTES (PUBLIC) ---
 app.post('/api/auth/login', authController.login);
-app.post('/api/auth/seed-admin', authController.seedAdmin);
+app.get('/api/auth/seed-admin', authController.seedAdmin);
 // -------------------------------------
 
 // --- PROTECT ALL SUBSEQUENT API ROUTES ---
