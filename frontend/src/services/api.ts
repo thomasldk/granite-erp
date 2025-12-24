@@ -3,7 +3,7 @@ import axios from 'axios';
 
 
 // Adapts automatically to Localhost or Cloudflare Tunnel via Vite Proxy
-const apiUrl = '/api';
+const apiUrl = import.meta.env.VITE_API_URL || '/api';
 console.log('🔗 API URL:', apiUrl);
 
 const api = axios.create({
