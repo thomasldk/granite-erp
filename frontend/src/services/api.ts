@@ -6,7 +6,7 @@ import axios from 'axios';
 // This avoids build-time environment variable issues on Railway
 const isProduction = window.location.hostname.includes('railway.app');
 const apiUrl = isProduction
-    ? 'https://granite-erp-production.up.railway.app'
+    ? 'https://granite-erp-production.up.railway.app/api'
     : '/api';
 
 console.log('🔗 API URL:', apiUrl);
