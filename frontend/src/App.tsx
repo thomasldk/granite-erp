@@ -46,12 +46,16 @@ import LoginPage from './pages/auth/LoginPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import { Outlet } from 'react-router-dom';
 
+import DeliveryNoteList from './pages/delivery/DeliveryNoteList';
+import ReadyPallets from './pages/delivery/ReadyPallets';
+
 // Layout Component using Outlet and Logout Button
 const Layout: React.FC = () => {
     const [isTiersOpen, setIsTiersOpen] = useState(false);
     const [isCatalogueOpen, setIsCatalogueOpen] = useState(false);
     const [isProductionOpen, setIsProductionOpen] = useState(false);
     const [isMaintenanceOpen, setIsMaintenanceOpen] = useState(false);
+    const [isDeliveryOpen, setIsDeliveryOpen] = useState(false); // Added
     const [isPlanningSubOpen, setIsPlanningSubOpen] = useState(false);
     const [isEquipmentsSubOpen, setIsEquipmentsSubOpen] = useState(false);
     const [isPartsSubOpen, setIsPartsSubOpen] = useState(false);
@@ -65,23 +69,27 @@ const Layout: React.FC = () => {
         }
     }, [location.pathname]);
 
-    const toggleSection = (section: 'production' | 'tiers' | 'catalogue' | 'maintenance') => {
+    const toggleSection = (section: 'production' | 'tiers' | 'catalogue' | 'maintenance' | 'delivery') => {
         if (section === 'production') {
             const willOpen = !isProductionOpen;
             setIsProductionOpen(willOpen);
-            if (willOpen) { setIsTiersOpen(false); setIsCatalogueOpen(false); setIsMaintenanceOpen(false); }
+            if (willOpen) { setIsTiersOpen(false); setIsCatalogueOpen(false); setIsMaintenanceOpen(false); setIsDeliveryOpen(false); }
         } else if (section === 'tiers') {
             const willOpen = !isTiersOpen;
             setIsTiersOpen(willOpen);
-            if (willOpen) { setIsProductionOpen(false); setIsCatalogueOpen(false); setIsMaintenanceOpen(false); }
+            if (willOpen) { setIsProductionOpen(false); setIsCatalogueOpen(false); setIsMaintenanceOpen(false); setIsDeliveryOpen(false); }
         } else if (section === 'catalogue') {
             const willOpen = !isCatalogueOpen;
             setIsCatalogueOpen(willOpen);
-            if (willOpen) { setIsProductionOpen(false); setIsTiersOpen(false); setIsMaintenanceOpen(false); }
+            if (willOpen) { setIsProductionOpen(false); setIsTiersOpen(false); setIsMaintenanceOpen(false); setIsDeliveryOpen(false); }
         } else if (section === 'maintenance') {
             const willOpen = !isMaintenanceOpen;
             setIsMaintenanceOpen(willOpen);
-            if (willOpen) { setIsProductionOpen(false); setIsTiersOpen(false); setIsCatalogueOpen(false); }
+            if (willOpen) { setIsProductionOpen(false); setIsTiersOpen(false); setIsCatalogueOpen(false); setIsDeliveryOpen(false); }
+        } else if (section === 'delivery') {
+            const willOpen = !isDeliveryOpen;
+            setIsDeliveryOpen(willOpen);
+            if (willOpen) { setIsProductionOpen(false); setIsTiersOpen(false); setIsCatalogueOpen(false); setIsMaintenanceOpen(false); }
         }
     };
 
@@ -121,6 +129,29 @@ const Layout: React.FC = () => {
                                 <div className="ml-8 mt-2 space-y-1 text-sm border-l-2 border-gray-700 pl-4">
                                     <Link to="/production/list" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Liste des BT</Link>
                                     <Link to="/production/line" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Ligne de production</Link>
+                                </div>
+                            )}
+                        </li>
+                        {/* Delivery Accordion (New) */}
+                        <li className="px-6 py-2">
+                            <button
+                                onClick={() => toggleSection('delivery')}
+                                className="flex items-center justify-between w-full text-gray-300 hover:text-white group focus:outline-none transition-colors border-l-4 border-transparent hover:border-blue-500"
+                            >
+                                <span className="flex items-center">
+                                    <span className="w-5 h-5 mr-3 flex items-center justify-center">🚚</span>
+                                    Livraison
+                                </span>
+                                {isDeliveryOpen ? (
+                                    <ChevronDownIcon className="w-4 h-4 text-gray-500 group-hover:text-white" />
+                                ) : (
+                                    <ChevronRightIcon className="w-4 h-4 text-gray-500 group-hover:text-white" />
+                                )}
+                            </button>
+                            {isDeliveryOpen && (
+                                <div className="ml-8 mt-2 space-y-1 text-sm border-l-2 border-gray-700 pl-4">
+                                    <Link to="/delivery/notes" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Liste des BL</Link>
+                                    <Link to="/delivery/ready" className="block text-gray-400 hover:text-white py-1 transition-colors hover:translate-x-1 duration-200">Palettes Prêtes</Link>
                                 </div>
                             )}
                         </li>
@@ -323,6 +354,10 @@ function App() {
                         <Route path="/production/list" element={<ProductionDashboard />} />
                         <Route path="/production/line" element={<ProductionDashboard />} />
                         <Route path="/production/:id" element={<ProductionOrderDetail />} /> {/* Added Detail Route */}
+
+                        {/* Delivery Routes */}
+                        <Route path="/delivery/notes" element={<DeliveryNoteList />} />
+                        <Route path="/delivery/ready" element={<ReadyPallets />} />
 
                         <Route path="/maintenance" element={<MaintenanceDashboard />} />
                         <Route path="/maintenance" element={<MaintenanceDashboard />} />

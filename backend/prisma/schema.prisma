@@ -75,6 +75,7 @@ model ThirdParty {
   quotes             Quote[]
   incotermRef        Incoterm?    @relation(fields: [incotermId], references: [id])
   paymentTerm        PaymentTerm? @relation(fields: [paymentTermId], references: [id])
+  deliveryNotes      DeliveryNote[]
 
   // New Fields
   taxId              String?      // IRS / Tax Number
@@ -244,6 +245,9 @@ model Pallet {
   workOrderId String
   workOrder   WorkOrder    @relation(fields: [workOrderId], references: [id])
   items       PalletItem[]
+  
+  deliveryItem DeliveryNoteItem?
+  
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -660,4 +664,41 @@ model HRSite {
   name      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model DeliveryNote {
+  id              String             @id @default(uuid())
+  reference       String             @unique // BL-YYYY-XXXX
+  
+  clientId        String
+  client          ThirdParty         @relation(fields: [clientId], references: [id])
+  
+  deliveryAddress String?            // Snapshot address
+  carrier         String?
+  trackingNumber  String?
+  
+  status          String             @default("Draft") // Draft, Shipped
+  date            DateTime           @default(now())
+  
+  totalWeight     Float              @default(0)
+  
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  
+  items           DeliveryNoteItem[]
+}
+
+model DeliveryNoteItem {
+  id              String       @id @default(uuid())
+  
+  deliveryNoteId  String
+  deliveryNote    DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+  
+  palletId        String       @unique // One pallet belongs to one BL at a time (or history?)
+  pallet          Pallet       @relation(fields: [palletId], references: [id]) // One-to-one strictly for now, or One-to-Many?
+                                                                                 // A pallet is shipped once. So One-to-One with valid BL makes sense.
+                                                                                 // But we might delete a BL and re-ship.
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 }

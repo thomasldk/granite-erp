@@ -1561,7 +1561,9 @@ export default function QuoteForm() {
                     client={selectedClient}
                     defaultWeeks={formData.estimatedWeeks ? parseInt(formData.estimatedWeeks) : 4}
                     onSuccess={(workOrderId) => {
-                        navigate(`/production/${workOrderId}`);
+                        // navigate(`/production/${workOrderId}`); // User requested to stay on Quote
+                        fetchQuote();
+                        alert("Mise en production effectuée avec succès.");
                     }}
                 />
 

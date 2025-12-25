@@ -60,6 +60,7 @@ import { authenticate } from './middleware/authMiddleware';
 import userRoutes from './routes/userRoutes'; // Added V9
 import hrSettingsRoutes from './routes/hrSettingsRoutes'; // Added V10
 import authRoutes from './routes/authRoutes';
+import deliveryRoutes from './routes/deliveryRoutes'; // Added
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'))); // Serve uploads statically
 
@@ -103,6 +104,8 @@ app.use('/api/part-categories', partCategoryRoutes); // Added
 app.use('/api/system-config', systemConfigRoutes); // Added V8
 app.use('/api/users', userRoutes); // User Management API
 app.use('/api/hr-settings', hrSettingsRoutes); // HR Settings API
+app.use('/api/hr-settings', hrSettingsRoutes); // HR Settings API
+app.use('/api/delivery', deliveryRoutes); // Added
 app.use('/api/dashboard', dashboardRoutes);
 
 
