@@ -77,7 +77,7 @@ export const seedAdmin = async (req: Request, res: Response) => {
     try {
         const email = 'admin@granitedrc.com';
         const existing = await prisma.user.findUnique({ where: { email } });
-        const hashedPassword = await bcrypt.hash('password123', 10);
+        const hashedPassword = await bcrypt.hash('granite2025', 10);
 
         let user;
         if (existing) {
