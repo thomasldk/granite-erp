@@ -16,7 +16,7 @@ export class BackupService {
     }
 
     startAutomatedBackup() {
-        // Run immediately on startup -> DISABLED to prevent boot crash
+        // Run immediately on startup -> DISABLED to prevent boot crash on Railway
         // console.log('🚀 Triggering initial backup on startup...');
         // this.performBackupToDisk();
 

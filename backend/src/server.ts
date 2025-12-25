@@ -130,7 +130,8 @@ if (require.main === module) {
 
         // Start Backup Service
         console.log("🚀 Server Ready. Backup scheduling enabled (Hourly).");
-        console.log("🚀 Triggering initial backup on startup...");
+        // Initial backup disabled to prevent startup crashes on Railway
+        // console.log("🚀 Triggering initial backup on startup...");
         backupService.startAutomatedBackup();
     });
 
