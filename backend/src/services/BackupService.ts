@@ -35,7 +35,7 @@ export class BackupService {
         }
     }
 
-    async performBackupToDisk() {
+    async performBackupToDisk(): Promise<string | undefined> {
         try {
             const backupData = await this.generateBackupJson();
 
@@ -47,15 +47,47 @@ export class BackupService {
                 fs.mkdirSync(backupDir, { recursive: true });
             }
 
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filename = `backup-auto-${timestamp}.json`;
+            const now = new Date();
+            const pad = (n: number) => n.toString().padStart(2, '0');
+            const formattedDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+            const formattedTime = `${pad(now.getHours())}-${pad(now.getMinutes())}`;
+
+            const filename = `Granite_ERP_DB_${formattedDate}_${formattedTime}.json`;
             const filePath = path.join(backupDir, filename);
 
             fs.writeFileSync(filePath, JSON.stringify(backupData, null, 2));
             console.log(`💾 Backup saved to: ${filePath}`);
+            return filePath;
 
         } catch (error) {
-            console.error('❌ Automated backup failed:', error);
+            throw error;
+        }
+    }
+
+    getLatestBackupPath(): string | null {
+        try {
+            const backupDir = path.join(os.homedir(), 'Documents', '1Granite DRC', 'nouvelle erp 2025', 'sauvegardes');
+
+            if (!fs.existsSync(backupDir)) {
+                return null;
+            }
+
+            const files = fs.readdirSync(backupDir)
+                .filter(file => file.endsWith('.json'))
+                .map(file => ({
+                    file,
+                    mtime: fs.statSync(path.join(backupDir, file)).mtime
+                }))
+                .sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+
+            if (files.length === 0) {
+                return null;
+            }
+
+            return path.join(backupDir, files[0].file);
+        } catch (error) {
+            console.error('Error fetching latest backup path:', error);
+            return null;
         }
     }
 
@@ -65,6 +97,13 @@ export class BackupService {
         // For this ERP size, it's fine.
 
         const [
+            users,
+            employeeProfiles,
+            departments,
+            jobTitles,
+            roles,
+            hrSites,
+            printers,
             materials,
             thirdParties,
             paymentTerms,
@@ -74,6 +113,9 @@ export class BackupService {
             projects,
             quotes,
             quoteItems,
+            workOrders,
+            pallets,
+            palletItems,
             settings,
             representatives,
             contactTypes,
@@ -87,10 +129,19 @@ export class BackupService {
             repairRequests,
             repairParts,
             incoterms,
-            maintenanceSites
+            maintenanceSites,
+            systemConfigs,
+            exchangeRateHistories
         ] = await Promise.all([
+            prisma.user.findMany(),
+            prisma.employeeProfile.findMany(),
+            prisma.department.findMany(),
+            prisma.jobTitle.findMany(),
+            prisma.role.findMany(),
+            prisma.hRSite.findMany(),
+            prisma.printer.findMany(),
             prisma.material.findMany(),
-            prisma.thirdParty.findMany({ include: { contacts: true, addresses: true } }), // Deep dump for context if needed, but separate tables are safer for pure restore
+            prisma.thirdParty.findMany({ include: { contacts: true, addresses: true } }),
             prisma.paymentTerm.findMany(),
             prisma.contact.findMany(),
             prisma.address.findMany(),
@@ -98,6 +149,9 @@ export class BackupService {
             prisma.project.findMany(),
             prisma.quote.findMany(),
             prisma.quoteItem.findMany(),
+            prisma.workOrder.findMany(),
+            prisma.pallet.findMany(),
+            prisma.palletItem.findMany(),
             prisma.setting.findMany(),
             prisma.representative.findMany(),
             prisma.contactType.findMany(),
@@ -111,16 +165,25 @@ export class BackupService {
             prisma.repairRequest.findMany({ include: { parts: true } }),
             prisma.repairPart.findMany(),
             prisma.incoterm.findMany(),
-            prisma.maintenanceSite.findMany()
+            prisma.maintenanceSite.findMany(),
+            prisma.systemConfig.findMany(),
+            prisma.exchangeRateHistory.findMany()
         ]);
 
         return {
             metadata: {
                 timestamp: new Date().toISOString(),
-                version: '1.0',
+                version: '1.1',
                 appName: 'Granite DRC ERP'
             },
             data: {
+                users,
+                employeeProfiles,
+                departments,
+                jobTitles,
+                roles,
+                hrSites,
+                printers,
                 materials,
                 thirdParties,
                 paymentTerms,
@@ -130,6 +193,9 @@ export class BackupService {
                 projects,
                 quotes,
                 quoteItems,
+                workOrders,
+                pallets,
+                palletItems,
                 settings,
                 representatives,
                 contactTypes,
@@ -143,7 +209,9 @@ export class BackupService {
                 repairRequests,
                 repairParts,
                 incoterms,
-                maintenanceSites
+                maintenanceSites,
+                systemConfigs,
+                exchangeRateHistories
             }
         };
     }

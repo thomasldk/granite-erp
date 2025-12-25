@@ -4,6 +4,8 @@ import { seedPartCategories } from './seed_part_categories';
 import { seedEquipment } from './seed_equipment_data';
 import { seedParts } from './seed_parts';
 
+import bcrypt from 'bcryptjs';
+
 const prisma = new PrismaClient();
 
 async function main() {
@@ -177,6 +179,29 @@ async function main() {
     await seedEquipment();
     await seedParts();
     console.log('⚙️ Equipment and Parts restored.');
+
+    // 8. Admin User
+    const adminEmail = 'admin@granitedrc.com';
+    const adminExists = await prisma.user.findUnique({ where: { email: adminEmail } });
+    if (!adminExists) {
+        const hashedPassword = await bcrypt.hash('granite2025', 10);
+        await prisma.user.create({
+            data: {
+                email: adminEmail,
+                password: hashedPassword,
+                firstName: 'Admin',
+                lastName: 'Granite',
+                role: 'ADMIN',
+                employeeProfile: {
+                    create: {
+                        site: 'Siège Social',
+                        department: 'Direction'
+                    }
+                }
+            }
+        });
+        console.log('✅ Admin User created');
+    }
 
     console.log('🏁 Seeding finished.');
 }

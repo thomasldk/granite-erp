@@ -43,6 +43,7 @@ import Dashboard from './pages/Dashboard'; // Added New Dashboard
 // Layout Component (unchanged)
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './pages/auth/LoginPage';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import { Outlet } from 'react-router-dom';
 
 // Layout Component using Outlet and Logout Button
@@ -289,6 +290,7 @@ function App() {
                 <Routes>
                     {/* Public Route */}
                     <Route path="/login" element={<LoginPage />} />
+                    <Route path="/reset-password" element={<ResetPasswordPage />} />
 
                     {/* Protected Routes inside Layout */}
                     <Route element={<Layout />}>

@@ -1685,7 +1685,7 @@ export const downloadQuoteResult = async (req: Request, res: Response) => {
         // If status says Agent finished or we have a path, strictly try to serve it.
         // Prevent fallback to legacy if Status is Calculated.
         // FIX: Premature Download Protection. Even if we have excelFilePath, DO NOT serve if PENDING_REVISION.
-        const isPending = quote.syncStatus === 'PENDING_REVISION' || quote.syncStatus === 'PENDING';
+        const isPending = quote.syncStatus === 'PENDING_REVISION' || quote.syncStatus === 'PENDING' || quote.syncStatus === 'PENDING_DUPLICATE';
 
         if ((quote.syncStatus === 'Calculated (Agent)' || quote.excelFilePath) && !isPending) {
             console.log(`[DEBUG] Strategy A (Strict Agent). Path: ${quote.excelFilePath}, Status: ${quote.syncStatus}`);
@@ -1806,6 +1806,8 @@ export const downloadQuoteResult = async (req: Request, res: Response) => {
             return res.status(500).json({ error: 'File is empty (0 bytes)' });
         }
 
+        // CRITICAL FIX: Ensure Frontend can read the filename
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
         res.download(fullPath, excelFile, (err) => {
             if (err) {
                 console.log(`Error sending file: ${err.message}`);

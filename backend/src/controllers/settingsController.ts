@@ -109,6 +109,31 @@ export const triggerManualBackup = async (req: Request, res: Response) => {
     }
 };
 
+export const downloadLatestBackup = async (req: Request, res: Response) => {
+    try {
+        const filepath = backupService.getLatestBackupPath();
+
+        if (!filepath) {
+            return res.status(404).json({ error: 'Aucune sauvegarde trouvée.' });
+        }
+
+        const stats = require('fs').statSync(filepath);
+        // Rename for download: Granite_ERP_DB_yyyy-mm-dd_hh-mm.json
+        const mtime = new Date(stats.mtime);
+
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        const formattedDate = `${mtime.getFullYear()}-${pad(mtime.getMonth() + 1)}-${pad(mtime.getDate())}`;
+        const formattedTime = `${pad(mtime.getHours())}-${pad(mtime.getMinutes())}`;
+        const downloadName = `Granite_ERP_DB_${formattedDate}_${formattedTime}.json`;
+
+        res.download(filepath, downloadName);
+
+    } catch (error) {
+        console.error("Download Latest Backup Error:", error);
+        res.status(500).json({ error: 'Failed to download latest backup' });
+    }
+};
+
 // System Settings (Generic Key-Value)
 export const getSystemSettings = async (req: Request, res: Response) => {
     try {

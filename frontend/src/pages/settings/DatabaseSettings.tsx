@@ -19,6 +19,16 @@ export const DatabaseSettings: React.FC = () => {
         }
     };
 
+    const handleDownloadLatest = async () => {
+        try {
+            // Initiate download
+            window.location.href = `${api.defaults.baseURL}/settings/backup/latest`;
+        } catch (error) {
+            console.error('Failed to download latest backup', error);
+            alert('Erreur lors du téléchargement de la dernière sauvegarde.');
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="md:flex md:items-center md:justify-between">
@@ -45,16 +55,27 @@ export const DatabaseSettings: React.FC = () => {
                             Utile avant de faire des modifications importantes. Le fichier sera nommé avec la date et l'heure actuelle.
                         </p>
                     </div>
-                    <div className="mt-5">
+                    <div className="mt-5 flex gap-4">
                         <button
                             type="button"
                             onClick={handleDownloadBackup}
-                            className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                            className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
                         >
                             <svg className="-ml-0.5 mr-1.5 h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clipRule="evenodd" />
                             </svg>
-                            Télécharger la sauvegarde
+                            Faire une sauvegarde
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleDownloadLatest}
+                            className="inline-flex items-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-500"
+                        >
+                            <svg className="-ml-0.5 mr-1.5 h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9.75v6.75m0 0l-3-3m3 3l3-3m-8.25 6a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                            </svg>
+                            Télécharger la dernière sauvegarde
                         </button>
                     </div>
                 </div>

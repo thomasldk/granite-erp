@@ -53,7 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             initAuth();
         } else {
             setLoading(false);
-            if (location.pathname !== '/login') {
+            if (location.pathname !== '/login' && location.pathname !== '/reset-password') {
                 navigate('/login');
             }
         }

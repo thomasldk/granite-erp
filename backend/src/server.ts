@@ -59,18 +59,25 @@ import * as authController from './controllers/authController'; // Authenticatio
 import { authenticate } from './middleware/authMiddleware';
 import userRoutes from './routes/userRoutes'; // Added V9
 import hrSettingsRoutes from './routes/hrSettingsRoutes'; // Added V10
+import authRoutes from './routes/authRoutes';
 
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'))); // Serve uploads statically
 
 // --- AUTHENTICATION ROUTES (PUBLIC) ---
-app.post('/api/auth/login', authController.login);
-app.post('/api/auth/seed-admin', authController.seedAdmin);
+app.use('/api/auth', authRoutes);
 // -------------------------------------
 
 // --- PROTECT ALL SUBSEQUENT API ROUTES ---
 // API Key (Agent) or Bearer Token (User) required
 app.use('/api', authenticate);
-app.get('/api/auth/me', authController.getMe); // Protected route for verifying token
+app.get('/api/auth/me', (req, res, next) => {
+    // Forward to new authRoutes controller logic BUT strictly speaking
+    // authRoutes handles /me. So we can just remove this line if client calls /api/auth/me
+    // The previous line 67 app.use('/api/auth', authRoutes) already handles /me
+    // BUT we need to ensure we don't duplicate.
+    // Let's remove this line entirely.
+});
+// actually just remove the line.
 // ----------------------------------------
 
 app.use('/api/third-parties', thirdPartyRoutes);

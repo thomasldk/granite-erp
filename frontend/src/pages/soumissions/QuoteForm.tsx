@@ -625,9 +625,12 @@ export default function QuoteForm() {
                                                         link.href = url;
 
                                                         // Detect Filename from Header
+                                                        // Detect Filename from Header
                                                         const disposition = response.headers['content-disposition'];
-                                                        let fileName = `soumission_${id}.xlsx`;
+                                                        let fileName = getExcelFilename(); // Fallback to intelligent local name
+
                                                         if (disposition && disposition.indexOf('attachment') !== -1) {
+                                                            // Robust Regex: Handles filename="name" and filename=name
                                                             const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
                                                             const matches = filenameRegex.exec(disposition);
                                                             if (matches != null && matches[1]) {
@@ -1641,14 +1644,42 @@ export default function QuoteForm() {
 
                                                             // 3. Trigger Download (Restored)
                                                             try {
-                                                                const response = await api.get(`/quotes/${newQuoteId}/download-excel?t=${Date.now()}`, {
+                                                                // FIX: Use 'download-result' to get the file (not 'download-excel' which triggers generation!)
+                                                                const response = await api.get(`/quotes/${newQuoteId}/download-result?t=${Date.now()}`, {
                                                                     responseType: 'blob',
                                                                 });
+
+                                                                // CHECK BLOB TYPE (Prevent saving JSON error as Excel)
+                                                                const contentType = response.headers['content-type'];
+                                                                if (contentType && contentType.includes('application/json')) {
+                                                                    // Parse Blob as Text (JSON)
+                                                                    const text = await response.data.text();
+                                                                    const json = JSON.parse(text);
+                                                                    alert(`Erreur Téléchargement : ${json.error || json.details || JSON.stringify(json)}`);
+                                                                    console.error("Download Error (JSON in Blob):", json);
+                                                                    return; // Stop
+                                                                }
+
                                                                 const url = window.URL.createObjectURL(new Blob([response.data]));
                                                                 const link = document.createElement('a');
                                                                 link.href = url;
-                                                                const disposition = response.headers['content-disposition'];
-                                                                let fileName = 'soumission.xlsx';
+                                                                // const disposition = response.headers['content-disposition'];
+
+                                                                // INTELLIGENT FILENAME CONSTRUCTION (User Request)
+                                                                // We have 'check.data' which is the full new quote with relations.
+                                                                let fileName = 'soumission.xlsx'; // Fallback
+                                                                if (check.data) {
+                                                                    const q = check.data;
+                                                                    const safe = (s: string) => (s || '').replace(/[^a-zA-Z0-9- ]/g, '');
+                                                                    const ref = safe(q.reference);
+                                                                    const cli = safe(q.client?.name);
+                                                                    const prj = safe(q.project?.name);
+                                                                    // Format: Ref_Client_Project.xlsx
+                                                                    if (ref) fileName = `${ref}_${cli}_${prj}.xlsx`;
+                                                                }
+
+                                                                // Override with Header if strict attachment found (Optional, but local construction is preferred/safer here)
+                                                                /*
                                                                 if (disposition && disposition.indexOf('attachment') !== -1) {
                                                                     const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
                                                                     const matches = filenameRegex.exec(disposition);
@@ -1656,6 +1687,8 @@ export default function QuoteForm() {
                                                                         fileName = matches[1].replace(/['"]/g, '');
                                                                     }
                                                                 }
+                                                                */
+
                                                                 link.setAttribute('download', fileName);
                                                                 document.body.appendChild(link);
                                                                 link.click();

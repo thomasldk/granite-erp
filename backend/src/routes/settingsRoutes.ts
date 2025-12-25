@@ -3,7 +3,7 @@ import {
     getLanguages, createLanguage, deleteLanguage,
 
     getCurrencies, createCurrency, deleteCurrency,
-    downloadBackup, triggerManualBackup,
+    downloadBackup, triggerManualBackup, downloadLatestBackup,
     getSystemSettings, updateSystemSettings
 } from '../controllers/settingsController';
 
@@ -25,6 +25,7 @@ router.delete('/currencies/:id', deleteCurrency);
 
 // Backup
 router.get('/backup', downloadBackup);
+router.get('/backup/latest', downloadLatestBackup);
 router.post('/backup/trigger', triggerManualBackup);
 
 export default router;
