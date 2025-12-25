@@ -215,4 +215,145 @@ export class BackupService {
             }
         };
     }
+
+    async restoreBackup(jsonData: any): Promise<void> {
+        const data = jsonData.data;
+        if (!data) {
+            throw new Error("Invalid backup format: 'data' property missing.");
+        }
+
+        console.log('📦 Starting Restore process from JSON...');
+
+        // Helper to convert date strings back to Date objects
+        const dateify = (obj: any) => {
+            if (!obj) return obj;
+            const newObj = { ...obj };
+            // Common date fields in our schema
+            ['createdAt', 'updatedAt', 'dateIssued', 'validUntil', 'date', 'startDate', 'endDate'].forEach(key => {
+                if (newObj[key] && typeof newObj[key] === 'string') {
+                    newObj[key] = new Date(newObj[key]);
+                }
+            });
+            return newObj;
+        };
+
+        // 1. CLEANUP (Delete in reverse dependency order)
+        // We use deleteMany({}) to truncate tables.
+        // NOTE: In production with Foreign Keys, order matters crucially.
+        console.log('🧹 Cleaning up existing data...');
+        const deleteOperations = [
+            prisma.repairPart.deleteMany({}),
+            prisma.repairRequest.deleteMany({}),
+            prisma.workOrder.deleteMany({}),
+            prisma.palletItem.deleteMany({}),
+            prisma.pallet.deleteMany({}),
+            prisma.quoteItem.deleteMany({}),
+            prisma.quote.deleteMany({}),
+            prisma.project.deleteMany({}),
+            prisma.material.deleteMany({}),
+            prisma.contact.deleteMany({}),
+            prisma.address.deleteMany({}),
+            prisma.thirdParty.deleteMany({}),
+            prisma.productionSite.deleteMany({}),
+            prisma.projectLocation.deleteMany({}),
+            prisma.representative.deleteMany({}),
+            prisma.currency.deleteMany({}),
+            prisma.language.deleteMany({}),
+            prisma.paymentTerm.deleteMany({}),
+            prisma.contactType.deleteMany({}),
+            prisma.incoterm.deleteMany({}),
+            prisma.equipment.deleteMany({}),
+            prisma.equipmentCategory.deleteMany({}),
+            prisma.part.deleteMany({}),
+            prisma.partCategory.deleteMany({}),
+            prisma.hRSite.deleteMany({}),
+            prisma.role.deleteMany({}),
+            prisma.jobTitle.deleteMany({}),
+            prisma.department.deleteMany({}),
+            prisma.employeeProfile.deleteMany({}),
+            prisma.user.deleteMany({}),
+            prisma.setting.deleteMany({}),
+            prisma.systemConfig.deleteMany({}),
+            prisma.exchangeRateHistory.deleteMany({})
+        ];
+
+        // Execute deletes sequentially
+        for (const op of deleteOperations) {
+            await op;
+        }
+        console.log('✨ Database cleaned.');
+
+        // 2. RESTORE (Insert in dependency order)
+
+        console.log('🔹 Restoring Level 0 ( Independent Tables )...');
+        // Users
+        if (data.users?.length) await prisma.user.createMany({ data: data.users.map(dateify) });
+        // Settings / SystemConfig
+        if (data.settings?.length) await prisma.setting.createMany({ data: data.settings.map(dateify) });
+        if (data.systemConfigs?.length) await prisma.systemConfig.createMany({ data: data.systemConfigs.map(dateify) });
+        // Parameters
+        if (data.incoterms?.length) await prisma.incoterm.createMany({ data: data.incoterms.map(dateify) });
+        if (data.contactTypes?.length) await prisma.contactType.createMany({ data: data.contactTypes.map(dateify) });
+        if (data.paymentTerms?.length) await prisma.paymentTerm.createMany({ data: data.paymentTerms.map(dateify) });
+        if (data.languages?.length) await prisma.language.createMany({ data: data.languages.map(dateify) });
+        if (data.currencies?.length) await prisma.currency.createMany({ data: data.currencies.map(dateify) });
+        if (data.representatives?.length) await prisma.representative.createMany({ data: data.representatives.map(dateify) });
+        if (data.projectLocations?.length) await prisma.projectLocation.createMany({ data: data.projectLocations.map(dateify) });
+        if (data.productionSites?.length) await prisma.productionSite.createMany({ data: data.productionSites.map(dateify) });
+        if (data.hrSites?.length) await prisma.hRSite.createMany({ data: data.hrSites.map(dateify) });
+        // Equipment/Parts Categories
+        if (data.equipmentCategories?.length) await prisma.equipmentCategory.createMany({ data: data.equipmentCategories.map(dateify) });
+        if (data.partCategories?.length) await prisma.partCategory.createMany({ data: data.partCategories.map(dateify) });
+
+        console.log('🔹 Restoring Level 1 ( HR, Parts, Equipments )...');
+        if (data.departments?.length) await prisma.department.createMany({ data: data.departments.map(dateify) });
+        if (data.jobTitles?.length) await prisma.jobTitle.createMany({ data: data.jobTitles.map(dateify) });
+        if (data.roles?.length) await prisma.role.createMany({ data: data.roles.map(dateify) });
+
+        if (data.employeeProfiles?.length) await prisma.employeeProfile.createMany({ data: data.employeeProfiles.map(dateify) });
+
+        if (data.parts?.length) await prisma.part.createMany({ data: data.parts.map(dateify) });
+        if (data.equipments?.length) await prisma.equipment.createMany({ data: data.equipments.map(dateify) });
+
+
+        console.log('🔹 Restoring Level 2 ( ThirdParties, Materials )...');
+
+        if (data.thirdParties?.length) {
+            const cleanTPs = data.thirdParties.map((tp: any) => {
+                const { contacts, addresses, ...rest } = tp;
+                return dateify(rest);
+            });
+            await prisma.thirdParty.createMany({ data: cleanTPs });
+        }
+
+        if (data.addresses?.length) await prisma.address.createMany({ data: data.addresses.map(dateify) });
+        if (data.contacts?.length) await prisma.contact.createMany({ data: data.contacts.map(dateify) });
+
+        if (data.materials?.length) await prisma.material.createMany({ data: data.materials.map(dateify) });
+
+        console.log('🔹 Restoring Level 3 ( Projects )...');
+        if (data.projects?.length) await prisma.project.createMany({ data: data.projects.map(dateify) });
+
+        console.log('🔹 Restoring Level 4 ( Quotes )...');
+        if (data.quotes?.length) await prisma.quote.createMany({ data: data.quotes.map(dateify) });
+
+        console.log('🔹 Restoring Level 5 ( QuoteItems, WorkOrders )...');
+        if (data.quoteItems?.length) await prisma.quoteItem.createMany({ data: data.quoteItems.map(dateify) });
+        if (data.workOrders?.length) await prisma.workOrder.createMany({ data: data.workOrders.map(dateify) });
+        if (data.repairRequests?.length) await prisma.repairRequest.createMany({
+            data: data.repairRequests.map((r: any) => {
+                const { parts, ...rest } = r;
+                return dateify(rest);
+            })
+        });
+
+        console.log('🔹 Restoring Level 6 ( Pallets, RepairParts )...');
+        if (data.pallets?.length) await prisma.pallet.createMany({ data: data.pallets.map(dateify) });
+        if (data.repairParts?.length) await prisma.repairPart.createMany({ data: data.repairParts.map(dateify) });
+
+        console.log('🔹 Restoring Level 7 ( PalletItems )...');
+        if (data.palletItems?.length) await prisma.palletItem.createMany({ data: data.palletItems.map(dateify) });
+
+        console.log('✅ Restoration Complete.');
+    }
 }

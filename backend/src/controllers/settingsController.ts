@@ -165,3 +165,43 @@ export const updateSystemSettings = async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Failed to update settings' });
     }
 };
+
+import * as fs from 'fs';
+
+export const restoreBackup = async (req: Request, res: Response) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No backup file provided.' });
+        }
+
+        const filePath = req.file.path;
+        console.log(`♻️  Restoring backup from: ${filePath}`);
+
+        // Read file
+        const fileContent = fs.readFileSync(filePath, 'utf-8');
+        const jsonData = JSON.parse(fileContent);
+
+        // Validate basic structure
+        if (!jsonData.metadata || !jsonData.data) {
+            // cleanup
+            fs.unlinkSync(filePath);
+            return res.status(400).json({ error: 'Invalid backup format. Missing metadata or data.' });
+        }
+
+        // Call Service
+        await backupService.restoreBackup(jsonData);
+
+        // Cleanup
+        fs.unlinkSync(filePath);
+
+        res.json({ success: true, message: 'Database restored successfully.' });
+
+    } catch (error) {
+        console.error("Restore Error:", error);
+        // Try cleanup if file exists
+        if (req.file && fs.existsSync(req.file.path)) {
+            try { fs.unlinkSync(req.file.path); } catch (e) { }
+        }
+        res.status(500).json({ error: 'Failed to restore backup: ' + (error as Error).message });
+    }
+};
