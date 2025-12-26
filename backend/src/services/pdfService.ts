@@ -98,5 +98,122 @@ export class PdfService {
 
             doc.end();
         });
+
+    }
+
+    static async generateDeliveryNotePdf(note: any): Promise<Buffer> {
+        return new Promise((resolve, reject) => {
+            const doc = new PDFDocument({ margin: 50, size: 'LETTER' });
+            const buffers: Buffer[] = [];
+
+            doc.on('data', buffers.push.bind(buffers));
+            doc.on('end', () => {
+                const pdfData = Buffer.concat(buffers);
+                resolve(pdfData);
+            });
+            doc.on('error', reject);
+
+            const startY = 50;
+            // --- HEADER ---
+            doc.image('assets/logo.png', 50, startY, { width: 100 }).stroke(); // Placeholder if logo exists, else skip
+            // Fallback text if image fails or just text
+            doc.fontSize(20).font('Helvetica-Bold').text('BON DE LIVRAISON', { align: 'right' });
+            doc.fontSize(12).font('Helvetica').text(note.reference, { align: 'right' });
+            doc.fontSize(10).text(`Date: ${new Date(note.date).toLocaleDateString()}`, { align: 'right' });
+
+            doc.moveDown();
+            doc.fontSize(10).font('Helvetica-Bold').text('Granite DRC');
+            doc.font('Helvetica').text('123 Granite Road, Stanstead, QC');
+            doc.text('Phone: (555) 555-5555');
+            doc.moveDown(2);
+
+            // --- INFO GRID ---
+            const leftX = 50;
+            const rightX = 300;
+            const currentY = doc.y;
+
+            // Client Info
+            doc.font('Helvetica-Bold').text('EXPÉDIÉ À:', leftX, currentY);
+            doc.font('Helvetica').text(note.client?.name || 'Client Inconnu', leftX, currentY + 15);
+            if (note.deliveryAddress) {
+                // Parse address if JSON or use simple string
+                // note.deliveryAddress is JSON stored as string or object? 
+                // Model says Json? No, schema says String?
+                // Actually schema says deliveryAddress String? (Wait, I added Structured Address? No, just string in controller? Let's assume content)
+                // If structured, it's fields. If flat string, use it.
+                // Based on create: deliveryAddress: address
+                doc.text(typeof note.deliveryAddress === 'string' ? note.deliveryAddress : JSON.stringify(note.deliveryAddress), leftX, currentY + 30, { width: 200 });
+            }
+            // Contact
+            if (note.siteContactName) {
+                doc.font('Helvetica-Bold').text('Contact Chantier:', leftX, currentY + 70);
+                doc.font('Helvetica').text(`${note.siteContactName} ${note.siteContactPhone ? '- ' + note.siteContactPhone : ''}`, leftX, currentY + 85);
+            }
+
+            // Carrier Info
+            doc.font('Helvetica-Bold').text('TRANSPORTEUR:', rightX, currentY);
+            doc.font('Helvetica').text(note.carrier || 'Non spécifié', rightX, currentY + 15);
+
+            doc.moveDown(8);
+
+            // --- PALLETS TABLE ---
+            const rows: any[] = [];
+
+            note.items.forEach((item: any) => {
+                const pallet = item.pallet;
+                if (pallet) {
+                    const contentDesc = pallet.items?.map((pi: any) => {
+                        const qi = pi.quoteItem;
+                        return `${qi?.quantity || pi.quantity}x ${qi?.tag || ''} ${qi?.description || ''} (${qi?.refReference || ''})`;
+                    }).join('\n');
+
+                    const weight = pallet.items?.reduce((sum: number, i: any) => sum + (i.quoteItem?.totalWeight || 0), 0);
+
+                    rows.push([
+                        `P#${pallet.number?.toString().padStart(2, '0')}`,
+                        `${pallet.workOrder?.orderNumber}\n${pallet.workOrder?.quote?.project?.name}`,
+                        contentDesc || 'Contenu Inconnu',
+                        `${weight?.toFixed(1)} lbs`
+                    ]);
+                }
+            });
+
+            const table = {
+                title: "",
+                headers: [
+                    { label: "Palette #", property: 'pallet', width: 60 },
+                    { label: "Projet / Commande", property: 'project', width: 100 },
+                    { label: "Contenu", property: 'content', width: 300 },
+                    { label: "Poids", property: 'weight', width: 60 }
+                ],
+                rows: rows
+            };
+
+            doc.table(table, {
+                prepareHeader: () => doc.font('Helvetica-Bold').fontSize(10),
+                prepareRow: (row, i) => doc.font('Helvetica').fontSize(9)
+            });
+
+            doc.moveDown(2);
+
+            // --- SUMMARY ---
+            doc.fontSize(12).font('Helvetica-Bold').text(`Poids Total: ${note.totalWeight?.toFixed(1) || 0} lbs`, { align: 'right' });
+            doc.text(`Nombre de Palettes: ${rows.length}`, { align: 'right' });
+
+            doc.moveDown(4);
+
+            // --- SIGNATURES ---
+            const sigY = doc.y;
+            doc.fontSize(10).font('Helvetica').text('Expédié par:', 50, sigY);
+            doc.text('__________________________', 50, sigY + 20);
+
+            doc.text('Transporteur:', 250, sigY);
+            doc.text('__________________________', 250, sigY + 20);
+
+            doc.text('Reçu par:', 450, sigY);
+            doc.text('__________________________', 450, sigY + 20);
+
+            doc.end();
+        });
     }
 }

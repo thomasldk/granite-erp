@@ -255,6 +255,15 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
         }
     };
 
+    const getFullAddress = () => {
+        let address = formData.addressLine1;
+        if (formData.addressCity) address += `, ${formData.addressCity}`;
+        if (formData.addressState) address += `, ${formData.addressState}`;
+        if (formData.addressZip) address += ` ${formData.addressZip}`;
+        if (formData.addressCountry) address += `, ${formData.addressCountry}`;
+        return address;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -508,6 +517,32 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                             <option value="Autre">Autre</option>
                         </select>
                     </div>
+
+                    {/* Google Map Integration */}
+                    {formData.addressLine1 && (
+                        <div className="mt-4">
+                            <div className="rounded border overflow-hidden shadow-sm h-48 bg-gray-100 flex items-center justify-center">
+                                <iframe
+                                    width="100%"
+                                    height="100%"
+                                    frameBorder="0"
+                                    style={{ border: 0 }}
+                                    src={`https://maps.google.com/maps?q=${encodeURIComponent(getFullAddress())}&t=&z=15&ie=UTF8&iwloc=A&output=embed`}
+                                    allowFullScreen
+                                ></iframe>
+                            </div>
+                            <div className="mt-2 text-right">
+                                <a
+                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(getFullAddress())}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-sm text-blue-600 hover:underline flex items-center justify-end"
+                                >
+                                    <span className="mr-1">🗺️</span> Vérifier sur Google Maps
+                                </a>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mb-4">

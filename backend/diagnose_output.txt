@@ -1,0 +1,5 @@
+Starting diagnosis...
+✅ Database Connected
+✅ User found: admin@granitedrc.com Role: ADMIN
+Password Valid ('granite2025'): YES
+JWT_SECRET present: true

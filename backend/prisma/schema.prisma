@@ -131,6 +131,12 @@ model Address {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   thirdParty   ThirdParty @relation(fields: [thirdPartyId], references: [id])
+  
+  // Site Contact Info (Linked to this address)
+  siteContactName  String?
+  siteContactPhone String?
+  siteContactEmail String?
+  siteContactRole  String?
 }
 
 model ProjectLocation {
@@ -571,6 +577,8 @@ model User {
   updatedAt DateTime @updatedAt
   
   employeeProfile EmployeeProfile?
+  
+  deliveryNotes   DeliveryNote[]
 }
 
 model EmployeeProfile {
@@ -686,6 +694,18 @@ model DeliveryNote {
   updatedAt       DateTime           @updatedAt
   
   items           DeliveryNoteItem[]
+  
+  // Site Contact Info
+  siteContactName  String?
+  siteContactPhone String?
+  siteContactEmail String?
+  siteContactRole  String?
+
+  pdfFilePath     String?
+  excelFilePath   String? // Store path to generated Excel
+
+  createdById     String?
+  createdBy       User?              @relation(fields: [createdById], references: [id])
 }
 
 model DeliveryNoteItem {

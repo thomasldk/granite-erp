@@ -351,6 +351,48 @@ const UserForm: React.FC<UserFormProps> = ({ existingUser, onClose, onSuccess })
                                             </select>
                                         </div>
                                     </div>
+
+                                    {/* Google Map Integration */}
+                                    {formData.employeeProfile?.addressLine1 && (
+                                        <div className="mt-4">
+                                            <div className="rounded border overflow-hidden shadow-sm h-48 bg-gray-100 flex items-center justify-center">
+                                                <iframe
+                                                    width="100%"
+                                                    height="100%"
+                                                    frameBorder="0"
+                                                    style={{ border: 0 }}
+                                                    src={`https://maps.google.com/maps?q=${encodeURIComponent(
+                                                        [
+                                                            formData.employeeProfile?.addressLine1,
+                                                            formData.employeeProfile?.city,
+                                                            formData.employeeProfile?.province,
+                                                            formData.employeeProfile?.zipCode,
+                                                            formData.employeeProfile?.country
+                                                        ].filter(Boolean).join(', ')
+                                                    )}&t=&z=15&ie=UTF8&iwloc=A&output=embed`}
+                                                    allowFullScreen
+                                                ></iframe>
+                                            </div>
+                                            <div className="mt-2 text-right">
+                                                <a
+                                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                                                        [
+                                                            formData.employeeProfile?.addressLine1,
+                                                            formData.employeeProfile?.city,
+                                                            formData.employeeProfile?.province,
+                                                            formData.employeeProfile?.zipCode,
+                                                            formData.employeeProfile?.country
+                                                        ].filter(Boolean).join(', ')
+                                                    )}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="text-sm text-blue-600 hover:underline flex items-center justify-end"
+                                                >
+                                                    <span className="mr-1">🗺️</span> Vérifier sur Google Maps
+                                                </a>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Contact Methods */}

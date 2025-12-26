@@ -420,12 +420,9 @@ export const uploadExcel = async (req: Request, res: Response) => {
 
         if (initialPath) {
             // DiskStorage: Move/Rename file to final structure
-            // If already in uploads, rename it.
-            // Multer usually saves to a temp name or configured name.
             try {
                 fs.renameSync(initialPath, finalPath);
             } catch (mvErr: any) {
-                // Fallback copy/delete if rename fails (cross-device)
                 fs.copyFileSync(initialPath, finalPath);
                 fs.unlinkSync(initialPath);
             }
@@ -439,19 +436,47 @@ export const uploadExcel = async (req: Request, res: Response) => {
         const stats = fs.statSync(finalPath);
         console.log(`[DEBUG] Excel Uploaded. Size: ${stats.size} bytes. Path: ${finalPath}`);
 
-        // Store RELATIVE path in DB
-        // NOTE: quoteController expects 'uploads/filename' relative to project root or absolute?
-        // quoteController usage: path.join(__dirname, '../../', quote.excelFilePath)
-        // So 'uploads/filename' is correct if controller is in src/controllers.
+        // DB Update Logic
+        const relativePath = `uploads/${filename}`;
 
-        console.log(`[Sync] Saving Excel path to DB: uploads/${filename}`);
-        await prisma.quote.update({
-            where: { id },
-            data: { excelFilePath: `uploads/${filename}` }
-        });
-
+        if (id.startsWith('BL')) {
+            // Delivery Note Logic
+            await prisma.deliveryNote.update({
+                where: { id },
+                data: {
+                    excelFilePath: relativePath,
+                    status: 'Generated' // SIGNAL FRONTEND: FILE IS READY
+                }
+            });
+        } else {
+            // Quote Logic
+            await prisma.quote.update({
+                where: { id },
+                data: { excelFilePath: relativePath }
+            });
+        }
         res.json({ success: true, path: finalPath });
+
     } catch (err: any) {
+        // Fallback for Delivery Note Reference lookup if ID failed
+        if (id.startsWith('BL')) {
+            try {
+                // Try finding by Reference
+                // Ref might be 'BL25-0001' extracted from ID?
+                // The ID passed in URL is likely 'BL25-0001' from the Agent.
+                await prisma.deliveryNote.update({
+                    where: { reference: id },
+                    data: {
+                        excelFilePath: `uploads/${id}__${req.file.originalname.replace(/[^a-zA-Z0-9.\-_ ]/g, '_')}`,
+                        status: 'Generated'
+                    }
+                });
+                return res.json({ success: true, recovered: true });
+            } catch (subErr) {
+                console.error("Delivery Note Update Failed:", subErr);
+            }
+        }
+
         console.error("Excel Upload Error:", err);
         res.status(500).json({ error: err.message });
     }

@@ -61,6 +61,26 @@ export const updateContact = async (contactId: string, contactData: any) => {
     return response.data;
 };
 
+export const deleteContact = async (contactId: string) => {
+    await api.delete(`/third-parties/contacts/${contactId}`);
+};
+
+// Addresses
+
+export const addAddress = async (thirdPartyId: string, addressData: any) => {
+    const response = await api.post(`/third-parties/${thirdPartyId}/addresses`, addressData);
+    return response.data;
+};
+
+export const updateAddress = async (addressId: string, addressData: any) => {
+    const response = await api.put(`/third-parties/addresses/${addressId}`, addressData);
+    return response.data;
+};
+
+export const deleteAddress = async (addressId: string) => {
+    await api.delete(`/third-parties/addresses/${addressId}`);
+};
+
 export const updateThirdParty = async (id: string, data: any) => {
     const response = await api.put(`/third-parties/${id}`, data);
     return response.data;

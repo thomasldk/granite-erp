@@ -31,5 +31,25 @@ export const formatPhoneNumber = (value: string): string => {
         formatted += `-${digits.slice(6)}`;
     }
 
+
     return formatted;
+};
+
+export const formatPostalCode = (value: string): string => {
+    if (!value) return '';
+    // Remove non-alphanumeric chars
+    const clean = value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+    // Check if it looks like a Canadian postal code (A1A1A1)
+    if (clean.length > 3 && clean.length <= 6) {
+        return `${clean.slice(0, 3)} ${clean.slice(3)}`;
+    }
+
+    // For now, return upper case clean if not matching specific length, or just strict Formatting.
+    // Better: if length is 6, force A1A 1A1
+    if (clean.length === 6) {
+        return `${clean.slice(0, 3)} ${clean.slice(3)}`;
+    }
+
+    return clean;
 };

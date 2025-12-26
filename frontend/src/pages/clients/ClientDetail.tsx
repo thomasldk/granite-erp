@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getThirdPartyById, addContact, updateContact, getContactTypes } from '../../services/thirdPartyService';
+import { getThirdPartyById, addContact, updateContact, deleteContact, addAddress, updateAddress, deleteAddress, getContactTypes } from '../../services/thirdPartyService';
 import { formatPhoneNumber } from '../../utils/formatters';
 import { generatePaymentTermLabel } from '../../services/paymentTermService';
 
@@ -13,6 +13,14 @@ const ClientDetail: React.FC = () => {
     const [editingContactId, setEditingContactId] = useState<string | null>(null);
     const [contactForm, setContactForm] = useState({
         firstName: '', lastName: '', email: '', phone: '', mobile: '', fax: '', role: ''
+    });
+
+    // Address Management
+    const [showAddressForm, setShowAddressForm] = useState(false);
+    const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+    const [addressForm, setAddressForm] = useState({
+        line1: '', city: '', state: '', zipCode: '', country: '',
+        siteContactName: '', siteContactRole: '', siteContactPhone: '', siteContactEmail: ''
     });
 
     useEffect(() => {
@@ -80,6 +88,75 @@ const ClientDetail: React.FC = () => {
         const { name, value } = e.target;
         const formatted = formatPhoneNumber(value);
         setContactForm({ ...contactForm, [name]: formatted });
+    };
+
+    const handleDeleteContact = async (contactId: string) => {
+        const code = window.prompt("Pour supprimer ce contact, entrez le code de sécurité (1234) :");
+        if (code !== "1234") {
+            if (code !== null) alert("Code incorrect.");
+            return;
+        }
+        try {
+            await deleteContact(contactId);
+            loadClient();
+        } catch (error) {
+            console.error('Error deleting contact', error);
+            alert('Erreur lors de la suppression');
+        }
+    };
+
+    // Address Handlers
+    const handleSaveAddress = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const payload = { ...addressForm, type: 'Delivery' }; // Always create Delivery addresses here
+            if (editingAddressId) {
+                await updateAddress(editingAddressId, payload);
+            } else {
+                await addAddress(id!, payload);
+            }
+            setShowAddressForm(false);
+            setEditingAddressId(null);
+            setAddressForm({
+                line1: '', city: '', state: '', zipCode: '', country: '',
+                siteContactName: '', siteContactRole: '', siteContactPhone: '', siteContactEmail: ''
+            });
+            loadClient();
+        } catch (error) {
+            console.error('Error saving address', error);
+            alert('Erreur lors de la sauvegarde de l\'adresse');
+        }
+    };
+
+    const handleDeleteAddress = async (addressId: string) => {
+        const code = window.prompt("Pour supprimer cette adresse, entrez le code de sécurité (1234) :");
+        if (code !== "1234") {
+            if (code !== null) alert("Code incorrect.");
+            return;
+        }
+        try {
+            await deleteAddress(addressId);
+            loadClient();
+        } catch (error) {
+            console.error('Error deleting address', error);
+            alert('Erreur lors de la suppression');
+        }
+    };
+
+    const startEditAddress = (addr: any) => {
+        setAddressForm({
+            line1: addr.line1,
+            city: addr.city,
+            state: addr.state || '',
+            zipCode: addr.zipCode || '',
+            country: addr.country || '',
+            siteContactName: addr.siteContactName || '',
+            siteContactRole: addr.siteContactRole || '',
+            siteContactPhone: addr.siteContactPhone || '',
+            siteContactEmail: addr.siteContactEmail || ''
+        });
+        setEditingAddressId(addr.id);
+        setShowAddressForm(true);
     };
 
     if (!client) return <div>Chargement...</div>;
@@ -309,12 +386,22 @@ const ClientDetail: React.FC = () => {
                 {client.contacts && client.contacts.length > 0 ? (
                     client.contacts.map((contact: any) => (
                         <div key={contact.id} className="bg-white border text-sm rounded-lg p-4 shadow-sm hover:shadow-md transition relative group">
-                            <button
-                                onClick={() => startEditContact(contact)}
-                                className="absolute top-2 right-2 text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition"
-                            >
-                                ✏️ Modifier
-                            </button>
+                            <div className="absolute top-2 right-2 flex space-x-2 opacity-0 group-hover:opacity-100 transition">
+                                <button
+                                    onClick={() => startEditContact(contact)}
+                                    className="text-gray-400 hover:text-blue-600"
+                                    title="Modifier"
+                                >
+                                    ✏️ Modifier
+                                </button>
+                                <button
+                                    onClick={() => handleDeleteContact(contact.id)}
+                                    className="text-gray-400 hover:text-red-600"
+                                    title="Supprimer"
+                                >
+                                    🗑️
+                                </button>
+                            </div>
                             <h4 className="font-bold text-lg text-gray-800">{contact.firstName} {contact.lastName}</h4>
                             <p className="text-blue-600 font-medium mb-2">{contact.role}</p>
                             <p className="text-gray-600">{contact.email}</p>
@@ -325,6 +412,95 @@ const ClientDetail: React.FC = () => {
                 ) : (
                     <p className="text-gray-500 italic col-span-3">Aucun contact enregistré pour ce {singular.toLowerCase()}.</p>
                 )}
+            </div>
+
+            {/* DELIVERY ADDRESSES SECTION */}
+            <div className="mt-10 pt-6 border-t border-gray-200">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900">Adresses de Livraison</h2>
+                    <button
+                        onClick={() => {
+                            setShowAddressForm(!showAddressForm);
+                            if (showAddressForm) setEditingAddressId(null);
+                            else setAddressForm({
+                                line1: '', city: '', state: '', zipCode: '', country: '',
+                                siteContactName: '', siteContactRole: '', siteContactPhone: '', siteContactEmail: ''
+                            });
+                        }}
+                        className="bg-secondary hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition duration-200"
+                    >
+                        {showAddressForm ? 'Annuler' : '+ Ajouter une Adresse'}
+                    </button>
+                </div>
+
+                {showAddressForm && (
+                    <form onSubmit={handleSaveAddress} className="bg-gray-50 p-6 rounded shadow mb-6 border border-gray-200">
+                        <h3 className="text-lg font-bold mb-4">{editingAddressId ? 'Modifier Adresse' : 'Nouvelle Adresse'}</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <input placeholder="Adresse (Ligne 1)" className="border p-2 rounded w-full" value={addressForm.line1} onChange={e => setAddressForm({ ...addressForm, line1: e.target.value })} required />
+                            <div className="grid grid-cols-2 gap-2">
+                                <input placeholder="Ville" className="border p-2 rounded w-full" value={addressForm.city} onChange={e => setAddressForm({ ...addressForm, city: e.target.value })} required />
+                                <input placeholder="Code Postal" className="border p-2 rounded w-full" value={addressForm.zipCode} onChange={e => setAddressForm({ ...addressForm, zipCode: e.target.value })} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <input placeholder="Province/État" className="border p-2 rounded w-full" value={addressForm.state} onChange={e => setAddressForm({ ...addressForm, state: e.target.value })} />
+                                <input placeholder="Pays" className="border p-2 rounded w-full" value={addressForm.country} onChange={e => setAddressForm({ ...addressForm, country: e.target.value })} />
+                            </div>
+                        </div>
+                        <h4 className="font-semibold text-gray-700 mb-2 border-b pb-1">Contact sur Place (Optionnel)</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <input placeholder="Nom Complet" className="border p-2 rounded w-full" value={addressForm.siteContactName} onChange={e => setAddressForm({ ...addressForm, siteContactName: e.target.value })} />
+                            <input placeholder="Rôle / Fonction" className="border p-2 rounded w-full" value={addressForm.siteContactRole} onChange={e => setAddressForm({ ...addressForm, siteContactRole: e.target.value })} />
+                            <input placeholder="Téléphone" className="border p-2 rounded w-full" value={addressForm.siteContactPhone} onChange={e => setAddressForm({ ...addressForm, siteContactPhone: formatPhoneNumber(e.target.value) })} />
+                            <input placeholder="Email" className="border p-2 rounded w-full" value={addressForm.siteContactEmail} onChange={e => setAddressForm({ ...addressForm, siteContactEmail: e.target.value })} />
+                        </div>
+                        <button type="submit" className="bg-primary text-white font-bold py-2 px-4 rounded w-full hover:bg-blue-700">
+                            {editingAddressId ? 'Mettre à jour Adresse' : 'Sauvegarder Adresse'}
+                        </button>
+                    </form>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {client.addresses?.filter((a: any) => a.type === 'Delivery').length > 0 ? (
+                        client.addresses.filter((a: any) => a.type === 'Delivery').map((addr: any) => (
+                            <div key={addr.id} className="bg-gray-50 border border-gray-200 text-sm rounded-lg p-4 shadow-sm hover:shadow-md transition relative group">
+                                <div className="absolute top-2 right-2 flex space-x-2 opacity-0 group-hover:opacity-100 transition">
+                                    <button
+                                        onClick={() => startEditAddress(addr)}
+                                        className="text-gray-400 hover:text-blue-600"
+                                        title="Modifier"
+                                    >
+                                        ✏️
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteAddress(addr.id)}
+                                        className="text-gray-400 hover:text-red-600"
+                                        title="Supprimer"
+                                    >
+                                        🗑️
+                                    </button>
+                                </div>
+                                <h4 className="font-bold text-gray-800 mb-1 pr-16">{addr.line1}</h4>
+                                <p className="text-gray-600 mb-3 block">
+                                    {addr.city}, {addr.state} {addr.zipCode}<br />
+                                    <span className="text-xs uppercase tracking-wider text-gray-400">{addr.country}</span>
+                                </p>
+
+                                {(addr.siteContactName || addr.siteContactPhone || addr.siteContactEmail) && (
+                                    <div className="pt-3 border-t border-gray-200 mt-2">
+                                        <p className="text-xs font-bold text-gray-500 uppercase mb-1">Contact Sur Place</p>
+                                        {addr.siteContactName && <p className="font-semibold text-gray-800">{addr.siteContactName}</p>}
+                                        {addr.siteContactRole && <p className="text-xs text-blue-600 mb-1">{addr.siteContactRole}</p>}
+                                        {addr.siteContactPhone && <p className="text-gray-600">📱 {addr.siteContactPhone}</p>}
+                                        {addr.siteContactEmail && <p className="text-gray-600">✉️ {addr.siteContactEmail}</p>}
+                                    </div>
+                                )}
+                            </div>
+                        ))
+                    ) : (
+                        <p className="text-gray-500 italic col-span-3">Aucune adresse de livraison enregistrée.</p>
+                    )}
+                </div>
             </div>
         </div>
     );

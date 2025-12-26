@@ -26,13 +26,15 @@ export const createThirdParty = async (req: Request, res: Response) => {
             data: {
                 name,
                 type,
-                code,
+                code: code ? code : undefined, // Check if unique constraint allows null, or if it should be unique. 
+                // Using undefined/null avoids empty string duplicates if the field is optional but unique.
+                // If the user didn't provide a code, we often want to auto-generate or leave it null.
                 email,
                 phone,
                 fax,
                 website,
                 defaultCurrency,
-                paymentTermId,
+                paymentTermId: paymentTermId || null,
                 paymentDays: paymentDays ? parseInt(paymentDays) : 0,
                 depositPercentage: depositPercentage ? parseFloat(depositPercentage) : 0,
                 taxScheme,
@@ -184,7 +186,9 @@ export const updateThirdParty = async (req: Request, res: Response) => {
         const thirdParty = await prisma.thirdParty.update({
             where: { id },
             data: {
-                name, type, code, email, phone, fax, website,
+                name, type,
+                code: code || null,
+                email, phone, fax, website,
                 defaultCurrency, paymentTerms,
                 paymentTermId: paymentTermId || null, // Convert empty string to null
                 taxScheme,
@@ -276,5 +280,58 @@ export const deleteThirdParty = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Delete ThirdParty Error:', error);
         res.status(500).json({ error: 'Failed to delete third party', details: error });
+    }
+};
+
+// --- Contacts ---
+
+export const deleteContact = async (req: Request, res: Response) => {
+    try {
+        const { contactId } = req.params;
+        await prisma.contact.delete({ where: { id: contactId } });
+        res.status(204).send();
+    } catch (error) {
+        console.error('Delete Contact Error:', error);
+        res.status(500).json({ error: 'Failed to delete contact', details: error });
+    }
+};
+
+// --- Addresses ---
+
+export const updateAddress = async (req: Request, res: Response) => {
+    try {
+        const { addressId } = req.params;
+        const { line1, line2, city, state, zipCode, country, siteContactName, siteContactPhone, siteContactEmail, siteContactRole } = req.body;
+
+        const address = await prisma.address.update({
+            where: { id: addressId },
+            data: {
+                line1,
+                line2,
+                city,
+                state,
+                zipCode,
+                country,
+                siteContactName,
+                siteContactPhone,
+                siteContactEmail,
+                siteContactRole
+            }
+        });
+        res.json(address);
+    } catch (error) {
+        console.error('Update Address Error:', error);
+        res.status(500).json({ error: 'Failed to update address', details: error });
+    }
+};
+
+export const deleteAddress = async (req: Request, res: Response) => {
+    try {
+        const { addressId } = req.params;
+        await prisma.address.delete({ where: { id: addressId } });
+        res.status(204).send();
+    } catch (error) {
+        console.error('Delete Address Error:', error);
+        res.status(500).json({ error: 'Failed to delete address', details: error });
     }
 };

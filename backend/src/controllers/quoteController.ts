@@ -2210,7 +2210,42 @@ export const processAgentBundle = async (req: Request, res: Response) => {
             reference = reference.substring(0, reference.length - 4);
         }
 
-        console.log(`[Agent-Bundle] Processing Quote Ref: ${reference}, found ${items.length} items`);
+        console.log(`[Agent-Bundle] Processing Ref: ${reference}, found ${items.length} items`);
+
+        // --- DELIVERY NOTE HANDLING (BL) ---
+        // If reference looks like BL-..., check DeliveryNote table
+        if (reference.toUpperCase().startsWith('BL') || reference.toUpperCase().includes('BL')) {
+            const deliveryNote = await prisma.deliveryNote.findFirst({ where: { reference } });
+            if (deliveryNote) {
+                console.log(`[Agent-Bundle] Delivery Note Detected: ${reference}`);
+
+                const updates: any = { status: 'Generated' };
+                if (excelFile) {
+                    const dest = path.join(path.join(process.cwd(), 'uploads'), excelFile.originalname);
+                    fs.copyFileSync(excelFile.path, dest);
+                    try { fs.unlinkSync(excelFile.path); } catch (e) { }
+                    updates.excelFilePath = `uploads/${excelFile.originalname}`;
+                    console.log(`✅ [Agent-Bundle] BL Excel Saved: ${dest}`);
+                }
+                if (pdfFile) {
+                    const dest = path.join(path.join(process.cwd(), 'uploads'), pdfFile.originalname);
+                    fs.copyFileSync(pdfFile.path, dest);
+                    try { fs.unlinkSync(pdfFile.path); } catch (e) { }
+                    updates.pdfFilePath = `uploads/${pdfFile.originalname}`;
+                    console.log(`✅ [Agent-Bundle] BL PDF Saved: ${dest}`);
+                }
+
+                // Clean XML
+                try { fs.unlinkSync(xmlFile.path); } catch (e) { }
+
+                await prisma.deliveryNote.update({
+                    where: { id: deliveryNote.id },
+                    data: updates
+                });
+
+                return res.json({ success: true, mode: 'delivery_note', reference });
+            }
+        }
 
         const quote = await prisma.quote.findFirst({ where: { reference } });
         if (quote) {
