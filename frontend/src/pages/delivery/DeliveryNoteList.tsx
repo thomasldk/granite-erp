@@ -513,16 +513,12 @@ const DeliveryNoteList: React.FC = () => {
 
                                     <td className="px-2 py-4 whitespace-nowrap text-sm">
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${note.status === 'Draft' ? 'bg-gray-100 text-gray-800' :
-                                            (note.status === 'Validé') ? 'bg-blue-100 text-blue-800' :
-                                                (note.status === 'Generated' || note.status === 'Visualiser') ? 'bg-green-100 text-green-800' :
-                                                    (note.status === 'Livré' || note.status === 'Shipped') ? 'bg-gray-800 text-white' :
-                                                        'bg-green-100 text-green-800'
+                                            (note.status === 'Livré' || note.status === 'Shipped') ? 'bg-gray-800 text-white' :
+                                                'bg-green-100 text-green-800'
                                             }`}>
-                                            {note.status === 'Draft' ? 'En préparation' :
-                                                note.status === 'Validé' ? 'Validé' :
-                                                    (note.status === 'Livré' || note.status === 'Shipped') ? 'Livré' :
-                                                        (note.status === 'Generated' || note.status === 'Visualiser') ? 'Prêt (Généré)' :
-                                                            note.status}
+                                            {note.status === 'Draft' ? 'Brouillon' :
+                                                (note.status === 'Livré' || note.status === 'Shipped') ? 'Émis' :
+                                                    'Visualisé'}
                                         </span>
                                     </td>
                                     <td className="px-2 py-4 whitespace-nowrap text-right text-sm font-medium sticky right-0 bg-white shadow-l">
