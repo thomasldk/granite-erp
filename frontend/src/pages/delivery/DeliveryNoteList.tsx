@@ -287,7 +287,7 @@ const DeliveryNoteList: React.FC = () => {
                 status: editForm.status
             };
 
-            const response = await api.put(`/ delivery / notes / ${selectedNote.id} `, payload);
+            const response = await api.put(`/delivery/notes/${selectedNote.id}`, payload);
             const updatedNote = response.data;
             setNotes(notes.map(n => n.id === updatedNote.id ? updatedNote : n));
             setSelectedNote(null);
@@ -315,7 +315,7 @@ const DeliveryNoteList: React.FC = () => {
         if (!confirm("Êtes-vous sûr de vouloir supprimer ce Bon de Livraison ? Cette action est irréversible.")) return;
 
         try {
-            await api.delete(`/ delivery / notes / ${id} `);
+            await api.delete(`/delivery/notes/${id}`);
             setNotes(notes.filter(n => n.id !== id));
         } catch (error) {
             console.error("Delete error", error);
