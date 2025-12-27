@@ -38,10 +38,25 @@ export const generateDeliveryNoteRak = async (note: any): Promise<string> => {
     const dateEmission = formatDate(new Date(), "yyyyMMdd");
 
     // Construct Filename for Target (meta cible)
+    // Construct Filename for Target (meta cible)
     const clientNameRaw = note.client?.name || 'UNKNOWN_CLIENT';
-    const clientName = clientNameRaw.toUpperCase().replace(/[^A-Z0-9 _-]/g, '_'); // sanitize filename
-    const blRef = note.reference || 'BL-XXXX';
-    const targetPath = `F:\\BL\\${clientName}\\${blRef} ${formatDate(now, "MMM d, yyyy")}.xlsx`;
+    const clientName = clientNameRaw.toUpperCase().replace(/[^A-Z0-9 _-]/g, '_'); // Directory name (keep simple)
+
+    // Filename Components
+    const fClient = clientNameRaw.replace(/[^a-zA-Z0-9 _-]/g, ''); // Client
+    const fRef = (note.reference || 'BL-XXXX').replace(/[^a-zA-Z0-9 _-]/g, ''); // BL Number
+
+    // Project Name (Safely retrieve from first item)
+    const projectRaw = note.items?.[0]?.pallet?.workOrder?.quote?.project?.name || 'NO_PROJECT';
+    const fProject = projectRaw.replace(/[^a-zA-Z0-9 _-]/g, '');
+
+    const fDate = formatDate(now, "yyyy-MM-dd"); // Emission Date
+
+    // Format: Client_BL_Project_Date
+    const filename = `${fClient}_${fRef}_${fProject}_${fDate}.xlsx`;
+
+    // Target Path: F:\BL\ClientFolder\Client_BL_Project_Date.xlsx
+    const targetPath = `F:\\BL\\${clientName}\\${filename}`;
 
     // Calculate Totals
     const items = note.items || [];
