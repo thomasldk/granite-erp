@@ -369,8 +369,9 @@ const DeliveryNoteList: React.FC = () => {
         if (hasChanges) {
             if (window.confirm("Des modifications non enregistrées ont été détectées. Voulez-vous les sauvegarder avant de générer le BL ?")) {
                 await handleSave();
+                return; // STOP: User must click Generate again after saving
             } else {
-                return; // Cancel generation if user declines
+                return; // Cancel generation
             }
         }
 
