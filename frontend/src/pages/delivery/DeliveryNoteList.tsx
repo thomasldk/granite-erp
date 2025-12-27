@@ -378,24 +378,20 @@ const DeliveryNoteList: React.FC = () => {
                 const res = await api.get(`/delivery/notes/${id}/status`);
                 if (res.data.status === 'Visualiser' || res.data.status === 'Generated') {
                     clearInterval(interval);
-                    setIsGenerating(false);
-
-                    // User feedback
-                    // alert("Génération terminée ! Téléchargement lancé..."); 
-                    // (Optional alert, maybe annoying if auto-download works well)
+                    // Do NOT clear isGenerating yet. Keep it true until files are downloading.
 
                     fetchNotes(); // Refresh list to update status in UI
 
                     // Trigger Downloads
-                    // We construct a minimal object because downloadFile needs { id }
                     const noteObj = { id: id };
 
                     // 1. Download PDF
                     downloadFile(noteObj, 'pdf');
 
-                    // 2. Download Excel (delayed)
+                    // 2. Download Excel (delayed) & Release UI
                     setTimeout(() => {
                         downloadFile(noteObj, 'excel');
+                        setIsGenerating(false); // Enable button only after everything is launched
                     }, 1500);
                 }
             } catch (e) {
