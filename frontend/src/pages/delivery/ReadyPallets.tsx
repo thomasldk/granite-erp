@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
-import { useNavigate } from 'react-router-dom';
 import { ClipboardDocumentCheckIcon, TruckIcon } from '@heroicons/react/24/outline';
 import CreateDeliveryModal from '../../components/delivery/CreateDeliveryModal'; // We will create this next
 
@@ -9,7 +8,6 @@ const ReadyPallets: React.FC = () => {
     const [selectedPallets, setSelectedPallets] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [isCreationModalOpen, setIsCreationModalOpen] = useState(false);
-    const navigate = useNavigate();
 
     useEffect(() => {
         fetchReadyPallets();
@@ -69,8 +67,8 @@ const ReadyPallets: React.FC = () => {
                     onClick={handleCreateClick}
                     disabled={selectedPallets.length === 0}
                     className={`flex items-center px-4 py-2 rounded shadow transition-colors ${selectedPallets.length > 0
-                            ? 'bg-blue-600 text-white hover:bg-blue-700'
-                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                         }`}
                 >
                     <TruckIcon className="h-5 w-5 mr-2" />
@@ -103,8 +101,8 @@ const ReadyPallets: React.FC = () => {
                                                     key={pallet.id}
                                                     onClick={() => toggleSelection(pallet.id)}
                                                     className={`cursor-pointer rounded border p-3 flex justify-between items-start transition-all ${selectedPallets.includes(pallet.id)
-                                                            ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                                                            : 'border-gray-200 hover:border-blue-300'
+                                                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                                                        : 'border-gray-200 hover:border-blue-300'
                                                         }`}
                                                 >
                                                     <div>

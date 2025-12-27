@@ -1560,7 +1560,7 @@ export default function QuoteForm() {
                     project={formData.project}
                     client={selectedClient}
                     defaultWeeks={formData.estimatedWeeks ? parseInt(formData.estimatedWeeks) : 4}
-                    onSuccess={(workOrderId) => {
+                    onSuccess={(_) => {
                         // navigate(`/production/${workOrderId}`); // User requested to stay on Quote
                         fetchQuote();
                         alert("Mise en production effectuée avec succès.");

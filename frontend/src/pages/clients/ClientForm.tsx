@@ -162,6 +162,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                             incotermCustomText: (client as any).incotermCustomText || '',
                             taxId: (client as any).taxId || '',
                             customsBrokerId: (client as any).customsBrokerId || '',
+                            customsBrokerFee: (client as any).customsBrokerFee ? String((client as any).customsBrokerFee) : '',
                             internalNotes: client.internalNotes || '',
                             addressLine1: mainAddr.line1 || '',
                             addressCity: mainAddr.city || '',
@@ -295,8 +296,9 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
                 discountDays: formData.discountDays ? parseInt(formData.discountDays) : 0,
                 paymentCustomText: formData.paymentCustomText || null,
                 validityDuration: formData.validityDuration ? parseInt(formData.validityDuration) : null,
-                taxId: formData.taxId || undefined, // Use undefined instead of null
-                customsBrokerId: formData.customsBrokerId || undefined // Use undefined instead of null
+                taxId: formData.taxId || undefined,
+                customsBrokerId: formData.customsBrokerId || undefined,
+                customsBrokerFee: formData.customsBrokerFee ? parseFloat(formData.customsBrokerFee) : undefined
             };
 
             if (id) {

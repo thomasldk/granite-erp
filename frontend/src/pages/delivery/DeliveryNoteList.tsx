@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
-import { DocumentTextIcon, PlusIcon, PencilSquareIcon, TrashIcon, MapPinIcon, PlusCircleIcon, MinusCircleIcon, ArrowDownTrayIcon, TableCellsIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, PlusIcon, PencilSquareIcon, TrashIcon, PlusCircleIcon, MinusCircleIcon, ArrowDownTrayIcon, TableCellsIcon } from '@heroicons/react/24/outline';
 import { formatPhoneNumber, formatPostalCode } from '../../utils/formatters';
 import { lookupPostalCode } from '../../services/geoService';
 
@@ -287,7 +287,7 @@ const DeliveryNoteList: React.FC = () => {
             let targetProject: any = null;
 
             selectedPallets.forEach(p => {
-                const proj = p.items?.[0]?.quoteItem?.quote?.project; // Access via pallet->item->quoteItem->quote->project
+                // Access via pallet->item->quoteItem->quote->project
                 // Backup path if structure differs: p.workOrder.quote.project ?
                 // Checking usage in other parts: p.workOrder?.quote?.project
                 const projFromWO = p.workOrder?.quote?.project;
@@ -603,7 +603,6 @@ const DeliveryNoteList: React.FC = () => {
             addressParts.push(midLine);
         }
         addressParts.push(editForm.addrCountry || 'Canada');
-        const reconstructedAddress = addressParts.join('\n');
 
         // Check for unsaved changes
         // Robust Dirty Check using JSON comparison
@@ -628,7 +627,7 @@ const DeliveryNoteList: React.FC = () => {
             await api.get(`/delivery/notes/${selectedNoteId}/rak`);
             // Non-blocking user feedback
             console.log("Demande envoyée à l'Agent. En attente de traitement...");
-            pollStatus(selectedNoteId!, selectedNote); // Pass full note object/or fetch it
+            pollStatus(selectedNoteId!); // Pass full note object/or fetch it
         } catch (e: any) {
             console.error(e);
             const msg = e.response?.data?.error || e.message || "Erreur inconnue";
@@ -638,7 +637,7 @@ const DeliveryNoteList: React.FC = () => {
     };
 
 
-    const pollStatus = async (id: string, noteContext: any) => {
+    const pollStatus = async (id: string) => {
         const interval = setInterval(async () => {
             try {
                 const res = await api.get(`/delivery/notes/${id}/status`);
