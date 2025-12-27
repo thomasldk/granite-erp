@@ -138,6 +138,17 @@ if (require.main === module) {
         console.log(`\n\n🚨 SERVER RESTART V3 (POLLING FIX APPLIED) - IF YOU SEE THIS, IT WORKED 🚨`);
         console.log(`Server running on port ${port} - API Ready (Bound to 0.0.0.0)`);
 
+        // Ensure pending_xml exists (Critical for Agent Polling on Railway)
+        const fs = require('fs');
+        const path = require('path');
+        const pendingDir = path.join(process.cwd(), 'pending_xml');
+        if (!fs.existsSync(pendingDir)) {
+            fs.mkdirSync(pendingDir, { recursive: true });
+            console.log(`[Startup] Created missing directory: ${pendingDir}`);
+        } else {
+            console.log(`[Startup] Directory verified: ${pendingDir}`);
+        }
+
         // Start Backup Service
         console.log("🚀 Server Ready. Backup scheduling enabled (Hourly).");
         // Initial backup disabled to prevent startup crashes on Railway
