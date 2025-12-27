@@ -97,9 +97,57 @@ export const generateDeliveryNoteRak = async (note: any): Promise<string> => {
         }
     }
 
+    // 1. Client Office Information (Bureau)
+    // Find Billing/Main address
+    const clientAddress = note.client?.addresses?.find((a: any) => a.type === 'Billing' || a.type === 'Bureau')
+        || note.client?.addresses?.[0]
+        || {};
+    // Find Primary Contact (or just first one)
+    const clientContact = note.client?.contacts?.[0] || {};
+    // Find Client Phone from contact or client fallback
+    const clientPhone = clientContact.phone || note.client?.phone || '';
+
+    // 2. Delivery Information (Chantier)
+    // Parse unstructured delivery address from Note
+    const rawAddr = note.deliveryAddress || '';
+    const addrLines = rawAddr.split('\n').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+
+    // Heuristic Parsing
+    const livAdresse1 = addrLines[0] || '';
+    let livVille = '', livRegion = '', livCodePostal = '', livPays = 'CA';
+
+    // Try to parse City, Region Zip from last lines
+    // Example: "Montreal, QC H1A 1A1" or "Montreal\nQC H1A 1A1"
+    if (addrLines.length > 1) {
+        // Check for Country in last line
+        const last = addrLines[addrLines.length - 1];
+        if (last.toUpperCase() === 'CANADA' || last.toUpperCase() === 'US' || last.toUpperCase() === 'USA') {
+            livPays = last === 'CANADA' ? 'CA' : 'US';
+            // If lines > 2, line before might be city/state
+        }
+
+        // Simple heuristic: If 2 lines, Line 2 is City/State/Zip
+        // We will just put the rest in 'ville' if we can't parse or leave blank?
+        // Better: Put raw address in adresse1 if valid, but user wants specific fields.
+        // I will attempt to extract Zip Code (Regex)
+        const zipRegex = /[A-Z]\d[A-Z]\s?\d[A-Z]\d/i; // Canadian Zip
+        const foundZip = rawAddr.match(zipRegex);
+        if (foundZip) livCodePostal = foundZip[0];
+
+        // This is imperfect but better than nothing.
+    }
+
+    const lang = note.client?.language === 'fr' ? 'fr' : 'en';
+    const currency = note.client?.defaultCurrency || 'CAD';
+
     const xml = `<?xml version='1.0'?>
 <!--Génération par DRC le ${timestamp}-->
-<generation type='Soumission'><meta cible='${escapeXml(targetPath)}' print='' Langue='en' action='GénérationBL' dirpdf='C:\\Lotus\\Domino\\data\\domino\\html\\erp\\drc\\pdf\\' modele='H:\\Modeles\\Directe\\Modèle BL defaut.xlsx' source='' appCode='03' journal='' socLangue='en' codeModule='07' definition='C:\\Travail\\XML\\CLAUTOMATEBL.xml' imprimante='' codeApplication='03'/><BL Devise='${escapeXml(note.client?.defaultCurrency || 'CAD')}' Export='1' FretIn='1' FretPx='0' Langue='en' numero='${escapeXml(note.reference.replace('BL-', ''))}' projet='${escapeXml(note.items?.[0]?.pallet?.workOrder?.quote?.project?.name || '')}' Incodsp='Entry' TaxesIn='0' TaxesPx='0' Incoterm='' IncotermS='${escapeXml(note.client?.incoterm || '')}' CourtageIn='1' CourtagePx='0' NbrPalette='${totalPallets}' FraisDouane='1' IncotermInd='3' BorderToDest='0' FretToBorder='0' Transporteur='${escapeXml(note.carrier || '')}' dateEmission='${dateEmission}' Devise_interne='CAD' LiensFinancier='0'><client IRS='${escapeXml(note.client?.taxId)}' pays='US' ville='' region='' adresse1='${escapeXml(note.deliveryAddress)}' nomClient='${escapeXml(note.client?.name)}' codepostal='' abbreviation=''><contact cel='${escapeXml(note.siteContactPhone)}' fax='' nom='${escapeXml(note.siteContactName)}' tel='' mail='${escapeXml(note.siteContactEmail)}' prenom=''/></client><EXPORT nom='GRANITE DRC inc.' pays='CA' ville='RIVIÈRE-À-PIERRE' region='CA-QC' adresse1='475' codepostal='GOA-3AO' paysTraduit='CA' abbreviation=''/><LOADING nom='GRANITE DRC RAP' pays='CA' ville='Rivière-à-Pierre' region='CA-QC' adresse1='475 Avenue Delisle' regiondsp='Quebec' codepostal='G0A3A0' paysTraduit='Canada' abbreviation=''/><BROKER BrokerUse='1' SocieteNom='A.N. DERINGER INC.'><contact cel='' fax='' nom='-' tel='' mail='' prenom='-'/></BROKER><lignes>${linesXml}</lignes><resultat flag=''/></BL></generation>`;
+<generation type='Soumission'><meta cible='${escapeXml(targetPath)}' print='' Langue='${lang}' action='GénérationBL' dirpdf='C:\\Lotus\\Domino\\data\\domino\\html\\erp\\drc\\pdf\\' modele='H:\\Modeles\\Directe\\Modèle BL defaut.xlsx' source='' appCode='03' journal='' socLangue='${lang}' codeModule='07' definition='C:\\Travail\\XML\\CLAUTOMATEBL.xml' imprimante='' codeApplication='03'/><BL Devise='${escapeXml(currency)}' Export='1' FretIn='1' FretPx='0' Langue='${lang}' numero='${escapeXml(note.reference.replace('BL-', ''))}' projet='${escapeXml(note.items?.[0]?.pallet?.workOrder?.quote?.project?.name || '')}' Incodsp='Entry' TaxesIn='0' TaxesPx='0' Incoterm='' IncotermS='${escapeXml(note.client?.incoterm || '')}' CourtageIn='1' CourtagePx='0' NbrPalette='${totalPallets}' FraisDouane='1' IncotermInd='3' BorderToDest='0' FretToBorder='0' Transporteur='${escapeXml(note.carrier || '')}' dateEmission='${dateEmission}' Devise_interne='CAD' LiensFinancier='0'>
+<client IRS='${escapeXml(note.client?.taxId)}' pays='${escapeXml(clientAddress.country === 'Canada' ? 'CA' : 'US')}' ville='${escapeXml(clientAddress.city)}' region='${escapeXml(clientAddress.state)}' adresse1='${escapeXml(clientAddress.line1)}' nomClient='${escapeXml(note.client?.name)}' codepostal='${escapeXml(clientAddress.zipCode)}' abbreviation=''>
+<contact cel='${escapeXml(clientContact.mobile)}' fax='${escapeXml(clientContact.fax)}' nom='${escapeXml(clientContact.lastName)}' tel='${escapeXml(clientContact.phone)}' mail='${escapeXml(clientContact.email)}' prenom='${escapeXml(clientContact.firstName)}'/>
+</client>
+<livraison pays='${escapeXml(livPays)}' ville='${escapeXml(livVille)}' region='${escapeXml(livRegion)}' adresse1='${escapeXml(livAdresse1)}' nomClient='${escapeXml(note.items?.[0]?.pallet?.workOrder?.quote?.project?.name || '')}' codepostal='${escapeXml(livCodePostal)}' abbreviation='' livraisonCel='${escapeXml(note.siteContactPhone)}' livraisonFax='' livraisonNom='${escapeXml(note.siteContactName)}' livraisonTel=''/>
+<EXPORT nom='GRANITE DRC inc.' pays='CA' ville='RIVIÈRE-À-PIERRE' region='CA-QC' adresse1='475' codepostal='GOA-3AO' paysTraduit='CA' abbreviation=''/><LOADING nom='GRANITE DRC RAP' pays='CA' ville='Rivière-à-Pierre' region='CA-QC' adresse1='475 Avenue Delisle' regiondsp='Quebec' codepostal='G0A3A0' paysTraduit='Canada' abbreviation=''/><BROKER BrokerUse='1' SocieteNom='A.N. DERINGER INC.'><contact cel='' fax='' nom='-' tel='' mail='' prenom='-'/></BROKER><lignes>${linesXml}</lignes><resultat flag=''/></BL></generation>`;
 
     return xml;
 };

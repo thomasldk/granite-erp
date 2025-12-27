@@ -424,7 +424,12 @@ export const queueDeliveryRak = async (req: Request, res: Response) => {
         const note = await prisma.deliveryNote.findUnique({
             where: { id },
             include: {
-                client: true,
+                client: {
+                    include: {
+                        addresses: true,
+                        contacts: true
+                    }
+                },
                 items: { include: { pallet: { include: { workOrder: { include: { quote: { include: { project: true } } } }, items: { include: { quoteItem: { include: { quote: true } } } } } } } }
             }
         });
