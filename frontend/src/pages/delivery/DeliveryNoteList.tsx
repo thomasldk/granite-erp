@@ -831,21 +831,24 @@ const DeliveryNoteList: React.FC = () => {
                             <span className="text-2xl font-bold leading-none">&times;</span>
                         </button>
                         <div className="flex justify-between items-start mb-6 border-b pb-4">
-                            <div>
-                                <h2 className="text-2xl font-bold text-gray-800">
-                                    Détails & Modification {selectedNote.reference}
-                                </h2>
-                                <div className="flex items-center space-x-2 mt-1">
-                                    <span className="text-gray-500 text-sm">Statut:</span>
-                                    <select
-                                        value={editForm.status}
-                                        onChange={e => setEditForm({ ...editForm, status: e.target.value })}
-                                        className="text-sm border-gray-300 rounded shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
-                                    >
-                                        <option value="Draft">En préparation</option>
-                                        <option value="Validé">Validé</option>
-                                        <option value="Livré">Livré</option>
-                                    </select>
+                            <div className="flex items-center gap-4">
+                                <img src="/logo.jpg" alt="Logo" className="h-14 w-auto object-contain" />
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-800">
+                                        Détails & Modification {selectedNote.reference}
+                                    </h2>
+                                    <div className="flex items-center space-x-2 mt-1">
+                                        <span className="text-gray-500 text-sm">Statut:</span>
+                                        <select
+                                            value={editForm.status}
+                                            onChange={e => setEditForm({ ...editForm, status: e.target.value })}
+                                            className="text-sm border-gray-300 rounded shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
+                                        >
+                                            <option value="Draft">Brouillon</option>
+                                            <option value="Validé">Visualisé</option>
+                                            <option value="Livré">Émis</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                         </div>
