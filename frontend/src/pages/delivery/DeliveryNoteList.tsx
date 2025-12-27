@@ -398,9 +398,12 @@ const DeliveryNoteList: React.FC = () => {
                 const res = await api.get(`/delivery/notes/${id}/status`);
                 if (res.data.status === 'Visualiser' || res.data.status === 'Generated') {
                     clearInterval(interval);
-                    // Do NOT clear isGenerating yet. Keep it true until files are downloading.
+                    // Do NOT clear isGenerating yet. 
 
-                    fetchNotes(); // Refresh list to update status in UI
+                    fetchNotes();
+
+                    // UPDATE MODAL STATE TO REFLECT NEW STATUS IMMEDIATELY
+                    setSelectedNote((prev: any) => prev && prev.id === id ? { ...prev, status: res.data.status } : prev);
 
                     // Trigger Downloads
                     const noteObj = { id: id };
