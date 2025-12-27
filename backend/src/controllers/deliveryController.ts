@@ -540,7 +540,8 @@ export const downloadDeliveryFile = async (req: Request, res: Response) => {
 
             if (filePath && !filePath.startsWith('F:') && fs.existsSync(path.join(process.cwd(), filePath))) {
                 const absolutePath = path.join(process.cwd(), filePath);
-                res.download(absolutePath, `BL-${note.reference}.xlsx`);
+                // Use the actual filename from disk (which now has the correct format)
+                res.download(absolutePath, path.basename(absolutePath));
             } else {
                 res.status(404).json({ error: "Fichier Excel non disponible." });
             }
@@ -549,31 +550,37 @@ export const downloadDeliveryFile = async (req: Request, res: Response) => {
         } else if (type === 'pdf') {
             // Priority: Serve Uploaded PDF from Agent
             let pdfServed = false;
+            // Check if pdfFilePath is valid and exists locally (uploads/)
             if (note.pdfFilePath && !note.pdfFilePath.startsWith('F:') && fs.existsSync(path.join(process.cwd(), note.pdfFilePath))) {
                 const absolutePath = path.join(process.cwd(), note.pdfFilePath);
-                res.download(absolutePath, `BL-${note.reference}.pdf`);
+                res.download(absolutePath, path.basename(absolutePath));
                 pdfServed = true;
             }
 
-            // Fallback: Check uploads by naming convention
+            // Fallback: Check uploads by Ref if database path is missing/wrong
             if (!pdfServed) {
                 const uploadsDir = path.join(process.cwd(), 'uploads');
-                const pdfSearch = fs.readdirSync(uploadsDir).find(f => f.includes(note.reference) && f.endsWith('.pdf'));
-                if (pdfSearch) {
-                    res.download(path.join(uploadsDir, pdfSearch), `BL-${note.reference}.pdf`);
-                    pdfServed = true;
-                }
+                try {
+                    const pdfSearch = fs.readdirSync(uploadsDir).find(f => f.includes(note.reference) && f.endsWith('.pdf'));
+                    if (pdfSearch) {
+                        res.download(path.join(uploadsDir, pdfSearch), pdfSearch);
+                        pdfServed = true;
+                    }
+                } catch (e) { }
             }
 
             if (!pdfServed) {
-                // Final Fallback: Generate Local PDF
+                // Final Fallback blocked: Generate Local PDF
+                // Warning: This generates a generic name if we build it on the fly.
                 console.log("[Download] Generating local PDF fallback.");
                 const pdfService = await import('../services/pdfService');
                 const pdfBuffer = await pdfService.PdfService.generateDeliveryNotePdf(note);
 
+                const filename = `BL-${note.reference}.pdf`; // Fallback name for generated file
+
                 res.set({
                     'Content-Type': 'application/pdf',
-                    'Content-Disposition': `attachment; filename=BL-${note.reference}.pdf`,
+                    'Content-Disposition': `attachment; filename=${filename}`,
                     'Content-Length': pdfBuffer.length
                 });
                 res.send(pdfBuffer);
