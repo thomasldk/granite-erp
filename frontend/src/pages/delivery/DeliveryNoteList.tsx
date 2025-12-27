@@ -354,6 +354,26 @@ const DeliveryNoteList: React.FC = () => {
 
     const handleGenerateRak = async () => {
         if (!selectedNote) return;
+
+        // Check for unsaved changes
+        const currentNoteDate = new Date(selectedNote.date).toISOString().split('T')[0];
+        const hasChanges = (
+            (editForm.date !== currentNoteDate) ||
+            ((editForm.carrier || '') !== (selectedNote.carrier || '')) ||
+            ((editForm.deliveryAddress || '') !== (selectedNote.deliveryAddress || '')) ||
+            ((editForm.siteContactName || '') !== (selectedNote.siteContactName || '')) ||
+            ((editForm.siteContactPhone || '') !== (selectedNote.siteContactPhone || '')) ||
+            ((editForm.siteContactEmail || '') !== (selectedNote.siteContactEmail || ''))
+        );
+
+        if (hasChanges) {
+            if (window.confirm("Des modifications non enregistrées ont été détectées. Voulez-vous les sauvegarder avant de générer le BL ?")) {
+                await handleSave();
+            } else {
+                return; // Cancel generation if user declines
+            }
+        }
+
         const selectedNoteId = selectedNote.id;
 
         setIsGenerating(true);
