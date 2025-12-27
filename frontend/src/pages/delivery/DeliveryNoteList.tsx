@@ -1056,180 +1056,181 @@ const DeliveryNoteList: React.FC = () => {
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            {/* Pallet Details Section */}
-                            <div className="mb-6">
-                                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Détails du Chargement</h3>
-                                <div className="bg-gray-50 rounded border overflow-hidden">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                        <thead className="bg-gray-100">
-                                            <tr>
-                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase w-10"></th>
-                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Palette #</th>
-                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Commande / Projet</th>
-                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Contenu</th>
-                                                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Poids (lbs)</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-200">
-                                            {selectedNote.items && selectedNote.items.map((item: any) => (
-                                                <React.Fragment key={item.id}>
-                                                    <tr
-                                                        className="hover:bg-blue-50 cursor-pointer transition-colors"
-                                                        onClick={() => setExpandedPalletId(expandedPalletId === item.palletId ? null : item.palletId)}
-                                                    >
-                                                        <td className="px-4 py-2">
-                                                            {selectedNote.status === 'Draft' && (
-                                                                <button
-                                                                    onClick={(e) => handleRemovePallet(e, item.palletId)}
-                                                                    className="text-red-400 hover:text-red-600 transition-colors p-1"
-                                                                    title="Retirer du bon"
-                                                                >
-                                                                    <MinusCircleIcon className="h-6 w-6" />
-                                                                </button>
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-2 text-sm font-medium text-gray-900">
-                                                            P#{item.pallet?.number?.toString().padStart(2, '0') || '??'}
-                                                            <span className="text-gray-400 text-xs ml-1">({item.pallet?.barcode})</span>
-                                                        </td>
-                                                        <td className="px-4 py-2 text-sm text-gray-500">
-                                                            {item.pallet?.workOrder?.orderNumber} <br />
-                                                            <span className="text-xs text-gray-400">{item.pallet?.workOrder?.quote?.project?.name}</span>
-                                                        </td>
-                                                        <td className="px-4 py-2 text-sm text-gray-500">
-                                                            {item.pallet?.items?.length || 0} morceaux
-                                                            <span className="text-xs text-blue-600 block">
-                                                                {expandedPalletId === item.palletId ? 'Masquer détails' : 'Voir détails'}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-4 py-2 text-sm text-gray-900 text-right font-medium whitespace-nowrap">
-                                                            {item.pallet?.items?.reduce((sum: number, pi: any) => sum + (((pi.quoteItem?.totalWeight || 0) / (pi.quoteItem?.quantity || 1)) * (pi.quantity || 0)), 0).toLocaleString('fr-CA', { maximumFractionDigits: 1 })} lbs
-                                                        </td>
-                                                    </tr>
-                                                    {expandedPalletId === item.palletId && (
-                                                        <tr>
-                                                            <td colSpan={5} className="bg-gray-50 px-4 py-3 border-t border-b">
-                                                                <div className="grid grid-cols-1 gap-1 pl-4 border-l-4 border-blue-200">
-                                                                    {item.pallet?.items?.map((pi: any, idx: number) => (
-                                                                        <div key={idx} className="text-sm text-gray-700 flex items-center">
-                                                                            <span className="font-mono font-bold text-gray-600 mr-2 w-8">#{pi.quoteItem?.lineNo || '-'}</span>
-                                                                            <span className="text-blue-800 font-semibold mr-2 w-12">[{pi.quoteItem?.tag || '-'}]</span>
-                                                                            <span className="text-gray-500 mr-2 w-20">{pi.quoteItem?.refReference || '-'}</span>
-                                                                            <span className="font-bold text-black mr-2">x{pi.quantity}</span>
-                                                                            <span>{pi.quoteItem?.description || pi.quoteItem?.product}</span>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </React.Fragment>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            {/* Available Pallets Section (For Draft Notes) */}
-                            {selectedNote.status === 'Draft' && (
-                                <div className="mb-6 opacity-75 hover:opacity-100 transition-opacity">
-                                    <h3 className="text-sm font-semibold text-green-700 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                        <span>📥 Palettes Validées Disponibles</span>
-                                        <span className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full">
-                                            {readyPallets.filter(p => p.workOrder?.quote?.client?.id === selectedNote.clientId).length}
-                                        </span>
-                                    </h3>
-                                    <div className="bg-green-50 rounded border border-green-200 overflow-hidden">
-                                        {readyPallets.filter(p => p.workOrder?.quote?.client?.id === selectedNote.clientId).length > 0 ? (
-                                            <table className="min-w-full divide-y divide-green-200">
-                                                <thead className="bg-green-100/50">
+                        {/* Pallet Details Section */}
+                        <div className="mb-6">
+                            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Détails du Chargement</h3>
+                            <div className="bg-gray-50 rounded border overflow-hidden">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-100">
+                                        <tr>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase w-10"></th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Palette #</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Commande / Projet</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Contenu</th>
+                                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Poids (lbs)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                        {selectedNote.items && selectedNote.items.map((item: any) => (
+                                            <React.Fragment key={item.id}>
+                                                <tr
+                                                    className="hover:bg-blue-50 cursor-pointer transition-colors"
+                                                    onClick={() => setExpandedPalletId(expandedPalletId === item.palletId ? null : item.palletId)}
+                                                >
+                                                    <td className="px-4 py-2">
+                                                        {selectedNote.status === 'Draft' && (
+                                                            <button
+                                                                onClick={(e) => handleRemovePallet(e, item.palletId)}
+                                                                className="text-red-400 hover:text-red-600 transition-colors p-1"
+                                                                title="Retirer du bon"
+                                                            >
+                                                                <MinusCircleIcon className="h-6 w-6" />
+                                                            </button>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-2 text-sm font-medium text-gray-900">
+                                                        P#{item.pallet?.number?.toString().padStart(2, '0') || '??'}
+                                                        <span className="text-gray-400 text-xs ml-1">({item.pallet?.barcode})</span>
+                                                    </td>
+                                                    <td className="px-4 py-2 text-sm text-gray-500">
+                                                        {item.pallet?.workOrder?.orderNumber} <br />
+                                                        <span className="text-xs text-gray-400">{item.pallet?.workOrder?.quote?.project?.name}</span>
+                                                    </td>
+                                                    <td className="px-4 py-2 text-sm text-gray-500">
+                                                        {item.pallet?.items?.length || 0} morceaux
+                                                        <span className="text-xs text-blue-600 block">
+                                                            {expandedPalletId === item.palletId ? 'Masquer détails' : 'Voir détails'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-2 text-sm text-gray-900 text-right font-medium whitespace-nowrap">
+                                                        {item.pallet?.items?.reduce((sum: number, pi: any) => sum + (((pi.quoteItem?.totalWeight || 0) / (pi.quoteItem?.quantity || 1)) * (pi.quantity || 0)), 0).toLocaleString('fr-CA', { maximumFractionDigits: 1 })} lbs
+                                                    </td>
+                                                </tr>
+                                                {expandedPalletId === item.palletId && (
                                                     <tr>
-                                                        <th className="px-4 py-2 text-left text-xs font-medium text-green-800 uppercase w-10"></th>
-                                                        <th className="px-4 py-2 text-left text-xs font-medium text-green-800 uppercase">Palette #</th>
-                                                        <th className="px-4 py-2 text-left text-xs font-medium text-green-800 uppercase">Commande / Projet</th>
-                                                        <th className="px-4 py-2 text-left text-xs font-medium text-green-800 uppercase">Contenu</th>
-                                                        <th className="px-4 py-2 text-right text-xs font-medium text-green-800 uppercase">Poids</th>
+                                                        <td colSpan={5} className="bg-gray-50 px-4 py-3 border-t border-b">
+                                                            <div className="grid grid-cols-1 gap-1 pl-4 border-l-4 border-blue-200">
+                                                                {item.pallet?.items?.map((pi: any, idx: number) => (
+                                                                    <div key={idx} className="text-sm text-gray-700 flex items-center">
+                                                                        <span className="font-mono font-bold text-gray-600 mr-2 w-8">#{pi.quoteItem?.lineNo || '-'}</span>
+                                                                        <span className="text-blue-800 font-semibold mr-2 w-12">[{pi.quoteItem?.tag || '-'}]</span>
+                                                                        <span className="text-gray-500 mr-2 w-20">{pi.quoteItem?.refReference || '-'}</span>
+                                                                        <span className="font-bold text-black mr-2">x{pi.quantity}</span>
+                                                                        <span>{pi.quoteItem?.description || pi.quoteItem?.product}</span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </td>
                                                     </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-green-200">
-                                                    {readyPallets
-                                                        .filter(p => p.workOrder?.quote?.client?.id === selectedNote.clientId)
-                                                        .map((pallet: any) => (
-                                                            <tr key={pallet.id} className="hover:bg-green-100 cursor-pointer">
-                                                                <td className="px-4 py-2">
-                                                                    <button
-                                                                        onClick={(e) => handleAddPallet(e, pallet.id)}
-                                                                        className="text-green-600 hover:text-green-800 transition-colors"
-                                                                        title="Ajouter au Bon"
-                                                                    >
-                                                                        <PlusCircleIcon className="h-6 w-6" />
-                                                                    </button>
-                                                                </td>
-                                                                <td className="px-4 py-2 text-sm font-bold text-gray-900">
-
-                                                                    P#{pallet.number?.toString().padStart(2, '0')}
-                                                                    <span className="text-gray-400 text-xs ml-1 font-normal">({pallet.barcode})</span>
-                                                                </td>
-                                                                <td className="px-4 py-2 text-sm text-gray-700">
-                                                                    {pallet.workOrder?.orderNumber}
-                                                                    <br />
-                                                                    <span className="text-xs text-gray-500">{pallet.workOrder?.quote?.project?.name}</span>
-                                                                </td>
-                                                                <td className="px-4 py-2 text-sm text-gray-700">
-                                                                    {pallet.items?.length || 0} morceaux
-                                                                </td>
-                                                                <td className="px-4 py-2 text-sm text-gray-900 text-right">
-                                                                    {pallet.items?.reduce((sum: number, i: any) => sum + (i.quoteItem?.totalWeight || 0), 0).toFixed(1)} lbs
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                </tbody>
-                                            </table>
-                                        ) : (
-                                            <div className="p-4 text-sm text-green-800 italic text-center">Aucune autre palette validée disponible pour ce client.</div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="flex justify-end pt-4 border-t space-x-3">
-                                <button
-                                    onClick={() => setSelectedNote(null)}
-                                    className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded shadow-sm hover:bg-gray-50"
-                                >
-                                    Fermer
-                                </button>
-                                <button
-                                    onClick={handleGenerateRak}
-                                    disabled={isGenerating}
-                                    className={`px-4 py-2 rounded shadow-sm font-medium transition-colors ${isGenerating
-                                        ? "bg-gray-400 text-white cursor-not-allowed"
-                                        : "bg-red-600 text-white hover:bg-red-700"
-                                        }`}
-                                >
-                                    {isGenerating ? (
-                                        <span className="flex items-center gap-2">
-                                            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                            Patientez...
-                                        </span>
-                                    ) : "Générer un BL"}
-                                </button>
-                                <button
-                                    onClick={handleSave}
-                                    className="bg-blue-600 text-white px-4 py-2 rounded shadow-sm hover:bg-blue-700"
-                                >
-                                    Sauvegarder
-                                </button>
+                                                )}
+                                            </React.Fragment>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
+
+                        {/* Available Pallets Section (For Draft Notes) */}
+                        {selectedNote.status === 'Draft' && (
+                            <div className="mb-6 opacity-75 hover:opacity-100 transition-opacity">
+                                <h3 className="text-sm font-semibold text-green-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+                                    <span>📥 Palettes Validées Disponibles</span>
+                                    <span className="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full">
+                                        {readyPallets.filter(p => p.workOrder?.quote?.client?.id === selectedNote.clientId).length}
+                                    </span>
+                                </h3>
+                                <div className="bg-green-50 rounded border border-green-200 overflow-hidden">
+                                    {readyPallets.filter(p => p.workOrder?.quote?.client?.id === selectedNote.clientId).length > 0 ? (
+                                        <table className="min-w-full divide-y divide-green-200">
+                                            <thead className="bg-green-100/50">
+                                                <tr>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-green-800 uppercase w-10"></th>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-green-800 uppercase">Palette #</th>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-green-800 uppercase">Commande / Projet</th>
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-green-800 uppercase">Contenu</th>
+                                                    <th className="px-4 py-2 text-right text-xs font-medium text-green-800 uppercase">Poids</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-green-200">
+                                                {readyPallets
+                                                    .filter(p => p.workOrder?.quote?.client?.id === selectedNote.clientId)
+                                                    .map((pallet: any) => (
+                                                        <tr key={pallet.id} className="hover:bg-green-100 cursor-pointer">
+                                                            <td className="px-4 py-2">
+                                                                <button
+                                                                    onClick={(e) => handleAddPallet(e, pallet.id)}
+                                                                    className="text-green-600 hover:text-green-800 transition-colors"
+                                                                    title="Ajouter au Bon"
+                                                                >
+                                                                    <PlusCircleIcon className="h-6 w-6" />
+                                                                </button>
+                                                            </td>
+                                                            <td className="px-4 py-2 text-sm font-bold text-gray-900">
+
+                                                                P#{pallet.number?.toString().padStart(2, '0')}
+                                                                <span className="text-gray-400 text-xs ml-1 font-normal">({pallet.barcode})</span>
+                                                            </td>
+                                                            <td className="px-4 py-2 text-sm text-gray-700">
+                                                                {pallet.workOrder?.orderNumber}
+                                                                <br />
+                                                                <span className="text-xs text-gray-500">{pallet.workOrder?.quote?.project?.name}</span>
+                                                            </td>
+                                                            <td className="px-4 py-2 text-sm text-gray-700">
+                                                                {pallet.items?.length || 0} morceaux
+                                                            </td>
+                                                            <td className="px-4 py-2 text-sm text-gray-900 text-right">
+                                                                {pallet.items?.reduce((sum: number, i: any) => sum + (i.quoteItem?.totalWeight || 0), 0).toFixed(1)} lbs
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                            </tbody>
+                                        </table>
+                                    ) : (
+                                        <div className="p-4 text-sm text-green-800 italic text-center">Aucune autre palette validée disponible pour ce client.</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex justify-end pt-4 border-t space-x-3">
+                            <button
+                                onClick={() => setSelectedNote(null)}
+                                className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded shadow-sm hover:bg-gray-50"
+                            >
+                                Fermer
+                            </button>
+                            <button
+                                onClick={handleGenerateRak}
+                                disabled={isGenerating}
+                                className={`px-4 py-2 rounded shadow-sm font-medium transition-colors ${isGenerating
+                                    ? "bg-gray-400 text-white cursor-not-allowed"
+                                    : "bg-red-600 text-white hover:bg-red-700"
+                                    }`}
+                            >
+                                {isGenerating ? (
+                                    <span className="flex items-center gap-2">
+                                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        Patientez...
+                                    </span>
+                                ) : "Générer un BL"}
+                            </button>
+                            <button
+                                onClick={handleSave}
+                                className="bg-blue-600 text-white px-4 py-2 rounded shadow-sm hover:bg-blue-700"
+                            >
+                                Sauvegarder
+                            </button>
+                        </div>
                     </div>
-            )}
                 </div>
-            );
+            )}
+        </div>
+    );
 };
 
-            export default DeliveryNoteList;
+export default DeliveryNoteList;
