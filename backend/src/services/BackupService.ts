@@ -39,10 +39,15 @@ export class BackupService {
         try {
             const backupData = await this.generateBackupJson();
 
-            // Determine path: ~/Documents/1Granite DRC/nouvelle erp 2025/sauvegardes
-            // We use os.homedir() to be safe and cross-platform compatible if username changes
-            const backupDir = path.join(os.homedir(), 'Documents', '1Granite DRC', 'nouvelle erp 2025', 'sauvegardes');
+            // Determine path:
+            let backupDir = path.join(process.cwd(), 'backups'); // Default (Railway/Docker)
 
+            // Override for Local Mac Environment (if not on Railway)
+            if (!process.env.RAILWAY_ENVIRONMENT && os.platform() === 'darwin') {
+                backupDir = path.join(os.homedir(), 'Documents', '1Granite DRC', 'nouvelle erp 2025', 'sauvegardes');
+            }
+
+            // Ensure directory exists
             if (!fs.existsSync(backupDir)) {
                 fs.mkdirSync(backupDir, { recursive: true });
             }
@@ -66,7 +71,10 @@ export class BackupService {
 
     getLatestBackupPath(): string | null {
         try {
-            const backupDir = path.join(os.homedir(), 'Documents', '1Granite DRC', 'nouvelle erp 2025', 'sauvegardes');
+            let backupDir = path.join(process.cwd(), 'backups'); // Default
+            if (!process.env.RAILWAY_ENVIRONMENT && os.platform() === 'darwin') {
+                backupDir = path.join(os.homedir(), 'Documents', '1Granite DRC', 'nouvelle erp 2025', 'sauvegardes');
+            }
 
             if (!fs.existsSync(backupDir)) {
                 return null;
