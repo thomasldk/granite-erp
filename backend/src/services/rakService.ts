@@ -102,8 +102,11 @@ export const generateDeliveryNoteRak = async (note: any): Promise<string> => {
     const clientAddress = note.client?.addresses?.find((a: any) => a.type === 'Billing' || a.type === 'Bureau')
         || note.client?.addresses?.[0]
         || {};
-    // Find Primary Contact (or just first one)
-    const clientContact = note.client?.contacts?.[0] || {};
+    // Find Primary Contact for Client Office
+    // PRIORITY: Quote Contact (Manager for this specific project) -> Client Contact -> First Client Contact
+    const quoteContact = note.items?.[0]?.pallet?.workOrder?.quote?.contact;
+    const clientContact = quoteContact || note.client?.contacts?.[0] || {};
+
     // Find Client Phone from contact or client fallback
     const clientPhone = clientContact.phone || note.client?.phone || '';
 

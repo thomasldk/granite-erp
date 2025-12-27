@@ -430,7 +430,7 @@ export const queueDeliveryRak = async (req: Request, res: Response) => {
                         contacts: true
                     }
                 },
-                items: { include: { pallet: { include: { workOrder: { include: { quote: { include: { project: true } } } }, items: { include: { quoteItem: { include: { quote: true } } } } } } } }
+                items: { include: { pallet: { include: { workOrder: { include: { quote: { include: { project: true, contact: true } } } }, items: { include: { quoteItem: { include: { quote: true } } } } } } } }
             }
         });
 
