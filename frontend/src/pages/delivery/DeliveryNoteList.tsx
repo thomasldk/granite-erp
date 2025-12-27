@@ -911,7 +911,33 @@ const DeliveryNoteList: React.FC = () => {
                             </div>
 
                             <div>
-                                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Logistique et Contact</h3>
+                                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Info Client (Bureau)</h3>
+                                <div className="bg-white p-3 rounded border mb-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs text-gray-500 font-bold">Client</label>
+                                            <div className="text-sm font-medium">{selectedNote.client?.name}</div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-500 font-bold">Contact Principal</label>
+                                            <div className="text-sm">{selectedNote.client?.contactName || '-'}</div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-500 font-bold">Téléphone (Bureau)</label>
+                                            <div className="text-sm">{formatPhoneNumber(selectedNote.client?.phone || '') || '-'}</div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-500 font-bold">Courriel</label>
+                                            <a href={`mailto:${selectedNote.client?.email}`} className="text-sm text-blue-600 hover:underline">
+                                                {selectedNote.client?.email || '-'}
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Logistique et Contact Chantier</h3>
                                 <div className="space-y-4">
                                     <div className="bg-gray-50 p-3 rounded border">
                                         <label className="block text-xs text-gray-500 mb-2 font-bold">Adresse de Livraison</label>
@@ -1177,8 +1203,8 @@ const DeliveryNoteList: React.FC = () => {
                                 onClick={handleGenerateRak}
                                 disabled={isGenerating}
                                 className={`px-4 py-2 rounded shadow-sm font-medium transition-colors ${isGenerating
-                                        ? "bg-gray-400 text-white cursor-not-allowed"
-                                        : "bg-red-600 text-white hover:bg-red-700"
+                                    ? "bg-gray-400 text-white cursor-not-allowed"
+                                    : "bg-red-600 text-white hover:bg-red-700"
                                     }`}
                             >
                                 {isGenerating ? (
