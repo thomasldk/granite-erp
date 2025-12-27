@@ -3,9 +3,8 @@ import { PrismaClient } from '@prisma/client';
 // Source (Dev) - Taken from .env
 const SOURCE_DB_URL = process.env.DATABASE_URL;
 
-// Target (Prod) - Taken from User Input
-// postgresql://postgres:yJcLrzjivAkNWBLpDefYtNBrnvFYTosD@shortline.proxy.rlwy.net:15191/GraniteDRC-Prod
-const TARGET_DB_URL = "postgresql://postgres:yJcLrzjivAkNWBLpDefYtNBrnvFYTosD@shortline.proxy.rlwy.net:15191/GraniteDRC-Prod";
+// Target (Preprod) - Update 2025-12-27 (CORRECT NEW SERVICE)
+const TARGET_DB_URL = "postgresql://postgres:uEllsfQAptLYQIFhawXpIKwgtvfKQlpL@yamanote.proxy.rlwy.net:12394/GraniteDRC-PreProd";
 
 const sourcePrisma = new PrismaClient({
     datasources: { db: { url: SOURCE_DB_URL } },
@@ -17,10 +16,37 @@ const targetPrisma = new PrismaClient({
 
 async function migrate() {
     console.log("🚀 Starting Data Migration...");
-    console.log(`FROM: Dev (${SOURCE_DB_URL})`);
-    console.log(`TO:   Prod (${TARGET_DB_URL})`);
+    console.log(`FROM: Dev (Local .env)`);
+    console.log(`TO:   Preprod (${TARGET_DB_URL})`);
 
     try {
+        // ... (Previous Reference Data code stays same) ...
+
+        // Ensure dotenv is loaded if running via ts-node directly
+        // usually passed via -r dotenv/config, but harmless to verify env var exists
+        if (!SOURCE_DB_URL) throw new Error("SOURCE_DB_URL is missing. Make sure .env is loaded.");
+
+        // 0. Reference Data & Users (MUST BE FIRST)
+        console.log("Copying Roles...");
+        const roles = await sourcePrisma.role.findMany();
+        if (roles.length) await targetPrisma.role.createMany({ data: roles, skipDuplicates: true });
+
+        console.log("Copying Departments...");
+        const depts = await sourcePrisma.department.findMany();
+        if (depts.length) await targetPrisma.department.createMany({ data: depts, skipDuplicates: true });
+
+        console.log("Copying JobTitles...");
+        const titles = await sourcePrisma.jobTitle.findMany();
+        if (titles.length) await targetPrisma.jobTitle.createMany({ data: titles, skipDuplicates: true });
+
+        console.log("Copying Users...");
+        const users = await sourcePrisma.user.findMany();
+        if (users.length) await targetPrisma.user.createMany({ data: users, skipDuplicates: true });
+
+        console.log("Copying EmployeeProfiles...");
+        const profiles = await sourcePrisma.employeeProfile.findMany();
+        if (profiles.length) await targetPrisma.employeeProfile.createMany({ data: profiles, skipDuplicates: true });
+
         // 1. Settings & Reference Data (No Dependencies)
         console.log("Copying Settings...");
         const settings = await sourcePrisma.setting.findMany();
@@ -62,9 +88,6 @@ async function migrate() {
         // 2. Third Parties & Dependents
         console.log("Copying ThirdParties...");
         const thirdParties = await sourcePrisma.thirdParty.findMany();
-        // Batch insert might fail if self-relations exist (e.g. customsBroker). 
-        // Ideally we should sort or do 2 passes, but let's try standard createMany first. 
-        // Wait, createMany ignores relations.
         if (thirdParties.length) await targetPrisma.thirdParty.createMany({ data: thirdParties, skipDuplicates: true });
 
         console.log("Copying Addresses...");
@@ -98,6 +121,10 @@ async function migrate() {
         console.log("Copying WorkOrders...");
         const workOrders = await sourcePrisma.workOrder.findMany();
         if (workOrders.length) await targetPrisma.workOrder.createMany({ data: workOrders, skipDuplicates: true });
+
+        console.log("Copying WorkOrderAdditionalContacts...");
+        const woContacts = await sourcePrisma.workOrderAdditionalContact.findMany();
+        if (woContacts.length) await targetPrisma.workOrderAdditionalContact.createMany({ data: woContacts, skipDuplicates: true });
 
         console.log("Copying Pallets...");
         const pallets = await sourcePrisma.pallet.findMany();
@@ -145,26 +172,7 @@ async function migrate() {
         const repairParts = await sourcePrisma.repairPart.findMany();
         if (repairParts.length) await targetPrisma.repairPart.createMany({ data: repairParts, skipDuplicates: true });
 
-        // 9. Users & HR (CRITICAL FOR LOGIN)
-        console.log("Copying Roles...");
-        const roles = await sourcePrisma.role.findMany();
-        if (roles.length) await targetPrisma.role.createMany({ data: roles, skipDuplicates: true });
 
-        console.log("Copying Departments...");
-        const depts = await sourcePrisma.department.findMany();
-        if (depts.length) await targetPrisma.department.createMany({ data: depts, skipDuplicates: true });
-
-        console.log("Copying JobTitles...");
-        const titles = await sourcePrisma.jobTitle.findMany();
-        if (titles.length) await targetPrisma.jobTitle.createMany({ data: titles, skipDuplicates: true });
-
-        console.log("Copying Users...");
-        const users = await sourcePrisma.user.findMany();
-        if (users.length) await targetPrisma.user.createMany({ data: users, skipDuplicates: true });
-
-        console.log("Copying EmployeeProfiles...");
-        const profiles = await sourcePrisma.employeeProfile.findMany();
-        if (profiles.length) await targetPrisma.employeeProfile.createMany({ data: profiles, skipDuplicates: true });
 
         console.log("✅ Migration Complete!");
 
