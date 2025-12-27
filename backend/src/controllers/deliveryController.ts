@@ -4,8 +4,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { generateDeliveryNoteRak } from '../services/rakService';
+import { Resend } from 'resend';
 
 const prisma = new PrismaClient();
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Get Ready Pallets
 export const getReadyPallets = async (req: Request, res: Response) => {
@@ -48,16 +50,43 @@ export const getReadyPallets = async (req: Request, res: Response) => {
 // Create Delivery Note
 export const createDeliveryNote = async (req: Request, res: Response) => {
     try {
-        const { clientId, date, carrier, address, palletIds, siteContactName, siteContactPhone, siteContactEmail } = req.body;
+        const { clientId, date, carrier, address, palletIds, siteContactName, siteContactPhone, siteContactEmail, freightCost } = req.body;
 
         if (!clientId) {
             return res.status(400).json({ error: "Missing required fields" });
         }
 
+        // Fetch Client for Default Broker Fee
+        const client = await prisma.thirdParty.findUnique({
+            where: { id: clientId },
+            select: { customsBrokerFee: true }
+        });
+
         // Generate Reference (BL-YY-XXXX)
         const year = new Date().getFullYear().toString().slice(-2);
-        const count = await prisma.deliveryNote.count();
-        const reference = `BL${year}-${(count + 1).toString().padStart(4, '0')}`;
+
+        // Fix: Use findFirst with orderBy to get the last one, instead of count
+        const lastNote = await prisma.deliveryNote.findFirst({
+            where: {
+                reference: {
+                    startsWith: `BL${year}-`
+                }
+            },
+            orderBy: {
+                reference: 'desc'
+            }
+        });
+
+        let nextNum = 1;
+        if (lastNote) {
+            const parts = lastNote.reference.split('-');
+            const lastNum = parseInt(parts[1], 10);
+            if (!isNaN(lastNum)) {
+                nextNum = lastNum + 1;
+            }
+        }
+
+        const reference = `BL${year}-${nextNum.toString().padStart(4, '0')}`;
 
         // Calculate Total Weight
         // We need to fetch pallets to sum weights
@@ -89,6 +118,8 @@ export const createDeliveryNote = async (req: Request, res: Response) => {
                     siteContactPhone,
                     siteContactEmail,
                     siteContactRole: req.body.siteContactRole,
+                    freightCost: freightCost ? parseFloat(freightCost) : 0,
+                    customsBrokerFee: client?.customsBrokerFee || 0, // New Default
                     createdById: (req as any).user?.id // Save creator
                 }
             });
@@ -126,8 +157,8 @@ export const createDeliveryNote = async (req: Request, res: Response) => {
                             type: 'Delivery', // Chantier/Livraison
                             line1: addrLine1,
                             city: addrCity || '',
-                            state: addrState,
-                            zipCode: addrZip,
+                            state: addrState || '',
+                            zipCode: addrZip || '',
                             country: addrCountry || 'Canada',
                             siteContactName: siteContactName,
                             siteContactPhone: siteContactPhone,
@@ -167,9 +198,12 @@ export const createDeliveryNote = async (req: Request, res: Response) => {
 
         res.json(result);
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error creating delivery note:", error);
-        res.status(500).json({ error: "Failed to create delivery note" });
+        try {
+            fs.appendFileSync(path.join(__dirname, '../../backend_error.log'), `[${new Date().toISOString()}] Create Delivery Note Error: ${error.message}\nStack: ${error.stack}\n`);
+        } catch (e) { console.error("Failed to write log", e); }
+        res.status(500).json({ error: "Failed to create delivery note: " + error.message });
     }
 };
 
@@ -178,7 +212,13 @@ export const getDeliveryNotes = async (req: Request, res: Response) => {
     try {
         const notes = await prisma.deliveryNote.findMany({
             include: {
-                client: true,
+                client: {
+                    include: {
+                        addresses: true,
+                        contacts: true,
+                        customsBroker: true
+                    }
+                },
                 createdBy: true, // Include Creator
                 items: {
                     include: {
@@ -189,8 +229,11 @@ export const getDeliveryNotes = async (req: Request, res: Response) => {
                                 },
                                 workOrder: {
                                     include: {
+                                        projectManager: true,
+                                        accountingContact: true,
+                                        additionalContacts: { include: { contact: true, role: true } },
                                         quote: {
-                                            include: { project: true, contact: true }
+                                            include: { project: true, contact: true, representative: true }
                                         }
                                     }
                                 }
@@ -214,7 +257,7 @@ export const getDeliveryNotes = async (req: Request, res: Response) => {
 export const updateDeliveryNote = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { date, carrier, deliveryAddress, siteContactName, siteContactPhone, siteContactEmail, status } = req.body;
+        const { date, carrier, deliveryAddress, siteContactName, siteContactPhone, siteContactEmail, status, freightCost, customsBrokerFee } = req.body;
 
         const updatedNote = await prisma.deliveryNote.update({
             where: { id },
@@ -225,16 +268,30 @@ export const updateDeliveryNote = async (req: Request, res: Response) => {
                 siteContactName,
                 siteContactPhone,
                 siteContactEmail,
-                status
+                status,
+                freightCost: freightCost !== undefined ? parseFloat(freightCost) : undefined,
+                customsBrokerFee: customsBrokerFee !== undefined ? parseFloat(customsBrokerFee) : undefined // New
             },
             include: {
-                client: true,
+                client: {
+                    include: {
+                        addresses: true,
+                        customsBroker: true
+                    }
+                },
                 createdBy: true,
                 items: {
                     include: {
                         pallet: {
                             include: {
-                                workOrder: { include: { quote: { include: { project: true } } } },
+                                workOrder: {
+                                    include: {
+                                        projectManager: true,
+                                        accountingContact: true,
+                                        additionalContacts: { include: { contact: true, role: true } },
+                                        quote: { include: { project: true, representative: true } }
+                                    }
+                                },
                                 items: { include: { quoteItem: true } }
                             }
                         }
@@ -257,13 +314,22 @@ export const getDeliveryNoteById = async (req: Request, res: Response) => {
         const note = await prisma.deliveryNote.findUnique({
             where: { id },
             include: {
-                client: true,
+                client: {
+                    include: { customsBroker: true }
+                },
                 createdBy: true,
                 items: {
                     include: {
                         pallet: {
                             include: {
-                                workOrder: { include: { quote: { include: { project: true, contact: true } } } },
+                                workOrder: {
+                                    include: {
+                                        projectManager: true,
+                                        accountingContact: true,
+                                        additionalContacts: { include: { contact: true, role: true } },
+                                        quote: { include: { project: true, contact: true, representative: true } }
+                                    }
+                                },
                                 items: { include: { quoteItem: true } }
                             }
                         }
@@ -418,6 +484,7 @@ export const removePalletFromNote = async (req: Request, res: Response) => {
 };
 
 // Queue RAK for Agent
+// Force Restart (RAK Address V2 Logic)
 export const queueDeliveryRak = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
@@ -427,10 +494,11 @@ export const queueDeliveryRak = async (req: Request, res: Response) => {
                 client: {
                     include: {
                         addresses: true,
-                        contacts: true
+                        contacts: true,
+                        customsBroker: true
                     }
                 },
-                items: { include: { pallet: { include: { workOrder: { include: { quote: { include: { project: true, contact: true } } } }, items: { include: { quoteItem: { include: { quote: true } } } } } } } }
+                items: { include: { pallet: { include: { workOrder: { include: { quote: { include: { project: true, contact: true } } } }, items: { include: { quoteItem: { include: { quote: { include: { project: true } } } } } } } } } }
             }
         });
 
@@ -576,12 +644,27 @@ export const downloadDeliveryFile = async (req: Request, res: Response) => {
 
             if (!pdfServed) {
                 // Final Fallback blocked: Generate Local PDF
-                // Warning: This generates a generic name if we build it on the fly.
                 console.log("[Download] Generating local PDF fallback.");
                 const pdfService = await import('../services/pdfService');
                 const pdfBuffer = await pdfService.PdfService.generateDeliveryNotePdf(note);
 
-                const filename = `BL-${note.reference}.pdf`; // Fallback name for generated file
+                // PERSISTENCE FIX: Save to Uploads and Update DB
+                const filename = `BL-${note.reference}.pdf`;
+                const uploadsDir = path.join(process.cwd(), 'uploads');
+                if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+                const savePath = path.join(uploadsDir, filename);
+                fs.writeFileSync(savePath, pdfBuffer);
+                console.log(`[Download] Saved generated PDF to ${savePath}`);
+
+                // Update DB so "Emit BL" button becomes active
+                await prisma.deliveryNote.update({
+                    where: { id: note.id },
+                    data: {
+                        pdfFilePath: `uploads/${filename}`,
+                        status: 'Generated'
+                    }
+                });
 
                 res.set({
                     'Content-Type': 'application/pdf',
@@ -598,5 +681,161 @@ export const downloadDeliveryFile = async (req: Request, res: Response) => {
     } catch (e) {
         console.error("Download Error:", e);
         res.status(500).json({ error: "Download failed" });
+    }
+};
+
+// Send Email
+export const sendDeliveryEmail = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { recipients, cc, bcc, subject, message, clientPOFilePath } = req.body;
+
+        if ((!recipients || recipients.length === 0) && (!cc || cc.length === 0)) {
+            return res.status(400).json({ error: "No recipients specified" });
+        }
+
+
+        const note = await prisma.deliveryNote.findUnique({
+            where: { id },
+            // ... existing include logic ...
+            include: {
+                client: {
+                    include: {
+                        addresses: true,
+                        contacts: true,
+                        customsBroker: true
+                    }
+                },
+                items: {
+                    include: {
+                        pallet: {
+                            include: {
+                                workOrder: { include: { quote: { include: { project: true } } } },
+                                items: { include: { quoteItem: true } }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!note) {
+            return res.status(404).json({ error: "Delivery Note not found" });
+        }
+
+        // PDF Generation / Retrieval Logic
+        // Priority: Serve Uploaded PDF from Agent
+        let pdfBuffer: Buffer | null = null;
+        const uploadsDir = path.join(process.cwd(), 'uploads');
+        let filename = `BL-${note.reference}.pdf`;
+
+        // 1. Check if pdfFilePath is valid and exists locally
+        if (note.pdfFilePath && !note.pdfFilePath.startsWith('F:') && fs.existsSync(path.join(process.cwd(), note.pdfFilePath))) {
+            const absolutePath = path.join(process.cwd(), note.pdfFilePath);
+            pdfBuffer = fs.readFileSync(absolutePath);
+            filename = path.basename(absolutePath);
+            console.log(`[Email] Attached official PDF from DB path: ${filename}`);
+        }
+
+        // 2. Fallback: Search uploads/ by Reference if DB path is missing/wrong (Agent sync might have happened but DB update lagged or path mismatch)
+        if (!pdfBuffer) {
+            try {
+                const pdfSearch = fs.readdirSync(uploadsDir).find(f => f.includes(note.reference) && f.endsWith('.pdf') && !f.startsWith('BL-')); // Exclude BL- prefix which is usually our generated one? Or include? Agent format is usually "Reference...pdf" w/o BL- prefix maybe? 
+                // Actually Agent filename is usually just Reference if simple, or complex. 
+                // Let's rely on 'includes(reference)'.
+                if (pdfSearch) {
+                    const flPath = path.join(uploadsDir, pdfSearch);
+                    pdfBuffer = fs.readFileSync(flPath);
+                    filename = pdfSearch;
+                    console.log(`[Email] Attached official PDF found in uploads: ${filename}`);
+                }
+            } catch (e) { }
+        }
+
+        // 3. Final Fallback: Generate Local PDF
+        if (!pdfBuffer) {
+            console.log("[Email] Generating local PDF fallback (official not found).");
+            const pdfService = await import('../services/pdfService');
+            pdfBuffer = await pdfService.PdfService.generateDeliveryNotePdf(note);
+            filename = `BL-${note.reference}.pdf`;
+        }
+
+        // Compose Email
+        const emailHtml = message ? `<p>${message.replace(/\n/g, '<br>')}</p>` : `
+            <p>Bonjour,</p>
+            <p>Veuillez trouver ci-joint le Bon de Livraison <strong>${note.reference}</strong>.</p>
+            <p>Cordialement,</p>
+            <p><strong>L'équipe Granite DRC</strong></p>
+        `;
+
+        // Send via Resend
+        // Force DEV MODE override (Default to DEV if not explicitly PRODUCTION)
+        const isDev = process.env.NODE_ENV !== 'production';
+        const finalTo = isDev ? ['thomasldk@granitedrc.com'] : recipients;
+        const finalCc = isDev ? [] : cc;
+        const finalBcc = isDev ? [] : bcc;
+
+        console.log(`[Email] Sending BL ${note.reference} TO: ${finalTo?.join(', ')} CC: ${finalCc?.join(', ')}`);
+
+        // Prepare Attachments
+        const attachments: any[] = [
+            {
+                filename: filename,
+                content: pdfBuffer,
+            }
+        ];
+
+        // Attach Client PO if available
+        if (clientPOFilePath) {
+            try {
+                // Ensure path is safe/local
+                // Path format from DB: "uploads/filename.pdf" or "F:/..."
+                let poPath = '';
+                if (clientPOFilePath.startsWith('uploads/') || clientPOFilePath.startsWith('uploads\\')) {
+                    poPath = path.join(process.cwd(), clientPOFilePath);
+                } else {
+                    // If absolute path (F:), try to read it directly? Or ignore?
+                    // Backend might not have access to mapped drives in same way, but usually node can read if user has perm.
+                    // Safe approach: check exists.
+                    poPath = clientPOFilePath;
+                }
+
+                if (fs.existsSync(poPath)) {
+                    const poBuffer = fs.readFileSync(poPath);
+                    const poFilename = path.basename(poPath);
+                    attachments.push({
+                        filename: poFilename, // Keep original name e.g. PO123.pdf
+                        content: poBuffer
+                    });
+                    console.log(`[Email] Attached Client PO: ${poFilename}`);
+                } else {
+                    console.warn(`[Email] Client PO file not found at: ${poPath}`);
+                }
+            } catch (err) {
+                console.error(`[Email] Error attaching PO:`, err);
+            }
+        }
+
+        const { data, error } = await resend.emails.send({
+            from: 'Livraisons Granite DRC <onboarding@resend.dev>',
+            to: finalTo,
+            cc: finalCc,
+            bcc: finalBcc,
+            subject: subject || `Bon de Livraison ${note.reference}`,
+            html: emailHtml,
+            attachments: attachments,
+        });
+
+        if (error) {
+            console.error('Resend API Error:', error);
+            return res.status(500).json({ error: 'Failed to send email via Resend', details: error });
+        }
+
+        console.log(`[Email] Sent successfully! ID: ${data?.id}`);
+        res.json({ success: true, id: data?.id });
+
+    } catch (error: any) {
+        console.error("Error sending email:", error);
+        res.status(500).json({ error: "Failed to send email", details: { message: error.message || String(error) } });
     }
 };

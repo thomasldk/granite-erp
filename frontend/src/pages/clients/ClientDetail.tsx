@@ -281,6 +281,9 @@ const ClientDetail: React.FC = () => {
                         )}
                         <p><strong>Langue:</strong> {client.language === 'fr' ? 'Français' : 'Anglais'}</p>
                         <p><strong>Unité:</strong> {client.unitSystem === 'Metric' ? 'Métrique' : 'Impérial'}</p>
+                        {isClient && client.customsBroker && (
+                            <p><strong>Courtier:</strong> {client.customsBroker.name}</p>
+                        )}
                     </div>
                     {/* General Parameters & Overrides Block - 2 Columns */}
                     {isClient && (
@@ -341,9 +344,12 @@ const ClientDetail: React.FC = () => {
                             onChange={(e) => setContactForm({ ...contactForm, role: e.target.value })}
                         >
                             <option value="">-- Rôle --</option>
-                            {contactTypes.map(type => (
-                                <option key={type.id} value={type.name}>{type.name}</option>
-                            ))}
+                            {contactTypes.map(type => {
+                                // Determine label based on client lang
+                                const isEnglish = client.language === 'en'; // Assuming 'en' for English
+                                const label = isEnglish && type.nameEn ? type.nameEn : type.name;
+                                return <option key={type.id} value={label}>{label}</option>;
+                            })}
                         </select>
                     </div>
                     <div className="grid grid-cols-3 gap-4 mb-4">

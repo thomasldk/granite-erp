@@ -42,8 +42,9 @@ export const createWorkOrder = async (req: Request, res: Response) => {
             clientPO,
             projectManagerId,
             accountingContactId,
-            note,
-            productionSiteId // Extract
+            productionSiteId, // Extract
+            additionalContacts, // JSON stringified array of { roleId, contactId }
+            note
             // Dates are handled below
         } = req.body;
 
@@ -82,6 +83,16 @@ export const createWorkOrder = async (req: Request, res: Response) => {
             clientPOFilePath = file.path;
         }
 
+        // Parse additional contacts
+        let contactsToAdd = [];
+        try {
+            if (additionalContacts) {
+                contactsToAdd = JSON.parse(additionalContacts);
+            }
+        } catch (e) {
+            console.error("Failed to parse additional contacts", e);
+        }
+
         // 6. Create Work Order
         const newWO = await prisma.workOrder.create({
             data: {
@@ -98,7 +109,15 @@ export const createWorkOrder = async (req: Request, res: Response) => {
                 projectManagerId: projectManagerId || null,
                 accountingContactId: accountingContactId || null,
                 note: note || null,
-                productionSiteId: productionSiteId || null // Save
+                productionSiteId: productionSiteId || null, // Optional
+
+                // Dynamic Contacts
+                additionalContacts: {
+                    create: contactsToAdd.map((c: any) => ({
+                        roleId: c.roleId,
+                        contactId: c.contactId
+                    }))
+                }
             }
         });
 

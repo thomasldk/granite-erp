@@ -4,17 +4,20 @@ import { getContactTypes, createContactType, deleteContactType, updateContactTyp
 interface ContactType {
     id: string;
     name: string;
+    nameEn?: string; // NEW
 }
 
 const ContactTypeList: React.FC = () => {
     const [types, setTypes] = useState<ContactType[]>([]);
     const [newType, setNewType] = useState('');
+    const [newTypeEn, setNewTypeEn] = useState(''); // NEW
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<'Client' | 'Supplier'>('Client');
 
     // Edit State
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editingName, setEditingName] = useState('');
+    const [editingNameEn, setEditingNameEn] = useState(''); // NEW
 
     useEffect(() => {
         loadTypes();
@@ -32,17 +35,19 @@ const ContactTypeList: React.FC = () => {
     const startEditing = (type: ContactType) => {
         setEditingId(type.id);
         setEditingName(type.name);
+        setEditingNameEn(type.nameEn || ''); // NEW
     };
 
     const cancelEditing = () => {
         setEditingId(null);
         setEditingName('');
+        setEditingNameEn('');
     };
 
     const saveEditing = async () => {
         if (!editingName.trim() || !editingId) return;
         try {
-            await updateContactType(editingId, editingName, activeTab);
+            await updateContactType(editingId, editingName, editingNameEn, activeTab); // Pass EN
             setEditingId(null);
             loadTypes();
         } catch (error) {
@@ -56,8 +61,9 @@ const ContactTypeList: React.FC = () => {
 
         setLoading(true);
         try {
-            await createContactType(newType, activeTab);
+            await createContactType(newType, newTypeEn, activeTab); // Pass EN
             setNewType('');
+            setNewTypeEn('');
             loadTypes();
         } catch (error) {
             console.error('Error adding type', error);
@@ -112,7 +118,14 @@ const ContactTypeList: React.FC = () => {
                     type="text"
                     value={newType}
                     onChange={(e) => setNewType(e.target.value)}
-                    placeholder={`Nouveau type ${activeTab === 'Client' ? 'Client' : 'Fournisseur'}...`}
+                    placeholder={`Nouveau type (FR)...`}
+                    className="flex-1 shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <input
+                    type="text"
+                    value={newTypeEn}
+                    onChange={(e) => setNewTypeEn(e.target.value)}
+                    placeholder={`New Type (EN)...`} // NEW
                     className="flex-1 shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <button
@@ -129,7 +142,10 @@ const ContactTypeList: React.FC = () => {
                     <thead>
                         <tr>
                             <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                Nom
+                                Nom (FR)
+                            </th>
+                            <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-50 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                Nom (EN)
                             </th>
                             <th className="px-5 py-3 border-b-2 border-gray-200 bg-gray-50 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                 Actions
@@ -149,6 +165,19 @@ const ContactTypeList: React.FC = () => {
                                         />
                                     ) : (
                                         <p className="text-gray-900 whitespace-no-wrap">{type.name}</p>
+                                    )}
+                                </td>
+                                {/* English Column */}
+                                <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                                    {editingId === type.id ? (
+                                        <input
+                                            type="text"
+                                            value={editingNameEn}
+                                            onChange={(e) => setEditingNameEn(e.target.value)}
+                                            className="shadow appearance-none border rounded py-1 px-2 text-gray-700 leading-tight focus:outline-none focus:ring-1 focus:ring-primary w-full"
+                                        />
+                                    ) : (
+                                        <p className="text-gray-500 whitespace-no-wrap">{type.nameEn || '-'}</p>
                                     )}
                                 </td>
                                 <td className="px-5 py-5 border-b border-gray-200 bg-white text-sm text-right">

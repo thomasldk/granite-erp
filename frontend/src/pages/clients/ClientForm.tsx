@@ -48,6 +48,7 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
         incotermCustomText: '', // New
         taxId: '', // New
         customsBrokerId: '', // New
+        customsBrokerFee: '', // New
         internalNotes: '',
         // Address
         addressLine1: '',
@@ -263,6 +264,16 @@ const ClientForm: React.FC<ClientFormProps> = ({ defaultType = 'Client' }) => {
         if (formData.addressCountry) address += `, ${formData.addressCountry}`;
         return address;
     };
+
+    // Auto-populate Broker Fee if Non-Canada
+    useEffect(() => {
+        if (formData.addressCountry !== 'Canada') {
+            // If field is empty and we have a default
+            if (!formData.customsBrokerFee && systemDefaults.defaultBrokerFee) {
+                setFormData(prev => ({ ...prev, customsBrokerFee: systemDefaults.defaultBrokerFee.toString() }));
+            }
+        }
+    }, [formData.addressCountry, systemDefaults.defaultBrokerFee]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

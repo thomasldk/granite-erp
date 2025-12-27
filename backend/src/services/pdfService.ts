@@ -1,6 +1,8 @@
 // @ts-ignore
 import PDFDocument from 'pdfkit-table';
 import { Quote, QuoteItem, Project, ThirdParty, Contact } from '@prisma/client';
+import * as path from 'path';
+import * as fs from 'fs';
 
 interface QuoteWithRelations extends Quote {
     items: QuoteItem[];
@@ -115,7 +117,14 @@ export class PdfService {
 
             const startY = 50;
             // --- HEADER ---
-            doc.image('assets/logo.png', 50, startY, { width: 100 }).stroke(); // Placeholder if logo exists, else skip
+            // Use absolute path for logo
+            const logoPath = path.join(process.cwd(), 'assets', 'logo.png');
+            if (fs.existsSync(logoPath)) {
+                doc.image(logoPath, 50, startY, { width: 100 });
+            } else {
+                console.warn(`[PDF] Logo not found at ${logoPath}`);
+            }
+            doc.stroke(); // Placeholder if logo exists, else skip
             // Fallback text if image fails or just text
             doc.fontSize(20).font('Helvetica-Bold').text('BON DE LIVRAISON', { align: 'right' });
             doc.fontSize(12).font('Helvetica').text(note.reference, { align: 'right' });

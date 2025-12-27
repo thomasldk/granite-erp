@@ -24,7 +24,8 @@ export const getSystemConfig = async (req: Request, res: Response) => {
                     defaultDepositPercentage: 0,
                     defaultDiscountPercentage: 0,
                     defaultDiscountDays: 10,
-                    defaultExchangeRate: 1.0
+                    defaultExchangeRate: 1.0,
+                    defaultBrokerFee: 0 // New
                 }
             });
         }
@@ -51,7 +52,7 @@ export const updateSystemConfig = async (req: Request, res: Response) => {
             defaultExchangeRate,
             defaultPaymentTermId,
             taxRateTPS, taxRateTVQ, taxRateTVH, taxRateTVH_Maritimes,
-            defaultMeasureUnit, defaultValidityDuration
+            defaultMeasureUnit, defaultValidityDuration, defaultBrokerFee // New
         } = req.body;
 
         const config = await prisma.systemConfig.upsert({
@@ -74,7 +75,8 @@ export const updateSystemConfig = async (req: Request, res: Response) => {
                 taxRateTVH: parseFloat(taxRateTVH),
                 taxRateTVH_Maritimes: parseFloat(taxRateTVH_Maritimes),
                 defaultMeasureUnit: defaultMeasureUnit || 'an',
-                defaultValidityDuration: parseInt(defaultValidityDuration) || 30
+                defaultValidityDuration: parseInt(defaultValidityDuration) || 30,
+                defaultBrokerFee: parseFloat(defaultBrokerFee || 0) // New
             },
             create: {
                 key: CONFIG_KEY,
@@ -95,7 +97,8 @@ export const updateSystemConfig = async (req: Request, res: Response) => {
                 taxRateTVH: parseFloat(taxRateTVH || 13.0),
                 taxRateTVH_Maritimes: parseFloat(taxRateTVH_Maritimes || 15.0),
                 defaultMeasureUnit: defaultMeasureUnit || 'an',
-                defaultValidityDuration: parseInt(defaultValidityDuration) || 30
+                defaultValidityDuration: parseInt(defaultValidityDuration) || 30,
+                defaultBrokerFee: parseFloat(defaultBrokerFee || 0) // New
             }
         });
 

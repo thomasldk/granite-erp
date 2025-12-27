@@ -1,5 +1,5 @@
 import express from 'express';
-import { getReadyPallets, createDeliveryNote, getDeliveryNotes, getDeliveryNoteById, updateDeliveryNote, deleteDeliveryNote, createPdf, addPalletToNote, removePalletFromNote, queueDeliveryRak, checkDeliveryStatus, downloadDeliveryFile } from '../controllers/deliveryController';
+import { getReadyPallets, createDeliveryNote, getDeliveryNotes, getDeliveryNoteById, updateDeliveryNote, deleteDeliveryNote, createPdf, addPalletToNote, removePalletFromNote, queueDeliveryRak, checkDeliveryStatus, downloadDeliveryFile, sendDeliveryEmail } from '../controllers/deliveryController';
 import { authenticate } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -12,6 +12,7 @@ router.get('/notes', getDeliveryNotes);
 router.get('/notes/:id', getDeliveryNoteById);
 router.get('/notes/:id/pdf', createPdf);
 router.get('/notes/:id/download', downloadDeliveryFile);
+router.post('/notes/:id/email', sendDeliveryEmail);
 
 // Items (Pallets)
 router.post('/notes/:id/items', addPalletToNote);

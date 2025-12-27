@@ -96,13 +96,13 @@ export const getContactTypes = async (category?: string) => {
     return response.data;
 };
 
-export const createContactType = async (name: string, category: string = 'Client') => {
-    const response = await api.post('/contact-types', { name, category });
+export const createContactType = async (name: string, nameEn: string, category: string = 'Client') => {
+    const response = await api.post('/contact-types', { name, nameEn, category });
     return response.data;
 };
 
-export const updateContactType = async (id: string, name: string, category: string) => {
-    const response = await api.put(`/contact-types/${id}`, { name, category });
+export const updateContactType = async (id: string, name: string, nameEn: string, category: string) => {
+    const response = await api.put(`/contact-types/${id}`, { name, nameEn, category });
     return response.data;
 };
 

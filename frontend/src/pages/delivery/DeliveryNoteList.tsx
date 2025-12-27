@@ -53,7 +53,8 @@ const DeliveryNoteList: React.FC = () => {
         siteContactName: '',
         siteContactPhone: '',
         siteContactEmail: '',
-        status: ''
+        status: '',
+        freightCost: 0
     });
 
     // Creation State
@@ -68,12 +69,137 @@ const DeliveryNoteList: React.FC = () => {
     const [createNewAddress, setCreateNewAddress] = useState({ line1: '', city: '', state: 'QC', zip: '', country: 'Canada' });
     const [createContact, setCreateContact] = useState({ firstName: '', lastName: '', role: '', phone: '', email: '' });
 
+    // Email State
+    const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+    const [emailRecipients, setEmailRecipients] = useState<string[]>([]);
+    const [emailCc, setEmailCc] = useState<string[]>([]);
+    const [emailSubject, setEmailSubject] = useState('');
+    const [emailMessage, setEmailMessage] = useState('');
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
+
     const [expandedPalletId, setExpandedPalletId] = useState<string | null>(null);
+    const [originalForm, setOriginalForm] = useState<any>(null);
 
     useEffect(() => {
         fetchNotes();
         fetchReadyPallets();
     }, []);
+
+    // Reset when modal opens
+    useEffect(() => {
+        if (!isEmailModalOpen) {
+            setEmailRecipients([]);
+            setEmailCc([]);
+            setEmailMessage('');
+            setEmailSubject('');
+        }
+    }, [isEmailModalOpen]);
+
+    const handleEmitBL = () => {
+        if (!selectedNote) return;
+
+        const toSet = new Set<string>();
+        const ccSet = new Set<string>();
+
+        // 1. TO: Project Manager (Chef de projet) from Work Orders
+        // 2 TO: Also Site Contact? User usually puts site contact in TO if specific to delivery
+        if (selectedNote.siteContactEmail) toSet.add(selectedNote.siteContactEmail);
+
+        // Traverse Items -> Pallet -> WorkOrder
+        selectedNote.items?.forEach((item: any) => {
+            const wo = item.pallet?.workOrder;
+            if (wo) {
+                // Project Manager -> TO
+                if (wo.projectManager?.email) toSet.add(wo.projectManager.email);
+
+                // Accountant -> TO (User wants both recipients checked by default in the Destinataires list)
+                if (wo.accountingContact?.email) toSet.add(wo.accountingContact.email);
+
+                // Additional Contacts -> CC
+                wo.additionalContacts?.forEach((ac: any) => {
+                    if (ac.contact?.email) ccSet.add(ac.contact.email);
+                });
+
+                // Rep -> CC
+                if (wo.quote?.representative?.email) ccSet.add(wo.quote.representative.email);
+                // Fallbox: if Rep name matches a user? Hard to map perfectly without relation.
+            }
+        });
+
+        // 3. User & Creator -> CC
+        // Current User (todo: get from context if available, otherwise skip)
+        // Creator
+        if (selectedNote.createdBy?.email) ccSet.add(selectedNote.createdBy.email);
+
+        // Set State
+        setEmailRecipients(Array.from(toSet));
+        setEmailCc(Array.from(ccSet));
+
+        // Language Logic
+        const isEnglish = selectedNote.client?.language === 'Anglais' || selectedNote.client?.language === 'English';
+
+        // Extract Project & PO
+        let projectName = '';
+        let poNumber = '';
+        for (const item of (selectedNote.items || [])) {
+            const wo = item.pallet?.workOrder;
+            if (wo) {
+                if (wo.quote?.project?.name && !projectName) projectName = wo.quote.project.name;
+                if (wo.clientPO && !poNumber) poNumber = wo.clientPO;
+                if (projectName && poNumber) break;
+            }
+        }
+
+        if (isEnglish) {
+            const projectSubject = projectName ? ` / ${projectName}` : '';
+            const projectBody = projectName ? ` regarding Project ${projectName}` : '';
+            const poBody = poNumber ? ` related to your purchase order ${poNumber}` : ` related to your purchase order`;
+
+            setEmailSubject(`${selectedNote.reference}${projectSubject}`);
+            setEmailMessage(`Hello,\n\nPlease find attached the delivery note ${selectedNote.reference}${projectBody}${poBody}.\n\nBest regards,\nGranite DRC Team`);
+        } else {
+            const projectSubject = projectName ? ` / ${projectName}` : '';
+            const projectBody = projectName ? ` concernant le Projet ${projectName}` : '';
+            const poBody = poNumber ? ` en lien avec votre bon de commande ${poNumber}` : ` en lien avec votre bon de commande`;
+
+            setEmailSubject(`${selectedNote.reference}${projectSubject}`);
+            setEmailMessage(`Bonjour,\n\nVeuillez trouver ci-joint le bon de livraison ${selectedNote.reference}${projectBody}${poBody}.\n\nCordialement,\nL'équipe Granite DRC`);
+        }
+
+        setIsEmailModalOpen(true);
+    };
+
+    const handleSendEmail = async () => {
+        if (!selectedNote || emailRecipients.length === 0) return;
+
+        // Find Client PO Path if available (First one found)
+        let clientPOFilePath: string | undefined;
+        for (const item of (selectedNote.items || [])) {
+            if (item.pallet?.workOrder?.clientPOFilePath) {
+                clientPOFilePath = item.pallet.workOrder.clientPOFilePath;
+                break;
+            }
+        }
+
+        setIsSendingEmail(true);
+        try {
+            await api.post(`/delivery/notes/${selectedNote.id}/email`, {
+                recipients: emailRecipients,
+                cc: emailCc,
+                message: emailMessage,
+                subject: emailSubject,
+                clientPOFilePath // Send path to backend
+            });
+            alert("Courriel envoyé avec succès !");
+            setIsEmailModalOpen(false);
+        } catch (error: any) {
+            console.error("Email Error", error);
+            const msg = error.response?.data?.details?.message || error.response?.data?.error || error.message || 'Erreur inconnue';
+            alert(`Erreur lors de l'envoi du courriel: ${msg}`);
+        } finally {
+            setIsSendingEmail(false);
+        }
+    };
 
     const fetchReadyPallets = async () => {
         try {
@@ -110,6 +236,104 @@ const DeliveryNoteList: React.FC = () => {
 
         await fetchReadyPallets(); // Refresh on open
     };
+
+    // Helper to parse address string back to components
+    const parseAddressString = (fullAddr: string) => {
+        const lines = fullAddr.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+        let line1 = lines[0] || '';
+        let city = '';
+        let state = '';
+        let zip = '';
+        let country = 'Canada';
+
+        if (lines.length > 0) {
+            const last = lines[lines.length - 1].toLowerCase();
+            if (last.includes('usa') || last.includes('us') || last.includes('états')) country = 'États-Unis';
+        }
+
+        // Try to parse City, State Zip
+        if (lines.length >= 3) {
+            // Line 2 is likely City, State Zip
+            const mid = lines[lines.length - 2];
+            // Start simple
+            const parts = mid.split(',');
+            if (parts.length > 0) city = parts[0].trim();
+            if (parts.length > 1) {
+                // State Zip
+                const sz = parts[1].trim();
+                // try to split by space
+                const lastSpace = sz.lastIndexOf(' ');
+                if (lastSpace !== -1) {
+                    state = sz.substring(0, lastSpace).trim();
+                    zip = sz.substring(lastSpace + 1).trim();
+                } else {
+                    state = sz;
+                }
+            }
+        } else if (lines.length === 2 && !lines[1].toLowerCase().includes('canada')) {
+            // Maybe line 2 is city
+            city = lines[1];
+        }
+
+        return { line1, city, state, zip, country };
+    };
+
+    // Auto-Fill Project Defaults
+    useEffect(() => {
+        if (selectedPalletIds.length > 0 && readyPallets.length > 0) {
+            // Find unique project from selected pallets
+            const selectedPallets = readyPallets.filter(p => selectedPalletIds.includes(p.id));
+            const distinctProjects = new Set();
+            let targetProject: any = null;
+
+            selectedPallets.forEach(p => {
+                const proj = p.items?.[0]?.quoteItem?.quote?.project; // Access via pallet->item->quoteItem->quote->project
+                // Backup path if structure differs: p.workOrder.quote.project ?
+                // Checking usage in other parts: p.workOrder?.quote?.project
+                const projFromWO = p.workOrder?.quote?.project;
+
+                if (projFromWO) {
+                    distinctProjects.add(projFromWO.id);
+                    targetProject = projFromWO;
+                }
+            });
+
+            // If exactly one project is involved and we haven't manually set address/contact yet
+            if (distinctProjects.size === 1 && targetProject) {
+                // Check if we have defaults
+                if (targetProject.defaultDeliveryAddress || targetProject.siteContactName) {
+                    console.log("Found Project Defaults:", targetProject);
+
+                    // Only overwrite if form is "pristine" or we decide to force?
+                    // Let's overwrite only if empty to be safe, OR just do it because user just selected pallets.
+                    // User selection implies intent.
+
+                    if (targetProject.siteContactName) {
+                        const parts = (targetProject.siteContactName || '').split(' ');
+                        setCreateContact({
+                            firstName: parts[0] || '',
+                            lastName: parts.slice(1).join(' ') || '',
+                            phone: targetProject.siteContactPhone || '',
+                            email: targetProject.siteContactEmail || '',
+                            role: targetProject.siteContactRole || ''
+                        });
+                    }
+
+                    if (targetProject.defaultDeliveryAddress) {
+                        const parsed = parseAddressString(targetProject.defaultDeliveryAddress);
+                        setCreateNewAddress({
+                            line1: parsed.line1,
+                            city: parsed.city,
+                            state: parsed.state,
+                            zip: parsed.zip,
+                            country: parsed.country
+                        });
+                        setCreateAddressMode('new'); // Switch to "New Address" mode to show the pre-filled fields
+                    }
+                }
+            }
+        }
+    }, [selectedPalletIds, readyPallets]);
 
     const getUniqueClients = () => {
         const clients = new Map();
@@ -191,6 +415,7 @@ const DeliveryNoteList: React.FC = () => {
     // --- EXISTING LOGIC ---
 
     const handleNoteClick = (note: any) => {
+        fetchReadyPallets(); // Refresh available pallets ensures we see recently released ones
         let dateStr = '';
         try {
             if (note.date) {
@@ -232,7 +457,7 @@ const DeliveryNoteList: React.FC = () => {
             }
         }
 
-        setEditForm({
+        const newForm = {
             date: dateStr,
             addrLine1,
             addrCity,
@@ -242,8 +467,13 @@ const DeliveryNoteList: React.FC = () => {
             siteContactName: note.siteContactName || '',
             siteContactPhone: formatPhoneNumber(note.siteContactPhone || ''),
             siteContactEmail: note.siteContactEmail || '',
-            status: note.status || 'Draft'
-        });
+            status: note.status || 'Draft',
+            carrier: note.carrier || '', // Ensure carrier is tracked
+            freightCost: note.freightCost || 0
+        };
+
+        setEditForm(newForm);
+        setOriginalForm(newForm); // Snapshot for dirty check
         setSelectedNote(note);
     };
 
@@ -266,7 +496,7 @@ const DeliveryNoteList: React.FC = () => {
         }
     };
 
-    const handleSave = async () => {
+    const handleSave = async (shouldClose = true) => {
         try {
             let addressParts = [editForm.addrLine1];
             if (editForm.addrCity || editForm.addrState || editForm.addrZip) {
@@ -284,16 +514,26 @@ const DeliveryNoteList: React.FC = () => {
                 siteContactName: editForm.siteContactName,
                 siteContactPhone: editForm.siteContactPhone,
                 siteContactEmail: editForm.siteContactEmail,
-                status: editForm.status
+                status: editForm.status,
+                freightCost: editForm.freightCost
             };
 
             const response = await api.put(`/delivery/notes/${selectedNote.id}`, payload);
             const updatedNote = response.data;
             setNotes(notes.map(n => n.id === updatedNote.id ? updatedNote : n));
-            setSelectedNote(null);
+
+            // Fix: Update selectedNote so we don't have stale state, and optionally close
+            // Fix: Update selectedNote so we don't have stale state, and optionally close
+            setSelectedNote(updatedNote);
+            setOriginalForm(editForm); // Update snapshot
+            if (shouldClose) setSelectedNote(null);
+
+            return true;
+
         } catch (error) {
             console.error("Failed to update delivery note", error);
             alert("Erreur lors de la mise à jour.");
+            return false;
         }
     };
 
@@ -317,6 +557,7 @@ const DeliveryNoteList: React.FC = () => {
         try {
             await api.delete(`/delivery/notes/${id}`);
             setNotes(notes.filter(n => n.id !== id));
+            fetchReadyPallets(); // Refresh available pallets
         } catch (error) {
             console.error("Delete error", error);
             alert("Erreur lors de la suppression.");
@@ -328,9 +569,7 @@ const DeliveryNoteList: React.FC = () => {
         handleNoteClick(note);
     };
 
-
     const [isGenerating, setIsGenerating] = useState(false);
-
 
     // Helper for robust downloads
     const downloadFile = (note: any, type: 'pdf' | 'excel') => {
@@ -355,21 +594,27 @@ const DeliveryNoteList: React.FC = () => {
     const handleGenerateRak = async () => {
         if (!selectedNote) return;
 
+        // Reconstruct address for comparison
+        let addressParts = [editForm.addrLine1];
+        if (editForm.addrCity || editForm.addrState || editForm.addrZip) {
+            let midLine = editForm.addrCity;
+            if (editForm.addrState) midLine += `, ${editForm.addrState} `;
+            if (editForm.addrZip) midLine += ` ${editForm.addrZip} `;
+            addressParts.push(midLine);
+        }
+        addressParts.push(editForm.addrCountry || 'Canada');
+        const reconstructedAddress = addressParts.join('\n');
+
         // Check for unsaved changes
-        const currentNoteDate = new Date(selectedNote.date).toISOString().split('T')[0];
-        const hasChanges = (
-            (editForm.date !== currentNoteDate) ||
-            ((editForm.carrier || '') !== (selectedNote.carrier || '')) ||
-            ((editForm.deliveryAddress || '') !== (selectedNote.deliveryAddress || '')) ||
-            ((editForm.siteContactName || '') !== (selectedNote.siteContactName || '')) ||
-            ((editForm.siteContactPhone || '') !== (selectedNote.siteContactPhone || '')) ||
-            ((editForm.siteContactEmail || '') !== (selectedNote.siteContactEmail || ''))
-        );
+        // Robust Dirty Check using JSON comparison
+        // We need to ensure editForm has keys in same order or just compare values that matter
+        // But JSON.stringify is usually good enough if we don't mutate object structure randomly
+        const hasChanges = JSON.stringify(editForm) !== JSON.stringify(originalForm);
 
         if (hasChanges) {
-            if (window.confirm("Des modifications non enregistrées ont été détectées. Voulez-vous les sauvegarder avant de générer le BL ?")) {
-                await handleSave();
-                return; // STOP: User must click Generate again after saving
+            if (window.confirm("Des modifications non enregistrées ont été détectées. Voulez-vous les sauvegarder ?")) {
+                await handleSave(false); // Save but DO NOT CLOSE
+                return; // Stop here. User will click generate again.
             } else {
                 return; // Cancel generation
             }
@@ -918,6 +1163,42 @@ const DeliveryNoteList: React.FC = () => {
                                         <dd className="text-sm font-medium text-gray-900">
                                             {getProjectName(selectedNote)}
                                             <div className="text-gray-500 font-normal">{selectedNote.client?.name}</div>
+                                            {selectedNote.client?.customsBroker && (
+                                                <div className="text-xs text-blue-600 mt-1">
+                                                    <span className="font-semibold">Courtier:</span> {selectedNote.client.customsBroker.name}
+                                                </div>
+                                            )}
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-xs text-gray-500 mb-1">Frais de transport ($)</dt>
+                                        <dd className="text-sm font-medium text-gray-900">
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                value={editForm.freightCost}
+                                                onChange={e => setEditForm({ ...editForm, freightCost: parseFloat(e.target.value) || 0 })}
+                                                className="w-full rounded border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                            />
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-xs text-gray-500 mb-1">Frais de courtage ($)</dt>
+                                        <dd className="text-sm font-medium text-gray-900">
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                value={editForm.customsBrokerFee || 0}
+                                                onChange={e => setEditForm({ ...editForm, customsBrokerFee: parseFloat(e.target.value) || 0 })}
+                                                className="w-full rounded border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                            />
+                                            {selectedNote.client?.customsBrokerFee ? (
+                                                <p className="text-[10px] text-gray-400 mt-1">
+                                                    Défaut client: {selectedNote.client.customsBrokerFee} $
+                                                </p>
+                                            ) : null}
                                         </dd>
                                     </div>
                                 </dl>
@@ -955,6 +1236,20 @@ const DeliveryNoteList: React.FC = () => {
                                             <div>
                                                 <label className="block text-xs text-gray-500 font-bold">Client</label>
                                                 <div className="text-sm font-medium">{selectedNote.client?.name}</div>
+                                                <div className="text-xs text-gray-500 mt-1">
+                                                    {(() => {
+                                                        // Find Office Address
+                                                        const addr = selectedNote.client?.addresses?.find((a: any) => a.type === 'Office' || a.type === 'Bureau' || a.type === 'Main') || selectedNote.client?.addresses?.[0];
+                                                        if (!addr) return <span className="text-red-500">Adresse introuvable</span>; // Debug fallback
+                                                        return (
+                                                            <>
+                                                                <div>{addr.line1}</div>
+                                                                <div>{addr.city}, {addr.state} {addr.zipCode}</div>
+                                                                <div>{addr.country}</div>
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
                                             </div>
                                             <div>
                                                 <label className="block text-xs text-gray-500 font-bold">Contact Principal</label>
@@ -1266,7 +1561,9 @@ const DeliveryNoteList: React.FC = () => {
                             >
                                 Fermer
                             </button>
+
                             <button
+                                type="button"
                                 onClick={handleGenerateRak}
                                 disabled={isGenerating}
                                 className={`px-4 py-2 rounded shadow-sm font-medium transition-colors ${isGenerating
@@ -1285,10 +1582,146 @@ const DeliveryNoteList: React.FC = () => {
                                 ) : "Générer un BL"}
                             </button>
                             <button
-                                onClick={handleSave}
+                                type="button"
+                                onClick={handleEmitBL}
+                                disabled={selectedNote.status !== 'Generated' || !selectedNote.pdfFilePath}
+                                className={`px-4 py-2 rounded shadow-sm font-medium transition-colors ${selectedNote.status !== 'Generated' || !selectedNote.pdfFilePath
+                                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                                    : "bg-green-600 text-white hover:bg-green-700"
+                                    }`}
+                            >
+                                Émettre BL
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleSave(true)}
                                 className="bg-blue-600 text-white px-4 py-2 rounded shadow-sm hover:bg-blue-700"
                             >
                                 Sauvegarder
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* EMAIL MODAL */}
+            {isEmailModalOpen && selectedNote && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+                    <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+                        <div className="flex justify-between items-center mb-4 border-b pb-2">
+                            <h2 className="text-xl font-bold text-gray-800">Envoyer le Bon de Livraison par courriel</h2>
+                            <button onClick={() => setIsEmailModalOpen(false)} className="text-gray-400 hover:text-gray-600">&times;</button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
+                                Le fichier PDF <strong>BL-{selectedNote.reference}.pdf</strong> sera joint automatiquement.
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Destinataires</label>
+                                <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-2">
+                                    {/* Client Contacts */}
+                                    {selectedNote.client?.contacts && selectedNote.client.contacts.map((c: any) => (
+                                        <label key={c.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                            <input
+                                                type="checkbox"
+                                                checked={emailRecipients.includes(c.email)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) setEmailRecipients([...emailRecipients, c.email]);
+                                                    else setEmailRecipients(emailRecipients.filter(r => r !== c.email));
+                                                }}
+                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <div className="text-sm">
+                                                <div className="font-medium text-gray-900">{c.firstName} {c.lastName}</div>
+                                                <div className="text-gray-500 text-xs">{c.role} - {c.email}</div>
+                                            </div>
+                                        </label>
+                                    ))}
+
+                                    {/* Site Contact (if explicitly on Note) */}
+                                    {selectedNote.siteContactEmail && (
+                                        <label className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded border-t mt-1 pt-1">
+                                            <input
+                                                type="checkbox"
+                                                checked={emailRecipients.includes(selectedNote.siteContactEmail)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) setEmailRecipients([...emailRecipients, selectedNote.siteContactEmail]);
+                                                    else setEmailRecipients(emailRecipients.filter(r => r !== selectedNote.siteContactEmail));
+                                                }}
+                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <div className="text-sm">
+                                                <div className="font-medium text-gray-900">{selectedNote.siteContactName || 'Contact Chantier'}</div>
+                                                <div className="text-gray-500 text-xs">Site Contact - {selectedNote.siteContactEmail}</div>
+                                            </div>
+                                        </label>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Manual Email */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Ajouter un email externe (CC)</label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="email"
+                                        placeholder="autrep@example.com"
+                                        className="flex-1 rounded border-gray-300 text-sm"
+                                        id="manualEmailInput"
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            const input = document.getElementById('manualEmailInput') as HTMLInputElement;
+                                            if (input && input.value && input.value.includes('@')) {
+                                                setEmailCc([...emailCc, input.value]);
+                                                input.value = '';
+                                            }
+                                        }}
+                                        className="bg-gray-100 border px-3 rounded text-xs hover:bg-gray-200"
+                                    >
+                                        Ajouter en CC
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Subject */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Sujet</label>
+                                <input
+                                    type="text"
+                                    className="w-full rounded border-gray-300 text-sm font-bold"
+                                    value={emailSubject}
+                                    onChange={e => setEmailSubject(e.target.value)}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                                <textarea
+                                    className="w-full rounded border-gray-300 text-sm"
+                                    rows={5}
+                                    value={emailMessage}
+                                    onChange={e => setEmailMessage(e.target.value)}
+                                />
+                            </div>
+
+                        </div>
+
+                        <div className="flex justify-end pt-4 border-t space-x-3 mt-4">
+                            <button
+                                onClick={() => setIsEmailModalOpen(false)}
+                                className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded shadow-sm hover:bg-gray-50"
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                onClick={handleSendEmail}
+                                disabled={(emailRecipients.length === 0 && emailCc.length === 0) || isSendingEmail}
+                                className={`px-4 py-2 rounded shadow-sm text-white ${(emailRecipients.length === 0 && emailCc.length === 0) || isSendingEmail ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                            >
+                                {isSendingEmail ? 'Envoi...' : 'Envoyer'}
                             </button>
                         </div>
                     </div>

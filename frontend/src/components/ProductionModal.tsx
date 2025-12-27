@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import { getContactTypes } from '../services/thirdPartyService';
+import { XMarkIcon, TrashIcon, PlusIcon } from '@heroicons/react/24/outline';
 
 interface ProductionModalProps {
     isOpen: boolean;
@@ -18,6 +19,7 @@ const ProductionModal: React.FC<ProductionModalProps> = ({ isOpen, onClose, quot
     const [clientPO, setClientPO] = useState('');
     const [productionWeeks, setProductionWeeks] = useState(defaultWeeks || 6);
     const [projectManagerId, setProjectManagerId] = useState('');
+
     const [accountingContactId, setAccountingContactId] = useState('');
     const [note, setNote] = useState('');
     const [file, setFile] = useState<File | null>(null);
@@ -27,9 +29,13 @@ const ProductionModal: React.FC<ProductionModalProps> = ({ isOpen, onClose, quot
     const [productionSites, setProductionSites] = useState<any[]>([]);
     const [productionSiteId, setProductionSiteId] = useState('');
 
+    // Dynamic Additional Contacts
+    const [contactTypes, setContactTypes] = useState<any[]>([]);
+    const [additionalContacts, setAdditionalContacts] = useState<{ id: string, roleId: string, contactId: string }[]>([]);
+
     useEffect(() => {
         if (isOpen) {
-            // Fetch next reference when modal opens
+            // Fetch next reference
             api.get('/work-orders/next-reference')
                 .then(res => setNextRef(res.data.reference))
                 .catch(err => console.error(err));
@@ -38,13 +44,12 @@ const ProductionModal: React.FC<ProductionModalProps> = ({ isOpen, onClose, quot
             api.get('/production-sites')
                 .then(res => setProductionSites(res.data))
                 .catch(console.error);
-        }
 
-        if (client?.contacts?.length > 0) {
-            // Try to find a manager?
-            // setProjectManagerId(client.contacts[0].id);
+            // Fetch Contact Types for dynamic roles
+            getContactTypes().then(setContactTypes).catch(console.error);
         }
-    }, [client, isOpen]);
+    }, [isOpen]);
+
 
     const handleSubmit = async () => {
         // Validation: All fields required (clientPO, file, contacts, weeks) EXCEPT Note.
@@ -62,10 +67,13 @@ const ProductionModal: React.FC<ProductionModalProps> = ({ isOpen, onClose, quot
             formData.append('productionWeeks', productionWeeks.toString());
             if (clientPO) formData.append('clientPO', clientPO);
             if (projectManagerId) formData.append('projectManagerId', projectManagerId);
-            if (accountingContactId) formData.append('accountingContactId', accountingContactId);
-            if (note) formData.append('note', note);
-            if (file) formData.append('clientPOFile', file);
             if (productionSiteId) formData.append('productionSiteId', productionSiteId);
+
+            // Append Dynamic Contacts
+            const validContacts = additionalContacts.filter(c => c.roleId && c.contactId);
+            if (validContacts.length > 0) {
+                formData.append('additionalContacts', JSON.stringify(validContacts));
+            }
 
             const response = await api.post('/work-orders', formData, {
                 headers: {
@@ -221,6 +229,75 @@ const ProductionModal: React.FC<ProductionModalProps> = ({ isOpen, onClose, quot
                                     ))}
                             </select>
                         </div>
+
+
+
+                        {/* Dynamic Additional Contacts */}
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium mb-1">Contacts Additionnels</label>
+                            {additionalContacts.map((contact, index) => (
+                                <div key={contact.id} className="flex gap-2 items-center bg-gray-50 p-2 rounded border">
+                                    <div className="flex-1">
+                                        <select
+                                            className="w-full border rounded p-1 text-sm"
+                                            value={contact.roleId}
+                                            onChange={(e) => {
+                                                const newContacts = [...additionalContacts];
+                                                newContacts[index].roleId = e.target.value;
+                                                setAdditionalContacts(newContacts);
+                                            }}
+                                        >
+                                            <option value="">Rôle...</option>
+                                            {contactTypes
+                                                .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                                                .map(type => (
+                                                    <option key={type.id} value={type.id}>
+                                                        {client?.language === 'en' && type.nameEn ? type.nameEn : type.name}
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
+                                    <div className="flex-1">
+                                        <select
+                                            className="w-full border rounded p-1 text-sm"
+                                            value={contact.contactId}
+                                            onChange={(e) => {
+                                                const newContacts = [...additionalContacts];
+                                                newContacts[index].contactId = e.target.value;
+                                                setAdditionalContacts(newContacts);
+                                            }}
+                                        >
+                                            <option value="">Personne...</option>
+                                            {client?.contacts
+                                                ?.sort((a: any, b: any) => (a.firstName || '').localeCompare(b.firstName || ''))
+                                                .map((c: any) => (
+                                                    <option key={c.id} value={c.id}>
+                                                        {c.firstName} {c.lastName} {c.role ? `(${c.role})` : ''}
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const newContacts = additionalContacts.filter(c => c.id !== contact.id);
+                                            setAdditionalContacts(newContacts);
+                                        }}
+                                        className="text-red-500 hover:text-red-700 p-1"
+                                        title="Retirer"
+                                    >
+                                        <TrashIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ))}
+
+                            <button
+                                onClick={() => setAdditionalContacts([...additionalContacts, { id: Date.now().toString(), roleId: '', contactId: '' }])}
+                                className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1"
+                            >
+                                <PlusIcon className="w-4 h-4" /> Ajouter un contact
+                            </button>
+                        </div>
+
                         <div>
                             <label className="block text-sm font-medium mb-1">Responsable Comptabilité (Client) <span className="text-red-500">*</span></label>
                             <select
@@ -230,11 +307,20 @@ const ProductionModal: React.FC<ProductionModalProps> = ({ isOpen, onClose, quot
                             >
                                 <option value="">-- Sélectionner --</option>
                                 {client?.contacts
+                                    // Filter for accounting-related roles (FR & EN keywords)
                                     ?.filter((c: any) => {
                                         const r = (c.role || '').toLowerCase();
-                                        return r.includes('compt') || r.includes('financ') || r.includes('admin') || r.includes('factur') || r.includes('pay');
+                                        return r.includes('compt') ||
+                                            r.includes('financ') ||
+                                            r.includes('admin') ||
+                                            r.includes('factur') ||
+                                            r.includes('pay') ||
+                                            r.includes('account') || // English
+                                            r.includes('book') ||    // Bookkeeper
+                                            r.includes('control') || // Controller/Contrôleur
+                                            r.includes('cfo');
                                     })
-                                    .sort((a: any, b: any) => (a.firstName || '').localeCompare(b.firstName || ''))
+                                    ?.sort((a: any, b: any) => (a.firstName || '').localeCompare(b.firstName || ''))
                                     .map((c: any) => (
                                         <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
                                     ))}

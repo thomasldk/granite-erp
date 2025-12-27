@@ -21,10 +21,11 @@ export const getContactTypes = async (req: Request, res: Response) => {
 
 export const createContactType = async (req: Request, res: Response) => {
     try {
-        const { name, category } = req.body;
+        const { name, nameEn, category } = req.body;
         const type = await prisma.contactType.create({
             data: {
                 name,
+                nameEn: nameEn || null, // Optional
                 category: category || 'Client' // Default to Client
             }
         });
@@ -37,10 +38,10 @@ export const createContactType = async (req: Request, res: Response) => {
 export const updateContactType = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { name, category } = req.body;
+        const { name, nameEn, category } = req.body;
         const type = await prisma.contactType.update({
             where: { id },
-            data: { name, category }
+            data: { name, nameEn, category }
         });
         res.json(type);
     } catch (error) {

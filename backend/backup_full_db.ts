@@ -11,9 +11,11 @@ async function backup() {
         'User', 'ThirdParty', 'Contact', 'Address', 'Project',
         'Quote', 'QuoteItem', 'Material', 'Incoterm', 'PaymentTerm',
         'Representative', 'ProjectLocation', 'ProductionSite', 'MaintenanceSite',
-        'WorkOrder', 'Pallet', 'PalletItem', 'Setting', 'Language', 'Currency',
+        'WorkOrder', 'WorkOrderAdditionalContact', 'Pallet', 'PalletItem', 'Setting', 'Language', 'Currency',
         'EquipmentCategory', 'Equipment', 'PartCategory', 'Part', 'RepairRequest', 'RepairPart',
-        'SystemConfig', 'ExchangeRateHistory'
+        'SystemConfig', 'ExchangeRateHistory', 'ContactType',
+        'EmployeeProfile', 'Department', 'JobTitle', 'Role', 'HRSite', 'Printer',
+        'DeliveryNote', 'DeliveryNoteItem'
     ];
 
     for (const model of models) {

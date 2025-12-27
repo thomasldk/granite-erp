@@ -43,6 +43,11 @@ interface WorkOrder {
     pallets: any[];
     clientPO?: string;
     productionSite?: { name: string };
+    additionalContacts?: {
+        id: string;
+        role: { name: string; nameEn?: string };
+        contact: { firstName: string; lastName: string; email: string; mobilePhone?: string };
+    }[];
 }
 
 // Default density
@@ -358,6 +363,17 @@ export default function ProductionOrderDetail() {
                             </button>
                         </div>
                     )}
+
+                    {/* Dynamic Contacts */}
+                    {wo.additionalContacts && wo.additionalContacts.map((ac) => (
+                        <div key={ac.id}>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                                {ac.role.name}
+                            </label>
+                            <div className="font-medium text-gray-900">{ac.contact.firstName} {ac.contact.lastName}</div>
+                            <div className="text-xs text-gray-500">{ac.contact.mobilePhone || ac.contact.email}</div>
+                        </div>
+                    ))}
                 </div>
             </div>
 
@@ -495,8 +511,8 @@ export default function ProductionOrderDetail() {
                                             onClick={() => handlePrintPallet(pallet)}
                                             disabled={printingPalletId === pallet.id}
                                             className={`${printingPalletId === pallet.id
-                                                    ? 'text-red-600 animate-pulse cursor-wait'
-                                                    : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
+                                                ? 'text-red-600 animate-pulse cursor-wait'
+                                                : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'
                                                 } ml-2 p-1 rounded transition-colors`}
                                             title="Imprimer l'étiquette palette"
                                         >

@@ -20,6 +20,7 @@ interface SystemConfigData {
     taxRateTVH_Maritimes?: number;
     defaultMeasureUnit?: string;
     defaultValidityDuration?: number;
+    defaultBrokerFee?: number; // New
 }
 
 const GlobalParameters: React.FC = () => {
@@ -41,7 +42,8 @@ const GlobalParameters: React.FC = () => {
         taxRateTVH: 13.0,
         taxRateTVH_Maritimes: 15.0,
         defaultMeasureUnit: 'an',
-        defaultValidityDuration: 30
+        defaultValidityDuration: 30,
+        defaultBrokerFee: 0
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -203,6 +205,26 @@ const GlobalParameters: React.FC = () => {
                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                             />
                             <p className="text-xs text-slate-500 mt-1">Défaut: 30 jours</p>
+                        </div>
+
+                        {/* Frais Courtage */}
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">
+                                Frais de courtage par défaut (Non-Canadien)
+                            </label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <span className="text-slate-500">$</span>
+                                </div>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    name="defaultBrokerFee"
+                                    value={config.defaultBrokerFee || 0}
+                                    onChange={handleChange}
+                                    className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>

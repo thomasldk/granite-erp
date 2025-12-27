@@ -95,7 +95,7 @@ export const getThirdParties = async (req: Request, res: Response) => {
         const where = type ? { type: String(type) } : {};
         const thirdParties = await prisma.thirdParty.findMany({
             where,
-            include: { contacts: true, addresses: true, paymentTerm: true },
+            include: { contacts: true, addresses: true, paymentTerm: true, customsBroker: true },
             orderBy: { updatedAt: 'desc' }
         });
         res.json(thirdParties);
@@ -109,7 +109,7 @@ export const getThirdPartyById = async (req: Request, res: Response) => {
         const { id } = req.params;
         const thirdParty = await prisma.thirdParty.findUnique({
             where: { id },
-            include: { contacts: true, addresses: true, paymentTerm: true },
+            include: { contacts: true, addresses: true, paymentTerm: true, customsBroker: true },
         });
         if (!thirdParty) {
             return res.status(404).json({ error: 'Third party not found' });

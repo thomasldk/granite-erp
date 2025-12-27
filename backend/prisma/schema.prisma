@@ -80,6 +80,7 @@ model ThirdParty {
   // New Fields
   taxId              String?      // IRS / Tax Number
   customsBrokerId    String?
+  customsBrokerFee   Float?       // New
   customsBroker      ThirdParty?  @relation("CustomsBroker", fields: [customsBrokerId], references: [id])
   brokeredClients    ThirdParty[] @relation("CustomsBroker")
 }
@@ -116,6 +117,7 @@ model Contact {
   quotes       Quote[]
   managedProjects WorkOrder[] @relation("ProjectManager")
   accountingWorkOrders WorkOrder[] @relation("AccountingContact")
+  additionalWorkOrders WorkOrderAdditionalContact[]
 }
 
 model Address {
@@ -162,6 +164,13 @@ model Project {
   location       ProjectLocation? @relation(fields: [locationId], references: [id])
   client         ThirdParty?      @relation(fields: [thirdPartyId], references: [id])
   quotes         Quote[]
+
+  // Delivery Defaults
+  defaultDeliveryAddress String?
+  siteContactName        String?
+  siteContactPhone       String?
+  siteContactEmail       String?
+  siteContactRole        String?
 }
 
 model Quote {
@@ -234,6 +243,8 @@ model WorkOrder {
   projectManager      Contact?  @relation("ProjectManager", fields: [projectManagerId], references: [id])
   accountingContact   Contact?  @relation("AccountingContact", fields: [accountingContactId], references: [id])
   productionSite      ProductionSite? @relation(fields: [productionSiteId], references: [id])
+  
+  additionalContacts  WorkOrderAdditionalContact[] // Dynamic Contacts
 
   quoteId         String   @unique
   quote           Quote    @relation(fields: [quoteId], references: [id])
@@ -241,6 +252,20 @@ model WorkOrder {
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model WorkOrderAdditionalContact {
+  id              String         @id @default(uuid())
+  workOrderId     String
+  contactId       String
+  roleId          String
+
+  workOrder       WorkOrder      @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  contact         Contact        @relation(fields: [contactId], references: [id])
+  role            ContactType    @relation(fields: [roleId], references: [id])
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 }
 
 model Pallet {
@@ -344,9 +369,12 @@ model Representative {
 model ContactType {
   id        String   @id @default(uuid())
   name      String
+  nameEn    String?  // English Name (Optional)
   category  String   @default("Client")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  
+  workOrderAdditionalContacts WorkOrderAdditionalContact[]
 
   @@unique([name, category])
 }
@@ -550,6 +578,7 @@ model SystemConfig {
   taxRateTVH_Maritimes      Float    @default(15.0)
   defaultMeasureUnit        String   @default("an")
   defaultValidityDuration   Int      @default(30)
+  defaultBrokerFee          Float    @default(0) // New
   updatedAt                 DateTime @updatedAt
 }
 
@@ -689,6 +718,8 @@ model DeliveryNote {
   date            DateTime           @default(now())
   
   totalWeight     Float              @default(0)
+  freightCost     Float?             @default(0)
+  customsBrokerFee Float?            @default(0) // New
   
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt

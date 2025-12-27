@@ -106,6 +106,13 @@ async function processJob(filename) {
         console.log(`   PDF Folder: ${dirPdf}`);
     }
 
+    // ACTION: PRINTSKILL (Label)
+    if (action === 'printskill') {
+        console.log(`🏷️ LABEL PRINTING DETECTED`);
+        const printer = rakContent.match(/print\s*=\s*['"](.*?)['"]/i);
+        console.log(`   🖨️ Printer: ${printer ? printer[1] : 'Unknown'}`);
+    }
+
     // FIX FOR REVISION (Find source if not explicit)
     if (action === 'reviser') {
         const ancienNomMatch = rakContent.match(/ancienNom\s*=\s*['"](.*?)['"]/i);
@@ -155,9 +162,9 @@ async function processJob(filename) {
             }
         }
     }
-    else if (targetPath && quoteId && action !== 'devispdf' && action !== 'générationbl' && action !== 'generationbl') {
+    else if (targetPath && quoteId && action !== 'devispdf' && action !== 'générationbl' && action !== 'generationbl' && action !== 'printskill') {
         // --- GENERATE / REINTEGRATE (Download from Mac) ---
-        // CRITICAL FIX: EXCLUDE 'devispdf' AND 'BL' TO PREVENT OVERWRITE/DELETION
+        // CRITICAL FIX: EXCLUDE 'devispdf', 'BL', AND 'PRINTSKILL' TO PREVENT OVERWRITE/DELETION
         // BL Logic: Agent does not need to download Excel source from Mac, Automate creates it from RAK.
 
         console.log(`📥 Downloading Excel Source from Server... URL=${API_BASE}/quotes/${quoteId}/download-source-excel`);
