@@ -880,10 +880,25 @@ const DeliveryNoteList: React.FC = () => {
                                         <dt className="text-xs text-gray-500">Créé Le / Par</dt>
                                         <dd className="text-sm font-medium text-gray-900">
                                             {new Date(selectedNote.createdAt).toLocaleDateString()}
-                                            <br />
-                                            <span className="text-blue-600">
-                                                {selectedNote.createdBy ? `${selectedNote.createdBy.firstName} ${selectedNote.createdBy.lastName}` : 'Système'}
-                                            </span>
+                                            <div className="mt-1">
+                                                <div className="font-medium text-blue-600">
+                                                    {selectedNote.createdBy ? `${selectedNote.createdBy.firstName} ${selectedNote.createdBy.lastName}` : 'Système'}
+                                                </div>
+                                                {selectedNote.createdBy && (
+                                                    <div className="text-xs text-gray-500 mt-1 space-y-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-gray-400 min-w-[30px]">Login</span>
+                                                            <span className="font-mono text-gray-600">{selectedNote.createdBy.email}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-gray-400 min-w-[30px]">Rôle</span>
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 uppercase tracking-wide border border-gray-200">
+                                                                {selectedNote.createdBy.role || 'USER'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </dd>
                                     </div>
 
