@@ -919,17 +919,35 @@ const DeliveryNoteList: React.FC = () => {
                                             </div>
                                             <div>
                                                 <label className="block text-xs text-gray-500 font-bold">Contact Principal</label>
-                                                <div className="text-sm">{selectedNote.client?.contactName || '-'}</div>
+                                                <div className="text-sm">
+                                                    {(() => {
+                                                        const quoteContact = selectedNote.items?.[0]?.pallet?.workOrder?.quote?.contact;
+                                                        if (quoteContact) return `${quoteContact.firstName} ${quoteContact.lastName}`;
+                                                        return selectedNote.client?.contactName || '-';
+                                                    })()}
+                                                </div>
                                             </div>
                                             <div>
                                                 <label className="block text-xs text-gray-500 font-bold">Téléphone (Bureau)</label>
-                                                <div className="text-sm">{formatPhoneNumber(selectedNote.client?.phone || '') || '-'}</div>
+                                                <div className="text-sm">
+                                                    {(() => {
+                                                        const quoteContact = selectedNote.items?.[0]?.pallet?.workOrder?.quote?.contact;
+                                                        const phone = quoteContact ? (quoteContact.phone || quoteContact.mobile) : selectedNote.client?.phone;
+                                                        return formatPhoneNumber(phone || '') || '-';
+                                                    })()}
+                                                </div>
                                             </div>
                                             <div>
                                                 <label className="block text-xs text-gray-500 font-bold">Courriel</label>
-                                                <a href={`mailto:${selectedNote.client?.email}`} className="text-sm text-blue-600 hover:underline">
-                                                    {selectedNote.client?.email || '-'}
-                                                </a>
+                                                {(() => {
+                                                    const quoteContact = selectedNote.items?.[0]?.pallet?.workOrder?.quote?.contact;
+                                                    const email = quoteContact ? quoteContact.email : selectedNote.client?.email;
+                                                    return (
+                                                        <a href={`mailto:${email}`} className="text-sm text-blue-600 hover:underline">
+                                                            {email || '-'}
+                                                        </a>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     </div>

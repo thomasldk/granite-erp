@@ -190,7 +190,7 @@ export const getDeliveryNotes = async (req: Request, res: Response) => {
                                 workOrder: {
                                     include: {
                                         quote: {
-                                            include: { project: true }
+                                            include: { project: true, contact: true }
                                         }
                                     }
                                 }
@@ -263,7 +263,7 @@ export const getDeliveryNoteById = async (req: Request, res: Response) => {
                     include: {
                         pallet: {
                             include: {
-                                workOrder: { include: { quote: { include: { project: true } } } },
+                                workOrder: { include: { quote: { include: { project: true, contact: true } } } },
                                 items: { include: { quoteItem: true } }
                             }
                         }
