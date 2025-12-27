@@ -835,15 +835,14 @@ const DeliveryNoteList: React.FC = () => {
                                     </h2>
                                     <div className="flex items-center space-x-2 mt-1">
                                         <span className="text-gray-500 text-sm">Statut:</span>
-                                        <select
-                                            value={editForm.status}
-                                            onChange={e => setEditForm({ ...editForm, status: e.target.value })}
-                                            className="text-sm border-gray-300 rounded shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
-                                        >
-                                            <option value="Draft">Brouillon</option>
-                                            <option value="Validé">Visualisé</option>
-                                            <option value="Livré">Émis</option>
-                                        </select>
+                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${selectedNote.status === 'Draft' ? 'bg-gray-100 text-gray-800' :
+                                            (selectedNote.status === 'Livré' || selectedNote.status === 'Shipped') ? 'bg-gray-800 text-white' :
+                                                'bg-green-100 text-green-800'
+                                            }`}>
+                                            {selectedNote.status === 'Draft' ? 'Brouillon' :
+                                                (selectedNote.status === 'Livré' || selectedNote.status === 'Shipped') ? 'Émis' :
+                                                    'Visualisé'}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
