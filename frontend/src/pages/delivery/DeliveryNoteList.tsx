@@ -1060,7 +1060,12 @@ const DeliveryNoteList: React.FC = () => {
 
                         {/* Pallet Details Section */}
                         <div className="mb-6">
-                            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Détails du Chargement</h3>
+                            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2 flex justify-between items-center">
+                                <span>Détails du Chargement</span>
+                                <span className="text-gray-900 bg-gray-100 px-2 py-1 rounded text-xs">
+                                    Total: <span className="font-bold text-base">{selectedNote.totalWeight?.toFixed(0)}</span> lbs
+                                </span>
+                            </h3>
                             <div className="bg-gray-50 rounded border overflow-hidden">
                                 <table className="min-w-full divide-y divide-gray-200">
                                     <thead className="bg-gray-100">
