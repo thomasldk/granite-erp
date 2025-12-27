@@ -1089,7 +1089,7 @@ const DeliveryNoteList: React.FC = () => {
                                                     onClick={() => setExpandedPalletId(expandedPalletId === item.palletId ? null : item.palletId)}
                                                 >
                                                     <td className="px-4 py-2">
-                                                        {selectedNote.status === 'Draft' && (
+                                                        {selectedNote.status !== 'Livré' && selectedNote.status !== 'Shipped' && (
                                                             <button
                                                                 onClick={(e) => handleRemovePallet(e, item.palletId)}
                                                                 className="text-red-400 hover:text-red-600 transition-colors p-1"
@@ -1141,8 +1141,8 @@ const DeliveryNoteList: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Available Pallets Section (For Draft Notes) */}
-                        {selectedNote.status === 'Draft' && (
+                        {/* Available Pallets Section (Editable if not Shipped) */}
+                        {selectedNote.status !== 'Livré' && selectedNote.status !== 'Shipped' && (
                             <div className="mb-6 opacity-75 hover:opacity-100 transition-opacity">
                                 <h3 className="text-sm font-semibold text-green-700 uppercase tracking-wider mb-2 flex items-center gap-2">
                                     <span>📥 Palettes Validées Disponibles</span>
