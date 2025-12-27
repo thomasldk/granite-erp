@@ -1063,7 +1063,12 @@ const DeliveryNoteList: React.FC = () => {
                             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2 flex justify-between items-center">
                                 <span>Détails du Chargement</span>
                                 <span className="text-gray-900 bg-gray-100 px-2 py-1 rounded text-xs">
-                                    Total: <span className="font-bold text-base">{selectedNote.totalWeight?.toFixed(0)}</span> lbs
+                                    Total: <span className="font-bold text-base">
+                                        {selectedNote.items?.reduce((total: number, item: any) =>
+                                            total + (item.pallet?.items?.reduce((pSum: number, pi: any) =>
+                                                pSum + (((pi.quoteItem?.totalWeight || 0) / (pi.quoteItem?.quantity || 1)) * (pi.quantity || 0)), 0) || 0), 0
+                                        ).toFixed(0)}
+                                    </span> lbs
                                 </span>
                             </h3>
                             <div className="bg-gray-50 rounded border overflow-hidden">
